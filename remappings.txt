@@ -1,0 +1,7 @@
+delegate-registry/=lib/delegate-registry/
+ds-test/=lib/delegate-registry/lib/forge-std/lib/ds-test/src/
+erc4626-tests/=lib/delegate-registry/lib/openzeppelin-contracts/lib/erc4626-tests/
+forge-std/=lib/delegate-registry/lib/forge-std/src/
+murky/=lib/delegate-registry/lib/murky/
+openzeppelin-contracts/=lib/delegate-registry/lib/openzeppelin-contracts/
+openzeppelin/=lib/delegate-registry/lib/openzeppelin-contracts/contracts/
