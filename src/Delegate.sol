@@ -14,19 +14,16 @@ contract Delegate {
         orchestrator = _orchestrator;
     }
 
-    function propose(address payable governor) external {
+    function propose(
+        address payable governor, 
+        address[] calldata targets,
+        uint256[] calldata values,
+        string[] calldata signatures,
+        bytes[] calldata calldatas,
+        string calldata description
+    ) external {
         if (msg.sender != orchestrator) revert NotOrchestrator(msg.sender);
-
-        // todo: implement placeholders, move arrays to func args
-        address[] memory targets = new address[](1);
-        uint256[] memory values = new uint256[](1);
-        string[] memory signatures = new string[](1);
-        bytes[] memory calldatas = new bytes[](1);
-        targets[0] = address(0x0);
-        values[0] = 1;
-        signatures[0] = '';
-        calldatas[0] = '';
-        string memory test = 'yes';
-        NounsDAOLogicV3(governor).propose(targets, values, signatures, calldatas, test);
+        
+        NounsDAOLogicV3(governor).propose(targets, values, signatures, calldatas, description);
     }
 }

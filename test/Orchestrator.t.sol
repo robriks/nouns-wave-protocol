@@ -12,7 +12,7 @@ contract OrchestratorTest is Test {
     uint256 mainnetFork;
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
 
-    address public alligator; // todo: add dep
+    // address public alligator; // todo: decide if dep is relevant
     Orchestrator public orchestrator;
     NounsDAOLogicV3 public nounsGovernorProxy;
     NounsTokenLike public nounsToken;
@@ -20,6 +20,13 @@ contract OrchestratorTest is Test {
     address someNounHolder; // random Nounder holding 17 Nouns at time of writing
     uint256 someTokenId;
     uint256 anotherTokenId;
+
+    // Nouns proposal configuration
+    address[] targets;
+    uint256[] values;
+    string[] funcSigs;
+    bytes[] calldatas;
+    string description;
 
     struct Rules {
         uint8 permissions;
@@ -34,7 +41,7 @@ contract OrchestratorTest is Test {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
         vm.selectFork(mainnetFork);
 
-        alligator = 0xb6D1EB1A7BE7d55224bB1942C74a5251E6c9Dab3;
+        // alligator = 0xb6D1EB1A7BE7d55224bB1942C74a5251E6c9Dab3;
 
         orchestrator = new Orchestrator();
         nounsGovernorProxy = NounsDAOLogicV3(orchestrator.NOUNS_GOVERNOR());
@@ -44,6 +51,45 @@ contract OrchestratorTest is Test {
         someNounHolder = 0x13061efe742418c361C840CaFf300dC43AC0AffE;
         someTokenId = 918;
         anotherTokenId = 921;
+
+        // placeholder proposal values
+        targets.push(address(0x0));
+        values.push(1);
+        funcSigs.push('');
+        calldatas.push('');
+        description = 'test';
+    }
+
+    function test_delegateBySig() public {
+        // to test signatures in a forked env, tokens must first be transferred to a signer address w/ known privkey
+        uint256 privKey = 0xdeadbeef;
+        address signer = vm.addr(privKey);
+        vm.startPrank(someNounHolder);
+        nounsToken.transferFrom(someNounHolder, signer, someTokenId);
+        nounsToken.transferFrom(someNounHolder, signer, anotherTokenId);
+        vm.stopPrank();
+
+        address delegate = orchestrator.getDelegateAddress(signer);
+        bytes32 nounsDomainSeparator = keccak256(
+            abi.encode(ERC721Checkpointable(address(nounsToken)).DOMAIN_TYPEHASH(), 
+            keccak256(bytes(ERC721Checkpointable(address(nounsToken)).name())), 
+            block.chainid, 
+            address(nounsToken))
+        );
+        uint256 nonce = ERC721Checkpointable(address(nounsToken)).nonces(signer);
+        uint256 expiry = block.timestamp + 1800;
+        bytes32 structHash = keccak256(
+            abi.encode(ERC721Checkpointable(address(nounsToken)).DELEGATION_TYPEHASH(), delegate, nonce, expiry)
+        );
+        bytes32 digest = keccak256(abi.encodePacked('\x19\x01', nounsDomainSeparator, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, digest);
+
+        vm.prank(signer);
+        orchestrator.delegateBySig(nonce, expiry, abi.encodePacked(r, s, v));
+        assertEq(
+            ERC721Checkpointable(address(nounsToken)).delegates(signer), 
+            orchestrator.getDelegateAddress(signer)
+        );
     }
 
     function test_Alligator() public {
@@ -77,7 +123,7 @@ contract OrchestratorTest is Test {
         // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
         vm.roll(block.number + 1);
 
-        orchestrator.propose(); 
+        orchestrator.propose{value: 10_000_000_000_000_000}(targets, values, funcSigs, calldatas, description); 
     }
 
     function test_NounsProposeViaDelegate() public {
@@ -88,7 +134,7 @@ contract OrchestratorTest is Test {
         // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
         vm.roll(block.number + 1);
 
-        orchestrator.propose(); 
+        orchestrator.propose{value: 10_000_000_000_000_000}(targets, values, funcSigs, calldatas, description); 
     }
 
     function test_NounsProposeViaTransfer() public {
@@ -103,6 +149,6 @@ contract OrchestratorTest is Test {
         // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
         vm.roll(block.number + 1);
 
-        orchestrator.propose(); 
+        orchestrator.propose{value: 10_000_000_000_000_000}(targets, values, funcSigs, calldatas, description); 
     }
 }
