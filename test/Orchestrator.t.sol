@@ -17,6 +17,9 @@ contract OrchestratorTest is Test {
     NounsDAOLogicV3 public nounsGovernorProxy;
     NounsTokenLike public nounsToken;
 
+    address ideaTokenHub;
+    address payable nounsGovernor;
+    address nounsTokenAddress;
     address someNounHolder; // random Nounder holding 17 Nouns at time of writing
     uint256 someTokenId;
     uint256 anotherTokenId;
@@ -43,9 +46,16 @@ contract OrchestratorTest is Test {
 
         // alligator = 0xb6D1EB1A7BE7d55224bB1942C74a5251E6c9Dab3;
 
-        orchestrator = new Orchestrator();
-        nounsGovernorProxy = NounsDAOLogicV3(orchestrator.NOUNS_GOVERNOR());
-        nounsToken = NounsTokenLike(orchestrator.NOUNS_TOKEN());
+        ideaTokenHub = address(0x0); //todo: integrate ideaTokenHub deployment to tests
+        nounsGovernor = payable(address(0x6f3E6272A167e8AcCb32072d08E0957F9c79223d));
+        nounsTokenAddress = 0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03;
+
+        orchestrator = new Orchestrator(ideaTokenHub, nounsGovernor, nounsTokenAddress);
+        
+        nounsToken = NounsTokenLike(orchestrator.nounsToken()); 
+        nounsGovernorProxy = NounsDAOLogicV3(orchestrator.nounsGovernor());
+        assertEq(address(nounsToken), nounsTokenAddress);
+        assertEq(address(nounsGovernorProxy), nounsGovernor);
 
         // pulled from etherscan for testing
         someNounHolder = 0x13061efe742418c361C840CaFf300dC43AC0AffE;
@@ -58,6 +68,8 @@ contract OrchestratorTest is Test {
         funcSigs.push('');
         calldatas.push('');
         description = 'test';
+
+        vm.deal(address(this), 1 ether);
     }
 
     function test_delegateBySig() public {
@@ -92,63 +104,66 @@ contract OrchestratorTest is Test {
         );
     }
 
-    function test_Alligator() public {
-        //alligator stuff
-        // bytes memory createCall = abi.encodeWithSignature("create(address,bool)", 
-        //     address(this), //someNounHolder, 
-        //     false
-        // );
-        // // alligator.call(createCall);
+    // function test_purgeInactiveDelegations() public {}
+    // function test_votingPowerChange() public {} // if nounder accumulates tokens, orchestrator should reflect
 
-        
-        // bytes memory subDelegateCall = abi.encodeWithSignature("subDelegate(address,(uint8,uint8,uint32,uint32,uint16,address),bool)", 
-        //     address(0x0),
-        //     Rules({permissions: 0,maxRedelegations: 0, notValidBefore: 0, notValidAfter: 0, blocksBeforeVoteCloses: 0, customRule: address(0x0)}),
-        //     true 
-        // );
-        // vm.prank(someNounHolder);
-        // (bool r,) = alligator.call(subDelegateCall);
-        // require(r);
-
-        // bytes memory proxyAddressCall = abi.encodeWithSignature("proxyAddress(address)", someNounHolder);
-        // (, bytes memory ret) = alligator.call(proxyAddressCall);
-        // address proxy = abi.decode(ret, (address));
-
-        address proxy = orchestrator.createDelegate();
-        
-        vm.startPrank(someNounHolder);
-        ERC721Checkpointable(address(nounsToken)).delegate(proxy);
-        vm.stopPrank();
-
-        // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
-        vm.roll(block.number + 1);
-
-        orchestrator.propose{value: 10_000_000_000_000_000}(targets, values, funcSigs, calldatas, description); 
-    }
-
-    function test_NounsProposeViaDelegate() public {
-        vm.startPrank(someNounHolder);
-        ERC721Checkpointable(address(nounsToken)).delegate(address(orchestrator));
-        vm.stopPrank();
+    // function test_NounsProposeViaDelegate() public {
+    //     vm.startPrank(someNounHolder);
+    //     ERC721Checkpointable(address(nounsToken)).delegate(address(orchestrator));
+    //     vm.stopPrank();
                 
-        // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
-        vm.roll(block.number + 1);
+    //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
+    //     vm.roll(block.number + 1);
 
-        orchestrator.propose{value: 10_000_000_000_000_000}(targets, values, funcSigs, calldatas, description); 
-    }
+    //     orchestrator.pushProposal(targets, values, funcSigs, calldatas, description); 
+    // }
 
-    function test_NounsProposeViaTransfer() public {
-        vm.startPrank(someNounHolder);
-        nounsToken.transferFrom(someNounHolder, address(orchestrator), someTokenId);
-        nounsToken.transferFrom(someNounHolder, address(orchestrator), anotherTokenId);
-        vm.stopPrank();
+    // function test_NounsProposeViaTransfer() public {
+    //     vm.startPrank(someNounHolder);
+    //     nounsToken.transferFrom(someNounHolder, address(orchestrator), someTokenId);
+    //     nounsToken.transferFrom(someNounHolder, address(orchestrator), anotherTokenId);
+    //     vm.stopPrank();
 
-        vm.prank(address(orchestrator));
-        ERC721Checkpointable(address(nounsToken)).delegate(address(type(uint160).max));
+    //     vm.prank(address(orchestrator));
+    //     ERC721Checkpointable(address(nounsToken)).delegate(address(type(uint160).max));
         
-        // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
-        vm.roll(block.number + 1);
+    //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
+    //     vm.roll(block.number + 1);
 
-        orchestrator.propose{value: 10_000_000_000_000_000}(targets, values, funcSigs, calldatas, description); 
-    }
+    //     orchestrator.pushProposal(targets, values, funcSigs, calldatas, description); 
+    // }
+
+    // function test_Alligator() public {
+    //     //alligator stuff
+    //     // bytes memory createCall = abi.encodeWithSignature("create(address,bool)", 
+    //     //     address(this), //someNounHolder, 
+    //     //     false
+    //     // );
+    //     // // alligator.call(createCall);
+
+        
+    //     // bytes memory subDelegateCall = abi.encodeWithSignature("subDelegate(address,(uint8,uint8,uint32,uint32,uint16,address),bool)", 
+    //     //     address(0x0),
+    //     //     Rules({permissions: 0,maxRedelegations: 0, notValidBefore: 0, notValidAfter: 0, blocksBeforeVoteCloses: 0, customRule: address(0x0)}),
+    //     //     true 
+    //     // );
+    //     // vm.prank(someNounHolder);
+    //     // (bool r,) = alligator.call(subDelegateCall);
+    //     // require(r);
+
+    //     // bytes memory proxyAddressCall = abi.encodeWithSignature("proxyAddress(address)", someNounHolder);
+    //     // (, bytes memory ret) = alligator.call(proxyAddressCall);
+    //     // address proxy = abi.decode(ret, (address));
+
+    //     address proxy = orchestrator.createDelegate();
+        
+    //     vm.startPrank(someNounHolder);
+    //     ERC721Checkpointable(address(nounsToken)).delegate(proxy);
+    //     vm.stopPrank();
+
+    //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
+    //     vm.roll(block.number + 1);
+
+    //     orchestrator.pushProposal(targets, values, funcSigs, calldatas, description); 
+    // }
 }

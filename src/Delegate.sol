@@ -14,7 +14,7 @@ contract Delegate {
         orchestrator = _orchestrator;
     }
 
-    function propose(
+    function pushProposal(
         address payable governor, 
         address[] calldata targets,
         uint256[] calldata values,
