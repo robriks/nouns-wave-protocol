@@ -6,11 +6,23 @@ import {NounsDAOLogicV3} from "nouns-monorepo/governance/NounsDAOLogicV3.sol";
 import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {ERC721Checkpointable} from "nouns-monorepo/base/ERC721Checkpointable.sol";
 import {Delegate} from "./Delegate.sol";
+import {console2} from "forge-std/console2.sol";
 
 contract Orchestrator {
     // Nounder calls this contract to generate a proxy and delegates voting power to it
-    // proxy contract contains only two functions: propose and withdraw
-    // Any address can then use the proposal power of the Nounder's proxy via this contract as intermediary
+    // For utmost security, the Delegate contains no functionality beyond pushing proposals into Noun governance 
+    // This democratizes access to publicizing ideas for Nouns governance to any address by lending proposal power 
+    // and lowering the barrier of entry to submitting onchain proposals. Competition is introduced by an auction
+    // of ERC1155s, each representing an idea for a proposal. 
+
+    // proposals -> 1155s that non-nounders can mint for a fee in support of (provenance + liquidity)
+    // 1155 w/ most mints wins onchain, two week proposal 'ritual' to push ideas onchain based on highest mints
+    // split sum of minting fees between existing noun delegates in a claim() func
+    // non-winning tokens w/ existing votes can roll over into following two week periods
+    // enable pooling of delegation power so that eg 2 nounders who only own 1 noun each can pool their power to propose  
+    
+    // todo: handle updates of votingPower changes
+    // todo: user create interfaces for ERC721Checkpointable and ERC721Votes
     // todo: must inherit erc721receiver if receiving tokens to enable delegation of partial vote balance
 
     /*
@@ -26,7 +38,7 @@ contract Orchestrator {
     /// with another delegation to supplement its votingPower by together delegating to the same proxy
     struct Delegation {
         address delegator;
-        uint64 blockDelegated;
+        uint32 blockDelegated;
         uint16 votingPower;
         uint16 supplementId;
     }
@@ -38,6 +50,8 @@ contract Orchestrator {
     error Create2Failure();
     error OnlyIdeaContract();
     error ECDSAInvalidSignatureLength(uint256 length);
+    error InsufficientDelegations();
+    error OnlyDelegatecallContext();
     event DelegateCreated(address nounder, address delegate);
     event DelegationActivated(Delegation activeDelegation);
     event DelegationDeleted(Delegation inactiveDelegation);
@@ -49,6 +63,7 @@ contract Orchestrator {
     address public immutable ideaTokenHub;
     address payable public immutable nounsGovernor;
     address public immutable nounsToken;
+    address private immutable __self = address(this);
 
     /*
       Storage
@@ -63,27 +78,41 @@ contract Orchestrator {
         nounsToken = nounsToken_;
     }
 
-    // proposals -> 1155s that non-nounders can mint for a fee in support of (provenance + liquidity)
-    // 1155 w/ most mints wins onchain, two week proposal 'ritual' to push ideas onchain based on highest mints
-    // split sum of minting fees between existing noun delegates in a claim() func
-    // non-winning tokens w/ existing votes can roll over into following two week periods
-    // enable pooling of delegation power so that eg 2 nounders who only own 1 noun each can pool their power to propose  
-    // todo: handle updates of votingPower changes
-    // todo: user create interfaces for ERC721Checkpointable and ERC721Votes
-
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
     /// Checks for changes in delegation state on `nounsToken` contract and updates PropLot recordkeeping accordingly
     /// @notice May only be called by the PropLot's ERC1155 Idea token hub at the conclusion of each 2-week round
     function pushProposal(
-        address[] calldata targets,
-        uint256[] calldata values,
-        string[] calldata signatures,
-        bytes[] calldata calldatas,
+        NounsDAOV3Proposals.ProposalTxs calldata txs,
         string calldata description
     ) public payable {
         // todo check for external rogue redelegations and update state
-        if (msg.sender != ideaTokenHub) revert OnlyIdeaContract(); 
-        _delegate.pushProposal(nounsGovernor, targets, values, signatures, calldatas, description);
+        if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
+        
+        _purgeInactiveDelegations();
+        uint256 len = _activeDelegations.length; 
+        if (len == 0) revert InsufficientDelegations();
+
+        // find a suitable proposer delegate
+        unchecked {
+            for (uint256 i; i < len; ++i) {
+                Delegation memory currentDelegation = _activeDelegations[i];
+                
+                address delegate = getDelegateAddress(currentDelegation.delegator);
+                uint256 delegatesLatestProposal = NounsDAOLogicV3(nounsGovernor).latestProposalIds(delegate);
+                if (delegatesLatestProposal != 0) {
+                    // skip ineligible Delegates with active proposals 
+                    NounsDAOStorageV3.ProposalState delegatesLatestProposalState = NounsDAOLogicV3(nounsGovernor).state(delegatesLatestProposal);
+                    if (
+                        delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod ||
+                        delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Active ||
+                        delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Pending ||
+                        delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Updatable
+                    ) continue;
+                }
+
+                Delegate(delegate).pushProposal(nounsGovernor, txs, description);
+            }
+        }
     }
 
     /// @dev Simultaneously creates a delegate if it doesn't yet exist and grants voting power to the delegate
@@ -91,16 +120,18 @@ contract Orchestrator {
     /// @notice The Nouns ERC721Checkpointable implementation only supports standard EOA ECDSA signatures and thus
     /// does not support smart contract signatures. In that case, `delegate()` must be called on the Nouns contract directly
     // todo: use delegatecall to support smart contract wallets? would need isValidSignature() check before nounsToken.delegate()
-    function delegateBySig(uint256 nonce, uint256 expiry, bytes calldata signature) public {
+    function delegateBySig(uint256 nonce, uint256 expiry, bytes calldata signature) external {
         if (signature.length != 65) revert ECDSAInvalidSignatureLength(signature.length);
         
-        //todo: check if getPriorVotes(msg.sender, block.number) is < proposalThreshold, add to supplement mapping
+        //todo: check if votesToDelegate(msg.sender) is < proposalThreshold, add to supplement mapping
         address delegate = getDelegateAddress(msg.sender);
         if (delegate.code.length == 0) {
             createDelegate();
         }
 
-        Delegate memory delegation = ({msg.sender, block.number, votingPower, supplementId});
+        uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(msg.sender));
+        uint16 supplementId;//TODO: matchmaking 
+        Delegation memory delegation = Delegation(msg.sender, uint32(block.number), votingPower, supplementId);
         _setActiveDelegation(delegation);
 
         ERC721Checkpointable(nounsToken).delegateBySig(
@@ -111,13 +142,31 @@ contract Orchestrator {
             bytes32(signature[0:32]),
             bytes32(signature[32:64])
         );
+
+        emit DelegationActivated(delegation);
     }
 
-    function createDelegate() public returns (address delegate) {
-        delegate = address(new Delegate{salt: bytes32(uint256(uint160(msg.sender)))}(address(this)));
-        if (delegate == address(0x0)) revert Create2Failure();
-        
-        emit DelegateCreated(msg.sender, delegate);
+    /// @dev Enables delegation when using smart contract signatures using this contract as intermediary
+    /// @notice Must be invoked in the context of `delegatecall`
+    function delegateBySigERC1271(bytes calldata signature) external {
+        if (address(this) == __self) revert OnlyDelegatecallContext();
+        // todo: test gnosis safe multiple sig integration
+        if (signature.length % 65 != 0) revert ECDSAInvalidSignatureLength(signature.length);
+
+        //todo: check if votesToDelegate(msg.sender) is < proposalThreshold, add to supplement mapping
+        address delegate = getDelegateAddress(address(this));//msg.sender);
+        if (delegate.code.length == 0) {
+            console2.logAddress(_createDelegate(address(this)));
+            console2.logAddress(delegate);
+        }
+
+        uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(address(this)));//msg.sender));
+        uint16 supplementId;//TODO: matchmaking
+        Delegation memory delegation = Delegation(address(this)/*msg.sender*/, uint32(block.number), votingPower, supplementId);
+
+        ERC721Checkpointable(nounsToken).delegate(delegate);
+
+        // (__self)setActiveDelegation(delegation);
     }
     
     function getDelegateAddress(address nounder) public view returns (address delegate) {
@@ -127,17 +176,28 @@ contract Orchestrator {
         delegate = _simulateCreate2(bytes32(uint256(uint160(nounder))), creationCodeHash);
     }
 
+    function createDelegate() public returns (address delegate) {
+        delegate = _createDelegate(msg.sender);
+    }
+
+    function _createDelegate(address _nounder) internal returns (address _delegate) {
+        _delegate = address(new Delegate{salt: bytes32(uint256(uint160(_nounder)))}(__self));//address(this)));
+        if (_delegate == address(0x0)) revert Create2Failure();
+        
+        emit DelegateCreated(_nounder, _delegate);
+    }
+
     function _purgeInactiveDelegations() internal {
         unchecked {
             for (uint256 i; i < _activeDelegations.length; ++i) {
-                address nounder = _activeDelegations[i].delegator;
+                // cache currentDelegation in memory to reduce SLOADs for potential event & gas optimization
+                Delegation memory currentDelegation = _activeDelegations[i];
+                address nounder = currentDelegation.delegator;
                 address delegate = getDelegateAddress(nounder);
                 
                 uint256 numInactiveNonLastIndices;
+                // todo: || ERC721Checkpointable(nounsToken).fromBlock != currentDelegation.blockDelegated
                 if (ERC721Checkpointable(nounsToken).delegates(nounder) != delegate) {
-                    // cache inactive delegation in memory for later event emission
-                    Delegation memory inactiveDelegation = _activeDelegations[i];
-
                     uint256 lastIndex = _activeDelegations.length - 1;
                     if (i < lastIndex) {
                         Delegation memory lastDelegation = _activeDelegations[lastIndex];
@@ -145,7 +205,7 @@ contract Orchestrator {
                         ++numInactiveNonLastIndices;
                     }
 
-                    emit DelegationDeleted(inactiveDelegation);
+                    emit DelegationDeleted(currentDelegation);
                 }
 
                 uint256 startIndex = _activeDelegations.length - 1;
@@ -164,11 +224,13 @@ contract Orchestrator {
     }
 
     function _simulateCreate2(bytes32 _salt, bytes32 _creationCodeHash) internal view returns (address simulatedDeployment) {
+        address self = __self;
+        console2.logAddress(self);
         assembly {
             let ptr := mload(0x40) // instantiate free mem pointer
 
             mstore(add(ptr, 0x0b), 0xff) // insert single byte create2 constant at 11th offset (starting from 0)
-            mstore(ptr, address()) // insert 20-byte deployer address at 12th offset
+            mstore(ptr, self /*address()*/) // insert 20-byte deployer address at 12th offset
             mstore(add(ptr, 0x20), _salt) // insert 32-byte salt at 32nd offset
             mstore(add(ptr, 0x40), _creationCodeHash) // insert 32-byte creationCodeHash at 64th offset
 

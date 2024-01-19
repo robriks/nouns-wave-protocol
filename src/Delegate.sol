@@ -15,15 +15,12 @@ contract Delegate {
     }
 
     function pushProposal(
-        address payable governor, 
-        address[] calldata targets,
-        uint256[] calldata values,
-        string[] calldata signatures,
-        bytes[] calldata calldatas,
+        address payable governor,
+        NounsDAOV3Proposals.ProposalTxs calldata txs, 
         string calldata description
     ) external {
         if (msg.sender != orchestrator) revert NotOrchestrator(msg.sender);
         
-        NounsDAOLogicV3(governor).propose(targets, values, signatures, calldatas, description);
+        NounsDAOLogicV3(governor).propose(txs.targets, txs.values, txs.signatures, txs.calldatas, description);
     }
 }

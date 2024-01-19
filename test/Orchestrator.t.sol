@@ -23,6 +23,8 @@ contract OrchestratorTest is Test {
     address someNounHolder; // random Nounder holding 17 Nouns at time of writing
     uint256 someTokenId;
     uint256 anotherTokenId;
+    address someReallyOldGnosisSafe;
+    address[] ownersOfOldSafe;
 
     // Nouns proposal configuration
     address[] targets;
@@ -61,6 +63,12 @@ contract OrchestratorTest is Test {
         someNounHolder = 0x13061efe742418c361C840CaFf300dC43AC0AffE;
         someTokenId = 918;
         anotherTokenId = 921;
+        // top multisig Nouns holder lol
+        someReallyOldGnosisSafe = 0x2573C60a6D127755aA2DC85e342F7da2378a0Cc5;
+        ownersOfOldSafe.push(0x6223Bc5fd16a19bcFAe2281dDE47861CFE1023eE);
+        ownersOfOldSafe.push(0x83fCFe8Ba2FEce9578F0BbaFeD4Ebf5E915045B9);
+        ownersOfOldSafe.push(0xe8cE6C8E37C61b6b77419eEbD661112C21A3Aff8);
+        ownersOfOldSafe.push(0xfC9e8dB5E255439F430e058462360Dd52b87cB4f);
 
         // placeholder proposal values
         targets.push(address(0x0));
@@ -104,10 +112,64 @@ contract OrchestratorTest is Test {
         );
     }
 
-    // function test_purgeInactiveDelegations() public {}
-    // function test_votingPowerChange() public {} // if nounder accumulates tokens, orchestrator should reflect
+    function test_delegateBySigERC1271() public {        
+        // construct signature for Safe approvedHash
+        bytes memory sig = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[0]))), bytes32(0), uint8(1));
+        // get current nonce
+        (bool ret, bytes memory res) = someReallyOldGnosisSafe.call(abi.encodeWithSignature("nonce()", ''));
+        uint256 nonce = abi.decode(res, (uint256));
+        bytes memory getTransactionHashCall = abi.encodeWithSignature(
+            "getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)",
+            address(orchestrator),
+            0,
+            abi.encodeWithSignature("delegateBySigERC1271(bytes)", sig),
+            uint8(1), // Enum.Operation.DelegateCall
+            0,
+            0,
+            0,
+            address(0x0),
+            address(0x0),
+            nonce
+        );
+        (, bytes memory result) = someReallyOldGnosisSafe.call(getTransactionHashCall);
+        bytes32 hashToApprove = abi.decode(result, (bytes32));
+        bytes memory hashToApproveCall = abi.encodeWithSignature("approveHash(bytes32)", hashToApprove);
+        
+        // owner threshold for this old safe is 4
+        for (uint256 i; i < ownersOfOldSafe.length; ++i) {
+            vm.prank(ownersOfOldSafe[i]);
+            someReallyOldGnosisSafe.call(hashToApproveCall);
+        }
 
-    // function test_NounsProposeViaDelegate() public {
+        bytes memory sig2 = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[1]))), bytes32(0), uint8(1));
+        bytes memory sig3 = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[2]))), bytes32(0), uint8(1));
+        bytes memory sig4 = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[3]))), bytes32(0), uint8(1));
+
+        bytes memory execTransactionCall = abi.encodeWithSignature(
+            "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)",
+            address(orchestrator),
+            0,
+            abi.encodeWithSignature("delegateBySigERC1271(bytes)", sig),
+            uint8(1), // Enum.Operation.DelegateCall
+            0,
+            0,
+            0,
+            address(0x0),
+            address(0x0),
+            abi.encodePacked(sig,sig2,sig3,sig4)
+        );
+        someReallyOldGnosisSafe.call(execTransactionCall);
+    }
+
+    // function test_purgeInactiveDelegations() public {}
+
+    // if nounder accumulates tokens, orchestrator should reflect
+    function test_checkpointChange() public {
+        vm.startPrank(someNounHolder);
+        nounsToken.transferFrom(someNounHolder, someNounHolder, someTokenId);
+    }
+
+    // function test_pushProposal() public {
     //     vm.startPrank(someNounHolder);
     //     ERC721Checkpointable(address(nounsToken)).delegate(address(orchestrator));
     //     vm.stopPrank();
