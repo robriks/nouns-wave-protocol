@@ -62,7 +62,7 @@ contract OrchestratorTest is Test {
         // pulled from etherscan for testing
         someNounHolder = 0x13061efe742418c361C840CaFf300dC43AC0AffE;
         someTokenId = 918;
-        anotherTokenId = 921;
+        anotherTokenId = 931;
         // top multisig Nouns holder lol
         someReallyOldGnosisSafe = 0x2573C60a6D127755aA2DC85e342F7da2378a0Cc5;
         ownersOfOldSafe.push(0x6223Bc5fd16a19bcFAe2281dDE47861CFE1023eE);

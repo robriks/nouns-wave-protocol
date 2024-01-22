@@ -126,7 +126,7 @@ contract Orchestrator {
         //todo: check if votesToDelegate(msg.sender) is < proposalThreshold, add to supplement mapping
         address delegate = getDelegateAddress(msg.sender);
         if (delegate.code.length == 0) {
-            createDelegate();
+            createDelegate(msg.sender);
         }
 
         uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(msg.sender));
@@ -154,15 +154,15 @@ contract Orchestrator {
         if (signature.length % 65 != 0) revert ECDSAInvalidSignatureLength(signature.length);
 
         //todo: check if votesToDelegate(msg.sender) is < proposalThreshold, add to supplement mapping
-        address delegate = getDelegateAddress(address(this));//msg.sender);
+        address delegate = getDelegateAddress(address(this));
         if (delegate.code.length == 0) {
-            console2.logAddress(_createDelegate(address(this)));
-            console2.logAddress(delegate);
+            // `createDelegate()` will revert on failure
+            Orchestrator(__self).createDelegate(address(this));
         }
 
-        uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(address(this)));//msg.sender));
+        uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(address(this)));
         uint16 supplementId;//TODO: matchmaking
-        Delegation memory delegation = Delegation(address(this)/*msg.sender*/, uint32(block.number), votingPower, supplementId);
+        Delegation memory delegation = Delegation(address(this), uint32(block.number), votingPower, supplementId);
 
         ERC721Checkpointable(nounsToken).delegate(delegate);
 
@@ -172,19 +172,16 @@ contract Orchestrator {
     function getDelegateAddress(address nounder) public view returns (address delegate) {
         //todo if (supplementDelegates[delegate] != address(0x0) return supplementDelegates[nouner]; 
 
-        bytes32 creationCodeHash = keccak256(type(Delegate).creationCode);
+        bytes32 creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(__self)))));
         delegate = _simulateCreate2(bytes32(uint256(uint160(nounder))), creationCodeHash);
     }
 
-    function createDelegate() public returns (address delegate) {
-        delegate = _createDelegate(msg.sender);
-    }
+    function createDelegate(address nounder) public returns (address delegate) {
+        delegate = address(new Delegate{salt: bytes32(uint256(uint160(nounder)))}(__self));
 
-    function _createDelegate(address _nounder) internal returns (address _delegate) {
-        _delegate = address(new Delegate{salt: bytes32(uint256(uint160(_nounder)))}(__self));//address(this)));
-        if (_delegate == address(0x0)) revert Create2Failure();
+        if (delegate == address(0x0)) revert Create2Failure();
         
-        emit DelegateCreated(_nounder, _delegate);
+        emit DelegateCreated(nounder, delegate);
     }
 
     function _purgeInactiveDelegations() internal {
@@ -225,17 +222,18 @@ contract Orchestrator {
 
     function _simulateCreate2(bytes32 _salt, bytes32 _creationCodeHash) internal view returns (address simulatedDeployment) {
         address self = __self;
-        console2.logAddress(self);
+
         assembly {
             let ptr := mload(0x40) // instantiate free mem pointer
 
-            mstore(add(ptr, 0x0b), 0xff) // insert single byte create2 constant at 11th offset (starting from 0)
-            mstore(ptr, self /*address()*/) // insert 20-byte deployer address at 12th offset
-            mstore(add(ptr, 0x20), _salt) // insert 32-byte salt at 32nd offset
+            // populate memory in small-Endian order to prevent `self` from overwriting the `0xff` prefix byte
             mstore(add(ptr, 0x40), _creationCodeHash) // insert 32-byte creationCodeHash at 64th offset
+            mstore(add(ptr, 0x20), _salt) // insert 32-byte salt at 32nd offset
+            mstore(ptr, self) // insert 20-byte deployer address at 12th offset
+            let startOffset := add(ptr, 0x0b) // prefix byte `0xff` must be inserted after `self` so it is not overwritten
+            mstore8(startOffset, 0xff) // insert single byte create2 constant at 11th offset within `ptr` word
 
-            // hash all inserted data, which is 85 bytes long, starting from 0xff constant at 11th offset
-            simulatedDeployment := keccak256(add(ptr, 0x0b), 85)
+            simulatedDeployment := keccak256(startOffset, 85)
         }
     }
 }
