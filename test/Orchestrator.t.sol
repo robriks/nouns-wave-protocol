@@ -6,14 +6,14 @@ import {NounsDAOProxyV3} from "nouns-monorepo/governance/NounsDAOProxyV3.sol";
 import {NounsDAOLogicV3} from "nouns-monorepo/governance/NounsDAOLogicV3.sol";
 import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {ERC721Checkpointable} from "nouns-monorepo/base/ERC721Checkpointable.sol";
-import {Orchestrator} from "../src/Orchestrator.sol";
+import {PropLotCore} from "../src/PropLotCore.sol";
 
 contract OrchestratorTest is Test {
     uint256 mainnetFork;
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
 
     // address public alligator; // todo: decide if dep is relevant
-    Orchestrator public orchestrator;
+    PropLotCore public propLotCore;
     NounsDAOLogicV3 public nounsGovernorProxy;
     NounsTokenLike public nounsToken;
 
@@ -52,10 +52,10 @@ contract OrchestratorTest is Test {
         nounsGovernor = payable(address(0x6f3E6272A167e8AcCb32072d08E0957F9c79223d));
         nounsTokenAddress = 0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03;
 
-        orchestrator = new Orchestrator(ideaTokenHub, nounsGovernor, nounsTokenAddress);
+        propLotCore = new PropLotCore(ideaTokenHub, nounsGovernor, nounsTokenAddress);
         
-        nounsToken = NounsTokenLike(orchestrator.nounsToken()); 
-        nounsGovernorProxy = NounsDAOLogicV3(orchestrator.nounsGovernor());
+        nounsToken = NounsTokenLike(propLotCore.nounsToken()); 
+        nounsGovernorProxy = NounsDAOLogicV3(propLotCore.nounsGovernor());
         assertEq(address(nounsToken), nounsTokenAddress);
         assertEq(address(nounsGovernorProxy), nounsGovernor);
 
@@ -89,13 +89,13 @@ contract OrchestratorTest is Test {
         nounsToken.transferFrom(someNounHolder, signer, anotherTokenId);
         vm.stopPrank();
 
-        address delegate = orchestrator.getDelegateAddress(signer);
-        bytes32 nounsDomainSeparator = keccak256(
-            abi.encode(ERC721Checkpointable(address(nounsToken)).DOMAIN_TYPEHASH(), 
+        address delegate = propLotCore.getDelegateAddress(signer);
+        bytes32 nounsDomainSeparator = keccak256(abi.encode(
+            ERC721Checkpointable(address(nounsToken)).DOMAIN_TYPEHASH(), 
             keccak256(bytes(ERC721Checkpointable(address(nounsToken)).name())), 
             block.chainid, 
-            address(nounsToken))
-        );
+            address(nounsToken)
+        ));
         uint256 nonce = ERC721Checkpointable(address(nounsToken)).nonces(signer);
         uint256 expiry = block.timestamp + 1800;
         bytes32 structHash = keccak256(
@@ -105,14 +105,14 @@ contract OrchestratorTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, digest);
 
         vm.prank(signer);
-        orchestrator.delegateBySig(nonce, expiry, abi.encodePacked(r, s, v));
+        propLotCore.delegateBySig(nonce, expiry, abi.encodePacked(r, s, v));
         assertEq(
             ERC721Checkpointable(address(nounsToken)).delegates(signer), 
-            orchestrator.getDelegateAddress(signer)
+            propLotCore.getDelegateAddress(signer)
         );
     }
 
-    function test_delegateBySigERC1271() public {        
+    function test_delegateByDelegatecall() public {        
         // construct signature for Safe approvedHash
         bytes memory sig = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[0]))), bytes32(0), uint8(1));
         // get current nonce
@@ -120,9 +120,9 @@ contract OrchestratorTest is Test {
         uint256 nonce = abi.decode(res, (uint256));
         bytes memory getTransactionHashCall = abi.encodeWithSignature(
             "getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)",
-            address(orchestrator),
+            address(propLotCore),
             0,
-            abi.encodeWithSignature("delegateBySigERC1271(bytes)", sig),
+            abi.encodeWithSignature("delegateByDelegatecall()"),
             uint8(1), // Enum.Operation.DelegateCall
             0,
             0,
@@ -147,9 +147,9 @@ contract OrchestratorTest is Test {
 
         bytes memory execTransactionCall = abi.encodeWithSignature(
             "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)",
-            address(orchestrator),
+            address(propLotCore),
             0,
-            abi.encodeWithSignature("delegateBySigERC1271(bytes)", sig),
+            abi.encodeWithSignature("delegateByDelegatecall()"),
             uint8(1), // Enum.Operation.DelegateCall
             0,
             0,
@@ -161,38 +161,50 @@ contract OrchestratorTest is Test {
         someReallyOldGnosisSafe.call(execTransactionCall);
     }
 
+    // function test_computeNounsDelegationDigest
     // function test_purgeInactiveDelegations() public {}
 
-    // if nounder accumulates tokens, orchestrator should reflect
+    // if nounder accumulates tokens, PropLotCore should reflect
     function test_checkpointChange() public {
         vm.startPrank(someNounHolder);
         nounsToken.transferFrom(someNounHolder, someNounHolder, someTokenId);
     }
 
+    function test_misc() public {
+        // console2.logUint(NounsDAOLogicV3(nounsGovernor).proposalThreshold());
+        // vm.startPrank(someNounHolder);
+        // nounsToken.transferFrom(someNounHolder, address(this), someTokenId);
+        // nounsToken.transferFrom(someNounHolder, address(this), anotherTokenId);
+        // vm.stopPrank();
+
+        // vm.roll(block.number + 1);
+        // NounsDAOLogicV3(nounsGovernor).propose(targets, values, funcSigs, calldatas, description);
+}
+
     // function test_pushProposal() public {
     //     vm.startPrank(someNounHolder);
-    //     ERC721Checkpointable(address(nounsToken)).delegate(address(orchestrator));
+    //     ERC721Checkpointable(address(nounsToken)).delegate(address(propLotCore));
     //     vm.stopPrank();
                 
     //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
     //     vm.roll(block.number + 1);
 
-    //     orchestrator.pushProposal(targets, values, funcSigs, calldatas, description); 
+    //     propLotCore.pushProposal(targets, values, funcSigs, calldatas, description); 
     // }
 
     // function test_NounsProposeViaTransfer() public {
     //     vm.startPrank(someNounHolder);
-    //     nounsToken.transferFrom(someNounHolder, address(orchestrator), someTokenId);
-    //     nounsToken.transferFrom(someNounHolder, address(orchestrator), anotherTokenId);
+    //     nounsToken.transferFrom(someNounHolder, address(propLotCore), someTokenId);
+    //     nounsToken.transferFrom(someNounHolder, address(propLotCore), anotherTokenId);
     //     vm.stopPrank();
 
-    //     vm.prank(address(orchestrator));
+    //     vm.prank(address(propLotCore));
     //     ERC721Checkpointable(address(nounsToken)).delegate(address(type(uint160).max));
         
     //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
     //     vm.roll(block.number + 1);
 
-    //     orchestrator.pushProposal(targets, values, funcSigs, calldatas, description); 
+    //     propLotCore.pushProposal(targets, values, funcSigs, calldatas, description); 
     // }
 
     // function test_Alligator() public {
@@ -217,7 +229,7 @@ contract OrchestratorTest is Test {
     //     // (, bytes memory ret) = alligator.call(proxyAddressCall);
     //     // address proxy = abi.decode(ret, (address));
 
-    //     address proxy = orchestrator.createDelegate();
+    //     address proxy = propLotCore.createDelegate();
         
     //     vm.startPrank(someNounHolder);
     //     ERC721Checkpointable(address(nounsToken)).delegate(proxy);
@@ -226,6 +238,6 @@ contract OrchestratorTest is Test {
     //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
     //     vm.roll(block.number + 1);
 
-    //     orchestrator.pushProposal(targets, values, funcSigs, calldatas, description); 
+    //     propLotCore.pushProposal(targets, values, funcSigs, calldatas, description); 
     // }
 }

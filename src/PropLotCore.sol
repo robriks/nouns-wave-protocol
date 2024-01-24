@@ -8,7 +8,7 @@ import {ERC721Checkpointable} from "nouns-monorepo/base/ERC721Checkpointable.sol
 import {Delegate} from "./Delegate.sol";
 import {console2} from "forge-std/console2.sol";
 
-contract Orchestrator {
+contract PropLotCore {
     // Nounder calls this contract to generate a proxy and delegates voting power to it
     // For utmost security, the Delegate contains no functionality beyond pushing proposals into Noun governance 
     // This democratizes access to publicizing ideas for Nouns governance to any address by lending proposal power 
@@ -39,6 +39,7 @@ contract Orchestrator {
     struct Delegation {
         address delegator;
         uint32 blockDelegated;
+        uint32 numCheckpointsSnapshot;
         uint16 votingPower;
         uint16 supplementId;
     }
@@ -47,11 +48,13 @@ contract Orchestrator {
       Errors + Events
     */
 
-    error Create2Failure();
     error OnlyIdeaContract();
-    error ECDSAInvalidSignatureLength(uint256 length);
     error InsufficientDelegations();
+    error NotDelegated(address nounder, address delegate);
+    error ECDSAInvalidSignatureLength(uint256 length);
     error OnlyDelegatecallContext();
+    error Create2Failure();
+    
     event DelegateCreated(address nounder, address delegate);
     event DelegationActivated(Delegation activeDelegation);
     event DelegationDeleted(Delegation inactiveDelegation);
@@ -63,12 +66,13 @@ contract Orchestrator {
     address public immutable ideaTokenHub;
     address payable public immutable nounsGovernor;
     address public immutable nounsToken;
-    address private immutable __self = address(this);
+    address private immutable __self;
 
     /*
       Storage
     */
 
+    /// @notice Since delegations can be revoked directly on the Nouns token contract, active delegations are handled optimistically
     Delegation[] private _activeDelegations;
     //todo mapping (address => address) public _supplementDelegations;
 
@@ -76,6 +80,8 @@ contract Orchestrator {
         ideaTokenHub = ideaTokenHub_;
         nounsGovernor = nounsGovernor_;
         nounsToken = nounsToken_;
+        __self = address(this);
+        // __nounsName = bytes(ERC721Checkpointable(nounsToken).name());
     }
 
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
@@ -85,14 +91,17 @@ contract Orchestrator {
         NounsDAOV3Proposals.ProposalTxs calldata txs,
         string calldata description
     ) public payable {
-        // todo check for external rogue redelegations and update state
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
+        // check for external Nouns transfers or rogue redelegations, update state
         _purgeInactiveDelegations();
+        
         uint256 len = _activeDelegations.length; 
         if (len == 0) revert InsufficientDelegations();
 
+        uint256 proposalThreshold = NounsDAOLogicV3(nounsGovernor).proposalThreshold();
         // find a suitable proposer delegate
+        address proposer;
         unchecked {
             for (uint256 i; i < len; ++i) {
                 Delegation memory currentDelegation = _activeDelegations[i];
@@ -110,7 +119,12 @@ contract Orchestrator {
                     ) continue;
                 }
 
+                // proposer = delegate;
+                //todo find way for supplementDelegations to handle increased proposal threshold
+                //todo handle existence of supplementId
+                //todo handle issue where last delegate in array is 
                 Delegate(delegate).pushProposal(nounsGovernor, txs, description);
+                //todo handle situation where there is no eligible delegate
             }
         }
     }
@@ -129,9 +143,10 @@ contract Orchestrator {
             createDelegate(msg.sender);
         }
 
+        uint32 proposalThreshold = uint32(NounsDAOLogicV3(nounsGovernor).proposalThreshold());
         uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(msg.sender));
         uint16 supplementId;//TODO: matchmaking 
-        Delegation memory delegation = Delegation(msg.sender, uint32(block.number), votingPower, supplementId);
+        Delegation memory delegation = Delegation(msg.sender, uint32(block.number), proposalThreshold, votingPower, supplementId);
         _setActiveDelegation(delegation);
 
         ERC721Checkpointable(nounsToken).delegateBySig(
@@ -142,38 +157,51 @@ contract Orchestrator {
             bytes32(signature[0:32]),
             bytes32(signature[32:64])
         );
-
-        emit DelegationActivated(delegation);
     }
 
-    /// @dev Enables delegation when using smart contract signatures using this contract as intermediary
+    /// @dev Updates this contract's storage to reflect delegations performed directly on the Nouns token contract
+    /// @dev Serves as an alternative to `delegateByDelegatecall()` for smart contract wallets
+    /// @notice Delegation to must have been performed via a call to the Nouns token contract using either the
+    /// `delegate()` or `delegateBySig()` function, having provided the correct proxy address for the Noun holder address
+    function setActiveDelegation(address nounder) external {
+        //todo: check if votesToDelegate(nounder) is < proposalThreshold, add to supplement mapping
+        address delegate = getDelegateAddress(nounder);
+        address externalDelegate = ERC721Checkpointable(nounsToken).delegates(nounder);
+        if (externalDelegate != delegate) revert NotDelegated(nounder, delegate);
+        
+        if (delegate.code.length == 0) {
+            createDelegate(nounder);
+        }
+
+        uint32 proposalThreshold; //todo
+        uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(address(this)));
+        uint16 supplementId;//TODO: matchmaking
+        Delegation memory delegation = Delegation(address(this), uint32(block.number), proposalThreshold, votingPower, supplementId);
+
+        _setActiveDelegation(delegation);
+    }
+
+    /// @dev Convenience function enabling the bundling of `nounsToken.delegate()` and `this._setActiveDelegation()`
+    /// into a single transaction, simultaneously performing the token delegation and updating this contract's state
     /// @notice Must be invoked in the context of `delegatecall`
-    function delegateBySigERC1271(bytes calldata signature) external {
+    function delegateByDelegatecall() external {
         if (address(this) == __self) revert OnlyDelegatecallContext();
-        // todo: test gnosis safe multiple sig integration
-        if (signature.length % 65 != 0) revert ECDSAInvalidSignatureLength(signature.length);
 
         //todo: check if votesToDelegate(msg.sender) is < proposalThreshold, add to supplement mapping
         address delegate = getDelegateAddress(address(this));
         if (delegate.code.length == 0) {
-            // `createDelegate()` will revert on failure
-            Orchestrator(__self).createDelegate(address(this));
+            // will revert on `create2` failure
+            PropLotCore(__self).createDelegate(address(this));
         }
 
+        uint32 proposalThreshold; //todo
         uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(address(this)));
         uint16 supplementId;//TODO: matchmaking
-        Delegation memory delegation = Delegation(address(this), uint32(block.number), votingPower, supplementId);
+        Delegation memory delegation = Delegation(address(this), uint32(block.number), proposalThreshold, votingPower, supplementId);
 
         ERC721Checkpointable(nounsToken).delegate(delegate);
 
-        // (__self)setActiveDelegation(delegation);
-    }
-    
-    function getDelegateAddress(address nounder) public view returns (address delegate) {
-        //todo if (supplementDelegates[delegate] != address(0x0) return supplementDelegates[nouner]; 
-
-        bytes32 creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(__self)))));
-        delegate = _simulateCreate2(bytes32(uint256(uint160(nounder))), creationCodeHash);
+        PropLotCore(__self).setActiveDelegation(address(this));
     }
 
     function createDelegate(address nounder) public returns (address delegate) {
@@ -182,6 +210,46 @@ contract Orchestrator {
         if (delegate == address(0x0)) revert Create2Failure();
         
         emit DelegateCreated(nounder, delegate);
+    }
+
+    /*
+      Views
+    */
+
+    function getDelegateAddress(address nounder) public view returns (address delegate) {
+        //todo if (supplementDelegates[delegate] != address(0x0) return supplementDelegates[nouner]; 
+
+        bytes32 creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(__self)))));
+        delegate = _simulateCreate2(bytes32(uint256(uint160(nounder))), creationCodeHash);
+    }
+
+    /// @dev Convenience function to facilitate offchain development by computing the `delegateBySig()` digest 
+    /// for a given signer and expiry
+    function computeNounsDelegationDigest(address signer, uint256 expiry) public view returns (bytes32 digest) {
+        bytes32 nounsDomainTypehash = ERC721Checkpointable(nounsToken).DOMAIN_TYPEHASH();
+        string memory nounsName = ERC721Checkpointable(nounsToken).name();
+        bytes32 nounsDomainSeparator = keccak256(
+            abi.encode(
+                nounsDomainTypehash,
+                keccak256(bytes(nounsName)),
+                block.chainid,
+                nounsToken
+            )
+        );
+
+        address delegate = getDelegateAddress(signer);
+        uint256 signerNonce = ERC721Checkpointable(nounsToken).nonces(signer);
+        bytes32 nounsDelegationTypehash = ERC721Checkpointable(nounsToken).DELEGATION_TYPEHASH();
+        bytes32 structHash = keccak256(
+            abi.encode(
+                nounsDelegationTypehash, 
+                delegate, 
+                signerNonce, 
+                expiry
+            )
+        );
+
+        digest = keccak256(abi.encodePacked('\x19\x01', nounsDomainSeparator, structHash));
     }
 
     function _purgeInactiveDelegations() internal {
@@ -208,6 +276,7 @@ contract Orchestrator {
                 uint256 startIndex = _activeDelegations.length - 1;
                 for (uint256 j; j < numInactiveNonLastIndices; ++j) {
                     delete _activeDelegations[startIndex - j];
+                    //todo
                     // if (_supplementDelegations[nounder] != address(0x0)) delete _supplementDelegations[nounder];
                 }
             }
