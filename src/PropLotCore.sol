@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
+import {ECDSA} from "nouns-monorepo/external/openzeppelin/ECDSA.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {NounsDAOLogicV3} from "nouns-monorepo/governance/NounsDAOLogicV3.sol";
 import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
@@ -74,14 +75,26 @@ contract PropLotCore {
 
     /// @notice Since delegations can be revoked directly on the Nouns token contract, active delegations are handled optimistically
     Delegation[] private _activeDelegations;
-    //todo mapping (address => address) public _supplementDelegations;
+    
+    /// @dev Packed storage of `supplementId`s awaiting supplement matchmaking to reach `proposalThreshold`, akin to a `uint16[]`array
+    /// @notice Can store up to 16 `supplementId` members for async processing- enough for 18 years when proposalThreshold reaches 17
+    ///todo implement buckets to increase lifespan of this bitField
+    bytes32 eligibleSupplementsBitField;
+    uint16 currentSupplementId;
+
+    /// @dev Returns the Supplement information associated with a supplement delegation
+    mapping (address => Supplement) public supplementDelegations;
+    struct Supplement {
+        address delegator;
+        uint16 supplementId;
+        uint8 bitFieldIndex;
+    }
 
     constructor(address ideaTokenHub_, address payable nounsGovernor_, address nounsToken_) {
         ideaTokenHub = ideaTokenHub_;
         nounsGovernor = nounsGovernor_;
         nounsToken = nounsToken_;
         __self = address(this);
-        // __nounsName = bytes(ERC721Checkpointable(nounsToken).name());
     }
 
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
@@ -95,58 +108,80 @@ contract PropLotCore {
         
         // check for external Nouns transfers or rogue redelegations, update state
         _purgeInactiveDelegations();
-        
+        //todo find way for supplementDelegations to handle increased proposal threshold:
+        // check current value of numCheckpoints, if higher check voting power at time of each new checkpoint with getPriorVotes to ensure votingPower never dropped
+        // todo: _updateDelegations();
+
         uint256 len = _activeDelegations.length; 
         if (len == 0) revert InsufficientDelegations();
 
         uint256 proposalThreshold = NounsDAOLogicV3(nounsGovernor).proposalThreshold();
         // find a suitable proposer delegate
         address proposer;
+        bool eligible;
         unchecked {
             for (uint256 i; i < len; ++i) {
                 Delegation memory currentDelegation = _activeDelegations[i];
                 
                 address delegate = getDelegateAddress(currentDelegation.delegator);
+                NounsDAOLogicV3(nounsGovernor).getCurrentVotes());
+                
+                // check for active proposals
                 uint256 delegatesLatestProposal = NounsDAOLogicV3(nounsGovernor).latestProposalIds(delegate);
                 if (delegatesLatestProposal != 0) {
-                    // skip ineligible Delegates with active proposals 
-                    NounsDAOStorageV3.ProposalState delegatesLatestProposalState = NounsDAOLogicV3(nounsGovernor).state(delegatesLatestProposal);
-                    if (
-                        delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod ||
-                        delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Active ||
-                        delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Pending ||
-                        delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Updatable
-                    ) continue;
+                    eligible =_isEligibleProposalState(delegatesLatestProposal);
+                } else {
+                    eligible = true;
                 }
 
-                // proposer = delegate;
-                //todo find way for supplementDelegations to handle increased proposal threshold
-                //todo handle existence of supplementId
-                //todo handle issue where last delegate in array is 
-                Delegate(delegate).pushProposal(nounsGovernor, txs, description);
-                //todo handle situation where there is no eligible delegate
+                if (eligible == false) continue;
+                if (currentDelegation.supplementId != 0) {
+                    //check total votingPower
+                // if (eligible == true && currentDelegation.votingPower >= proposalThreshold) {
+                    proposer = delegate;
+                    break;
+                }                
             }
         }
+        //todo handle existence of supplementId
+        if (proposer != address(0x0)) {
+            Delegate(proposer).pushProposal(nounsGovernor, txs, description);
+        } else {
+            //todo handle situation where there is no eligible delegate
+        }
+    }
+
+    function _isEligibleProposalState(uint256 _latestProposal) internal returns (bool _eligible) {
+        NounsDAOStorageV3.ProposalState delegatesLatestProposalState = NounsDAOLogicV3(nounsGovernor).state(delegatesLatestProposal);
+        if (
+            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod ||
+            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Active ||
+            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Pending ||
+            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Updatable
+        ) return;
+
+        _eligible = true;
     }
 
     /// @dev Simultaneously creates a delegate if it doesn't yet exist and grants voting power to the delegate
     /// in a single function call. This is the most convenient option standard wallets using EOA private keys
     /// @notice The Nouns ERC721Checkpointable implementation only supports standard EOA ECDSA signatures and thus
     /// does not support smart contract signatures. In that case, `delegate()` must be called on the Nouns contract directly
-    // todo: use delegatecall to support smart contract wallets? would need isValidSignature() check before nounsToken.delegate()
-    function delegateBySig(uint256 nonce, uint256 expiry, bytes calldata signature) external {
-        if (signature.length != 65) revert ECDSAInvalidSignatureLength(signature.length);
+    function delegateBySig(uint256 nonce, uint256 expiry, address signer, bytes calldata signature) external {
+        bytes32 digest = computeNounsDelegationDigest(signer, expiry);
+        (address recovered, ECDSA.RecoverError err) = ECDSA.tryRecover(digest, signature);
+        if (recovered != signer || err != ECDSA.RecoverError.NoError) revert InvalidSignature();
         
         //todo: check if votesToDelegate(msg.sender) is < proposalThreshold, add to supplement mapping
-        address delegate = getDelegateAddress(msg.sender);
+        address delegate = getDelegateAddress(signer);
         if (delegate.code.length == 0) {
-            createDelegate(msg.sender);
+            createDelegate(signer);
         }
 
-        uint32 proposalThreshold = uint32(NounsDAOLogicV3(nounsGovernor).proposalThreshold());
+        uint32 numCheckpoints = uint32(NounsDAOLogicV3(nounsGovernor).numCheckpoints());
         uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(msg.sender));
         uint16 supplementId;//TODO: matchmaking 
-        Delegation memory delegation = Delegation(msg.sender, uint32(block.number), proposalThreshold, votingPower, supplementId);
+        Delegation memory delegation = Delegation(signer, uint32(block.number), numCheckpoints, votingPower, supplementId);
         _setActiveDelegation(delegation);
 
         ERC721Checkpointable(nounsToken).delegateBySig(
@@ -173,10 +208,10 @@ contract PropLotCore {
             createDelegate(nounder);
         }
 
-        uint32 proposalThreshold; //todo
+        uint32 numCheckpoints = ERC721Checkpointable(nounsToken).numCheckpoints();
         uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(address(this)));
         uint16 supplementId;//TODO: matchmaking
-        Delegation memory delegation = Delegation(address(this), uint32(block.number), proposalThreshold, votingPower, supplementId);
+        Delegation memory delegation = Delegation(address(this), uint32(block.number), numCheckpoints, votingPower, supplementId);
 
         _setActiveDelegation(delegation);
     }
@@ -194,17 +229,19 @@ contract PropLotCore {
             PropLotCore(__self).createDelegate(address(this));
         }
 
-        uint32 proposalThreshold; //todo
+        uint32 numCheckpoints = ERC721Checkpointable(nounsToken).numCheckpoints();
         uint16 votingPower = uint16(ERC721Checkpointable(nounsToken).votesToDelegate(address(this)));
         uint16 supplementId;//TODO: matchmaking
-        Delegation memory delegation = Delegation(address(this), uint32(block.number), proposalThreshold, votingPower, supplementId);
+        Delegation memory delegation = Delegation(address(this), uint32(block.number), numCheckpoints, votingPower, supplementId);
 
         ERC721Checkpointable(nounsToken).delegate(delegate);
 
         PropLotCore(__self).setActiveDelegation(address(this));
     }
 
+    /// @dev Deploys a Delegate contract on behalf of `nounder`
     function createDelegate(address nounder) public returns (address delegate) {
+        // todo handle supplements
         delegate = address(new Delegate{salt: bytes32(uint256(uint160(nounder)))}(__self));
 
         if (delegate == address(0x0)) revert Create2Failure();
@@ -217,7 +254,7 @@ contract PropLotCore {
     */
 
     function getDelegateAddress(address nounder) public view returns (address delegate) {
-        //todo if (supplementDelegates[delegate] != address(0x0) return supplementDelegates[nouner]; 
+        if (supplementDelegates[delegate] != address(0x0)) return supplementDelegates[nouner]; 
 
         bytes32 creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(__self)))));
         delegate = _simulateCreate2(bytes32(uint256(uint160(nounder))), creationCodeHash);
@@ -249,10 +286,11 @@ contract PropLotCore {
             )
         );
 
-        digest = keccak256(abi.encodePacked('\x19\x01', nounsDomainSeparator, structHash));
+        digest = ECDSA.toTypedDataHash(nounsDomainSeparator, structHash);
     }
 
-    function _purgeInactiveDelegations() internal {
+    function _updateActiveDelegations(uint256 _proposalThreshold) internal {
+        uint256 numInactiveNonLastIndices;
         unchecked {
             for (uint256 i; i < _activeDelegations.length; ++i) {
                 // cache currentDelegation in memory to reduce SLOADs for potential event & gas optimization
@@ -260,8 +298,21 @@ contract PropLotCore {
                 address nounder = currentDelegation.delegator;
                 address delegate = getDelegateAddress(nounder);
                 
-                uint256 numInactiveNonLastIndices;
-                // todo: || ERC721Checkpointable(nounsToken).fromBlock != currentDelegation.blockDelegated
+                uint256 currentCheckpoints = ERC721Checkpointable(nounsToken).numCheckpoints(nounder);
+                if (currentCheckpoints != currentDelegation.numCheckpointsSnapshot) {
+                    // cannot underflow as Nouns token contract uses safe Uint32 math
+                    uint256 delta = currentCheckpoints - currentDelegation.numCheckpointsSnapshot;
+                    for (uint256 j; j < delta; ++j) {
+                        (uint32 fromBlock, uint96 votes) = ERC721Checkpointable(nounsToken).checkpoints((nounder, currentCheckpoints - j - 1));
+                        if (votes < currentDelegation.votingPower) {
+                            _deleteDelegation(); //todo
+                        }
+                    }
+                    //todo handle case where extra votes were acquired
+                    uint256 currentVotes = ERC721Checkpointable(nounsToken).getCurrentVotes(delegate);
+                }
+                                
+                //todo turn into _deleteDelegation() internal func
                 if (ERC721Checkpointable(nounsToken).delegates(nounder) != delegate) {
                     uint256 lastIndex = _activeDelegations.length - 1;
                     if (i < lastIndex) {
@@ -273,12 +324,24 @@ contract PropLotCore {
                     emit DelegationDeleted(currentDelegation);
                 }
 
+                // delete inactiveDelegations from rightmost to leftmost
                 uint256 startIndex = _activeDelegations.length - 1;
                 for (uint256 j; j < numInactiveNonLastIndices; ++j) {
                     delete _activeDelegations[startIndex - j];
                     //todo
                     // if (_supplementDelegations[nounder] != address(0x0)) delete _supplementDelegations[nounder];
                 }
+            }
+        }
+    }
+
+    function _updateActiveDelegations() internal {
+        uint256 len = _activeDelegations.length;
+        unchecked {
+            for (uint256 i; i < len; ++i) {
+                Delegation storage currentDelegation = _activeDelegations[i];
+                address currentDelegate = getDelegateAddress(currentDelegation.delegator);
+                uint256 currentVotes = ERC721Checkpointable(nounsToken).votesToDelegate(currentDelegate);
             }
         }
     }
