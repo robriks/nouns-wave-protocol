@@ -55,7 +55,7 @@ contract PropLotCore {
     error OnlyIdeaContract();
     error InsufficientDelegations();
     error NotDelegated(address nounder, address delegate);
-    error ECDSAInvalidSignatureLength(uint256 length);
+    error InvalidSignature();
     error OnlyDelegatecallContext();
     error Create2Failure();
     
@@ -106,8 +106,10 @@ contract PropLotCore {
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
         // check for external Nouns transfers or rogue redelegations, update state
-        _resolveOptimisticState();
-        _disqualifiedDelegationIndices();
+        // _resolveOptimisticState();
+        uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices();
+        _deleteDelegations(disqualifiedIndices);
+
         //todo find way for supplementDelegations to handle increased proposal threshold:
         // check current value of numCheckpoints, if higher check voting power at time of each new checkpoint with getPriorVotes to ensure votingPower never dropped
         // todo: _updateDelegations();
@@ -248,7 +250,7 @@ contract PropLotCore {
     */
 
     function getDelegateAddress(address nounder) public view returns (address delegate) {
-        if (supplementDelegates[delegate] != address(0x0)) return supplementDelegates[nouner]; 
+        if (supplementDelegates[delegate] != address(0x0)) return supplementDelegates[nounder]; 
 
         //todo: hard code into storage as constant for gas optimization
         bytes32 creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(__self)))));
@@ -288,25 +290,9 @@ contract PropLotCore {
         return _activeDelegations;
     }
 
-    //todo add supplementId param to mark which supplement violated protocol rules and granularly disqualify
-    function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower) internal view returns (bool _disqualify) {
-        // cannot underflow as Nouns token contract uses safe Uint32 math
-        uint256 delta = _currentCheckpoints - _numCheckpointsSnapshot;
-        for (uint256 j; j < delta; ++j) {
-            (uint32 fromBlock, uint96 votes) = ERC721Checkpointable(nounsToken).checkpoints((_nounder, _currentCheckpoints - j - 1));
-            
-            // disqualify redelegations and transfers/burns that dropped voting power below recorded value
-            uint256 checkpointVotes = ERC721Checkpointable(nounsToken).getPriorVotes(_delegate, fromBlock);
-            if (checkpointVotes < _votingPower || votes < _votingPower) {
-                _disqualify = true;
-                break;
-            }
-        }
-    }
-
     function _disqualifiedDelegationIndices(uint256 _proposalThreshold) internal returns (uint256[] memory) {
         // cache _activeDelegations to memory to reduce SLOADs for potential event & gas optimization
-        Delegation[] memory activeDelegations = getActiveDelegations();
+        Delegation[] memory activeDelegations = _getActiveDelegations();
         bool[] memory disqualifyingIndices = new bool[](activeDelegations.length);
         uint256 numDisqualifiedIndices;
         
@@ -314,14 +300,14 @@ contract PropLotCore {
         unchecked {
             // search for number of disqualifications
             for (uint256 i; i < activeDelegations.length; ++i) {
-                address nounder = currentDelegation[i].delegator;
+                address nounder = activeDelegations[i].delegator;
                 address delegate = getDelegateAddress(nounder);
                 
                 bool disqualify;
                 uint256 currentCheckpoints = ERC721Checkpointable(nounsToken).numCheckpoints(nounder);
-                if (currentCheckpoints != currentDelegation[i].numCheckpointsSnapshot) {
+                if (currentCheckpoints != activeDelegations[i].numCheckpointsSnapshot) {
                     //todo handle supplements so that legitimate supplementers are not penalized for pairing with violators
-                    disqualify = _inspectCheckpoints(nounder, delegate, currentCheckpoints, currentDelegation[i].numCheckpointsSnapshot, votingPower);
+                    disqualify = _inspectCheckpoints(nounder, delegate, currentCheckpoints, activeDelegations[i].numCheckpointsSnapshot, activeDelegations[i].votingPower);
                     
                     if (disqualify == true) {
                         disqualifyingIndices[i] = true;
@@ -351,42 +337,46 @@ contract PropLotCore {
         }
     }
 
+    //todo add supplementId param to mark which supplement violated protocol rules and granularly disqualify
+    function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower) internal view returns (bool _disqualify) {
+        // Nouns token contract uses safe Uint32 math, preventing underflow
+        uint256 delta = _currentCheckpoints - _numCheckpointsSnapshot;
+        for (uint256 j; j < delta; ++j) {
+            (uint32 fromBlock, uint96 votes) = ERC721Checkpointable(nounsToken).checkpoints((_nounder, _currentCheckpoints - j - 1));
+            
+            // disqualify redelegations and transfers/burns that dropped voting power below recorded value
+            uint256 checkpointVotes = ERC721Checkpointable(nounsToken).getPriorVotes(_delegate, fromBlock);
+            if (checkpointVotes < _votingPower || votes < _votingPower) {
+                _disqualify = true;
+                break;
+            }
+        }
+    }
+
+    /// @dev Deletes Delegations in batches by swapping the non-final index members (to be removed) with members to be preserved
+    /// located at the end of the array and then clearing the end of the array
     function _deleteDelegations(uint256[] memory _indices) internal {
-    
-        //todo turn into _deleteDelegation() internal func
-        if (ERC721Checkpointable(nounsToken).delegates(nounder) != delegate) {
-            uint256 lastIndex = _activeDelegations.length - 1;
-            if (i < lastIndex) {
-                Delegation memory lastDelegation = _activeDelegations[lastIndex];
-                _activeDelegations[i] = lastDelegation;
-                ++numDisqualifiedIndices;
+        // bounded by Noun token supply and will not overflow
+        unchecked {
+            for (uint256 i; i < _indices.length; ++i) {
+                // will not underflow as this function is only invoked if delegation indices were found
+                uint256 lastIndex = _activeDelegations.length - 1;
+                uint256 indexToDelete = _indices[i];
+
+                Delegation memory currentDelegation = _activeDelegations[indexToDelete];
+                if (currentDelegation.supplementId != 0) {
+                    //todo
+                    // _markPartial(supplementId);
+                }
+
+                if (indexToDelete != lastIndex) {
+                    // replace Delegation to be deleted with last member of array
+                    _activeDelegations[indexToDelete] = _activeDelegations[lastIndex];
+                }
+                _activeDelegations.pop();
+        
+                emit DelegationDeleted(currentDelegation);
             }
-
-            emit DelegationDeleted(currentDelegation);
-        }
-
-        if (currentDelegation.supplementId != 0) {
-            uint16[] memory currentSupplements = _activeSupplements[delegate];
-            uint256 supplementsLen = currentSupplements.length;
-            // loop starting from second index
-            for (uint256 j = 1; j < supplementsLen; ++j) {
-                // bypass getDelegateAddress() to save on SLOAD
-                address supplementDelegate = _simulateCreate2();
-                _inspectCheckpoints(currentSupplements[j]);
-            }
-        } else {
-
-            // disqualifiedCheckpoint = _inspectCheckpoints(currentDelegation) // allow for Noun votingPower fungibility? (eg: 1 -> 2 -> 1)
-            // upon finding disqualifiedCheckpoint, still try to propose but exclude currentDelegation from yield as punishment
-            }
-
-                        // delete inactive delegations from rightmost to leftmost
-        uint256 startIndex = len - 1;
-        for (uint256 j; j < numInactiveNonLastIndices; ++j) {
-            delete _activeDelegations[startIndex - j];
-            //todo
-            // if (_supplementDelegations[nounder] != address(0x0)) delete _supplementDelegations[nounder];
-        }
         }
     }
 
@@ -396,8 +386,8 @@ contract PropLotCore {
         emit DelegationActivated(_delegation);
     }
 
-    function _isEligibleProposalState(uint256 _latestProposal) internal returns (bool _noActivePro) {
-        NounsDAOStorageV3.ProposalState delegatesLatestProposalState = NounsDAOLogicV3(nounsGovernor).state(delegatesLatestProposal);
+    function _isEligibleProposalState(uint256 _latestProposal) internal returns (bool _noActiveProp) {
+        NounsDAOStorageV3.ProposalState delegatesLatestProposalState = NounsDAOLogicV3(nounsGovernor).state(_latestProposal);
         if (
             delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod ||
             delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Active ||
@@ -405,7 +395,7 @@ contract PropLotCore {
             delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Updatable
         ) return;
 
-        _eligible = true;
+        _noActiveProp = true;
     }
 
     function _simulateCreate2(bytes32 _salt, bytes32 _creationCodeHash) internal view returns (address simulatedDeployment) {
