@@ -6,7 +6,7 @@ import {NounsDAOProxyV3} from "nouns-monorepo/governance/NounsDAOProxyV3.sol";
 import {NounsDAOLogicV3} from "nouns-monorepo/governance/NounsDAOLogicV3.sol";
 import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {ERC721Checkpointable} from "nouns-monorepo/base/ERC721Checkpointable.sol";
-import {PropLotCore} from "../src/PropLotCore.sol";
+import {PropLotCore} from "../../src/PropLotCore.sol";
 
 contract OrchestratorTest is Test {
     uint256 mainnetFork;
