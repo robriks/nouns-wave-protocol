@@ -38,14 +38,14 @@ contract PropLotCore {
     /// Only records delegations performed via this contract, ie not direct delegations on Nouns token
     /// @param votingPower Voting power can safely be stored in a uint16 as the type's maximum 
     /// represents 179.5 years of Nouns token supply issuance (at a rate of one per day)
-    /// @param supplementId Identifier used to combine a delegation with votingPower below the proposalThreshold
+    /// @param delegationId Identifier indicating the recipient Delegate contract given voting power
     /// with another delegation to supplement its votingPower by together delegating to the same proxy
     struct Delegation {
         address delegator;
         uint32 blockDelegated;
         uint32 numCheckpointsSnapshot;
         uint16 votingPower;
-        uint16[] supplementIds;
+        uint16 delegationId;
     }
 
     /*
@@ -71,6 +71,7 @@ contract PropLotCore {
     address payable public immutable nounsGovernor;
     address public immutable nounsToken;
     address private immutable __self;
+    bytes32 private immutable __creationCodeHash;
 
     /*
       Storage
@@ -78,12 +79,11 @@ contract PropLotCore {
 
     /// @notice Since delegations can be revoked directly on the Nouns token contract, active delegations are handled optimistically
     Delegation[] private _activeDelegations;
-    
-    /// @dev Packed storage of `supplementId`s awaiting supplement matchmaking to reach `proposalThreshold`, akin to a `uint16[]`array
-    /// @notice Can store up to 16 `supplementId` members for async processing- enough for 18 years when proposalThreshold reaches 17
-    ///todo implement buckets to increase lifespan of this bitField
-    bytes32 eligibleSupplementsBitField;
-    uint16 currentSupplementId;
+
+    /// @dev Identifier used to derive and refer to the address of Delegate proxy contracts
+    /// @notice Declared as `uint16` type to efficiently pack into storage structs, but used as `uint256` or `bytes32`
+    /// when used as part of `create2` deployment or other function parameter
+    uint16 private _nextDelegateId;
 
     /// @dev Returns the Supplement information associated with a supplement delegation
     mapping (uint16 => Delegation) public supplementDelegations;
@@ -93,6 +93,11 @@ contract PropLotCore {
         nounsGovernor = nounsGovernor_;
         nounsToken = nounsToken_;
         __self = address(this);
+        __creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(__self)))));
+        
+        // increment `_nextDelegateId` and deploy initial Delegate contract 
+        _nextDelegateId++;
+        createDelegate();
     }
 
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
@@ -106,11 +111,9 @@ contract PropLotCore {
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
         // check for external Nouns transfers or rogue redelegations, update state
-        // _resolveOptimisticState();
         uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices();
         _deleteDelegations(disqualifiedIndices);
 
-        //todo find way for supplementDelegations to handle increased proposal threshold:
         // check current value of numCheckpoints, if higher check voting power at time of each new checkpoint with getPriorVotes to ensure votingPower never dropped
         // todo: _updateDelegations();
 
@@ -196,7 +199,9 @@ contract PropLotCore {
         address externalDelegate = ERC721Checkpointable(nounsToken).delegates(nounder);
         if (externalDelegate != delegate) revert NotDelegated(nounder, delegate);
         
-        if (delegate.code.length == 0) {
+        uint256 proposalThreshold = ERC721Checkpointable(nounsToken).proposalThreshold();
+        uint256 supplementDelegateId = _findSupplementDelegate(proposalThreshold);
+        if (supplementDelegateId == 0) {
             createDelegate(nounder);
         }
 
@@ -235,26 +240,30 @@ contract PropLotCore {
         PropLotCore(__self).setActiveDelegation(address(this));
     }
 
-    /// @dev Deploys a Delegate contract on behalf of `nounder`
-    function createDelegate(address nounder) public returns (address delegate) {
-        // todo handle supplements
-        delegate = address(new Delegate{salt: bytes32(uint256(uint160(nounder)))}(__self));
+    /// @dev Deploys a Delegate contract deterministically via `create2`, using the `_nextDelegateId` as salt
+    /// @notice As the constructor argument is appended to bytecode, it affects resulting address, eliminating risk of DOS vector
+    function createDelegate() public returns (address delegate) {
+        delegate = address(new Delegate{salt: bytes32(uint256(_nextDelegateId))}(__self));
 
         if (delegate == address(0x0)) revert Create2Failure();
         
-        emit DelegateCreated(nounder, delegate);
+        emit DelegateCreated(_nextDelegateId, delegate);
+
+        _nextDelegateId++;
     }
 
     /*
       Views
     */
 
-    function getDelegateAddress(address nounder) public view returns (address delegate) {
-        if (supplementDelegates[delegate] != address(0x0)) return supplementDelegates[nounder]; 
+    function getDelegateAddress(uint256 delegateId) public view returns (address delegate) {
+        // if (supplementDelegates[delegate] != address(0x0)) return supplementDelegates[nounder]; 
 
-        //todo: hard code into storage as constant for gas optimization
-        bytes32 creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(__self)))));
-        delegate = _simulateCreate2(bytes32(uint256(uint160(nounder))), creationCodeHash);
+        delegate = _simulateCreate2(bytes32(uint256(delegateId)), __creationCodeHash);
+    }
+
+    function getNextDelegateId() public view returns (uint256 nextDelegateId) {
+        return uint256(_nextDelegateId);
     }
 
     /// @dev Convenience function to facilitate offchain development by computing the `delegateBySig()` digest 
@@ -288,6 +297,23 @@ contract PropLotCore {
 
     function _getActiveDelegations() internal view returns (Delegation[] memory) {
         return _activeDelegations;
+    }
+
+    /// @dev Returns the id of the first Delegate found to not meet the proposal threshold, looping from latest `delegateId` to earliest
+    function _findSupplementDelegate(uint256 _proposalThreshold) internal returns (uint256 delegateId) {
+        // bounded by (Nouns token supply / proposal threshold)
+        unchecked { 
+            for (uint256 i = _nextDelegateId; i > 0; --i) {
+                uint256 currentDelegateId = i - 1;
+                address delegateAddress = getDelegateAddress(currentDelegateId);
+                uint256 currentVotes = ERC721Checkpointable(nounsToken).getCurrentVotes(delegateAddress);
+
+                if (currentVotes < _proposalThreshold) {
+                    delegateId = currentDelegateId;
+                    return;
+                }
+            }
+        }
     }
 
     function _disqualifiedDelegationIndices(uint256 _proposalThreshold) internal returns (uint256[] memory) {
