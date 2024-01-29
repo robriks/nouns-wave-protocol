@@ -80,106 +80,95 @@ contract OrchestratorTest is Test {
         vm.deal(address(this), 1 ether);
     }
 
-    function test_delegateBySig() public {
-        // to test signatures in a forked env, tokens must first be transferred to a signer address w/ known privkey
-        uint256 privKey = 0xdeadbeef;
-        address signer = vm.addr(privKey);
-        vm.startPrank(someNounHolder);
-        nounsToken.transferFrom(someNounHolder, signer, someTokenId);
-        nounsToken.transferFrom(someNounHolder, signer, anotherTokenId);
-        vm.stopPrank();
+    // function test_delegateBySig() public {
+    //     // to test signatures in a forked env, tokens must first be transferred to a signer address w/ known privkey
+    //     uint256 privKey = 0xdeadbeef;
+    //     address signer = vm.addr(privKey);
+    //     vm.startPrank(someNounHolder);
+    //     nounsToken.transferFrom(someNounHolder, signer, someTokenId);
+    //     nounsToken.transferFrom(someNounHolder, signer, anotherTokenId);
+    //     vm.stopPrank();
 
-        address delegate = propLotCore.getDelegateAddress(signer);
-        bytes32 nounsDomainSeparator = keccak256(abi.encode(
-            ERC721Checkpointable(address(nounsToken)).DOMAIN_TYPEHASH(), 
-            keccak256(bytes(ERC721Checkpointable(address(nounsToken)).name())), 
-            block.chainid, 
-            address(nounsToken)
-        ));
-        uint256 nonce = ERC721Checkpointable(address(nounsToken)).nonces(signer);
-        uint256 expiry = block.timestamp + 1800;
-        bytes32 structHash = keccak256(
-            abi.encode(ERC721Checkpointable(address(nounsToken)).DELEGATION_TYPEHASH(), delegate, nonce, expiry)
-        );
-        bytes32 digest = keccak256(abi.encodePacked('\x19\x01', nounsDomainSeparator, structHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, digest);
+    //     address delegate = propLotCore.getDelegateAddress(signer);
+    //     bytes32 nounsDomainSeparator = keccak256(abi.encode(
+    //         ERC721Checkpointable(address(nounsToken)).DOMAIN_TYPEHASH(), 
+    //         keccak256(bytes(ERC721Checkpointable(address(nounsToken)).name())), 
+    //         block.chainid, 
+    //         address(nounsToken)
+    //     ));
+    //     uint256 nonce = ERC721Checkpointable(address(nounsToken)).nonces(signer);
+    //     uint256 expiry = block.timestamp + 1800;
+    //     bytes32 structHash = keccak256(
+    //         abi.encode(ERC721Checkpointable(address(nounsToken)).DELEGATION_TYPEHASH(), delegate, nonce, expiry)
+    //     );
+    //     bytes32 digest = keccak256(abi.encodePacked('\x19\x01', nounsDomainSeparator, structHash));
+    //     (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, digest);
 
-        vm.prank(signer);
-        propLotCore.delegateBySig(nonce, expiry, abi.encodePacked(r, s, v));
-        assertEq(
-            ERC721Checkpointable(address(nounsToken)).delegates(signer), 
-            propLotCore.getDelegateAddress(signer)
-        );
-    }
+    //     vm.prank(signer);
+    //     propLotCore.delegateBySig(nonce, expiry, abi.encodePacked(r, s, v));
+    //     assertEq(
+    //         ERC721Checkpointable(address(nounsToken)).delegates(signer), 
+    //         propLotCore.getDelegateAddress(signer)
+    //     );
+    // }
 
-    function test_delegateByDelegatecall() public {        
-        // construct signature for Safe approvedHash
-        bytes memory sig = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[0]))), bytes32(0), uint8(1));
-        // get current nonce
-        (bool ret, bytes memory res) = someReallyOldGnosisSafe.call(abi.encodeWithSignature("nonce()", ''));
-        uint256 nonce = abi.decode(res, (uint256));
-        bytes memory getTransactionHashCall = abi.encodeWithSignature(
-            "getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)",
-            address(propLotCore),
-            0,
-            abi.encodeWithSignature("delegateByDelegatecall()"),
-            uint8(1), // Enum.Operation.DelegateCall
-            0,
-            0,
-            0,
-            address(0x0),
-            address(0x0),
-            nonce
-        );
-        (, bytes memory result) = someReallyOldGnosisSafe.call(getTransactionHashCall);
-        bytes32 hashToApprove = abi.decode(result, (bytes32));
-        bytes memory hashToApproveCall = abi.encodeWithSignature("approveHash(bytes32)", hashToApprove);
+    // function test_delegateByDelegatecall() public {        
+    //     // construct signature for Safe approvedHash
+    //     bytes memory sig = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[0]))), bytes32(0), uint8(1));
+    //     // get current nonce
+    //     (bool ret, bytes memory res) = someReallyOldGnosisSafe.call(abi.encodeWithSignature("nonce()", ''));
+    //     uint256 nonce = abi.decode(res, (uint256));
+    //     bytes memory getTransactionHashCall = abi.encodeWithSignature(
+    //         "getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)",
+    //         address(propLotCore),
+    //         0,
+    //         abi.encodeWithSignature("delegateByDelegatecall()"),
+    //         uint8(1), // Enum.Operation.DelegateCall
+    //         0,
+    //         0,
+    //         0,
+    //         address(0x0),
+    //         address(0x0),
+    //         nonce
+    //     );
+    //     (, bytes memory result) = someReallyOldGnosisSafe.call(getTransactionHashCall);
+    //     bytes32 hashToApprove = abi.decode(result, (bytes32));
+    //     bytes memory hashToApproveCall = abi.encodeWithSignature("approveHash(bytes32)", hashToApprove);
         
-        // owner threshold for this old safe is 4
-        for (uint256 i; i < ownersOfOldSafe.length; ++i) {
-            vm.prank(ownersOfOldSafe[i]);
-            someReallyOldGnosisSafe.call(hashToApproveCall);
-        }
+    //     // owner threshold for this old safe is 4
+    //     for (uint256 i; i < ownersOfOldSafe.length; ++i) {
+    //         vm.prank(ownersOfOldSafe[i]);
+    //         someReallyOldGnosisSafe.call(hashToApproveCall);
+    //     }
 
-        bytes memory sig2 = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[1]))), bytes32(0), uint8(1));
-        bytes memory sig3 = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[2]))), bytes32(0), uint8(1));
-        bytes memory sig4 = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[3]))), bytes32(0), uint8(1));
+    //     bytes memory sig2 = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[1]))), bytes32(0), uint8(1));
+    //     bytes memory sig3 = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[2]))), bytes32(0), uint8(1));
+    //     bytes memory sig4 = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[3]))), bytes32(0), uint8(1));
 
-        bytes memory execTransactionCall = abi.encodeWithSignature(
-            "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)",
-            address(propLotCore),
-            0,
-            abi.encodeWithSignature("delegateByDelegatecall()"),
-            uint8(1), // Enum.Operation.DelegateCall
-            0,
-            0,
-            0,
-            address(0x0),
-            address(0x0),
-            abi.encodePacked(sig,sig2,sig3,sig4)
-        );
-        someReallyOldGnosisSafe.call(execTransactionCall);
-    }
+    //     bytes memory execTransactionCall = abi.encodeWithSignature(
+    //         "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)",
+    //         address(propLotCore),
+    //         0,
+    //         abi.encodeWithSignature("delegateByDelegatecall()"),
+    //         uint8(1), // Enum.Operation.DelegateCall
+    //         0,
+    //         0,
+    //         0,
+    //         address(0x0),
+    //         address(0x0),
+    //         abi.encodePacked(sig,sig2,sig3,sig4)
+    //     );
+    //     someReallyOldGnosisSafe.call(execTransactionCall);
+    // }
 
     // function test_computeNounsDelegationDigest
-    // function test_purgeInactiveDelegations() public {}
+    // function test_deleteDelegations() public {}
 
     // if nounder accumulates tokens, PropLotCore should reflect
     function test_checkpointChange() public {
         vm.startPrank(someNounHolder);
         nounsToken.transferFrom(someNounHolder, someNounHolder, someTokenId);
     }
-
-    function test_misc() public {
-        // console2.logUint(NounsDAOLogicV3(nounsGovernor).proposalThreshold());
-        // vm.startPrank(someNounHolder);
-        // nounsToken.transferFrom(someNounHolder, address(this), someTokenId);
-        // nounsToken.transferFrom(someNounHolder, address(this), anotherTokenId);
-        // vm.stopPrank();
-
-        // vm.roll(block.number + 1);
-        // NounsDAOLogicV3(nounsGovernor).propose(targets, values, funcSigs, calldatas, description);
-}
 
     // function test_pushProposal() public {
     //     vm.startPrank(someNounHolder);
@@ -201,40 +190,6 @@ contract OrchestratorTest is Test {
     //     vm.prank(address(propLotCore));
     //     ERC721Checkpointable(address(nounsToken)).delegate(address(type(uint160).max));
         
-    //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
-    //     vm.roll(block.number + 1);
-
-    //     propLotCore.pushProposal(targets, values, funcSigs, calldatas, description); 
-    // }
-
-    // function test_Alligator() public {
-    //     //alligator stuff
-    //     // bytes memory createCall = abi.encodeWithSignature("create(address,bool)", 
-    //     //     address(this), //someNounHolder, 
-    //     //     false
-    //     // );
-    //     // // alligator.call(createCall);
-
-        
-    //     // bytes memory subDelegateCall = abi.encodeWithSignature("subDelegate(address,(uint8,uint8,uint32,uint32,uint16,address),bool)", 
-    //     //     address(0x0),
-    //     //     Rules({permissions: 0,maxRedelegations: 0, notValidBefore: 0, notValidAfter: 0, blocksBeforeVoteCloses: 0, customRule: address(0x0)}),
-    //     //     true 
-    //     // );
-    //     // vm.prank(someNounHolder);
-    //     // (bool r,) = alligator.call(subDelegateCall);
-    //     // require(r);
-
-    //     // bytes memory proxyAddressCall = abi.encodeWithSignature("proxyAddress(address)", someNounHolder);
-    //     // (, bytes memory ret) = alligator.call(proxyAddressCall);
-    //     // address proxy = abi.decode(ret, (address));
-
-    //     address proxy = propLotCore.createDelegate();
-        
-    //     vm.startPrank(someNounHolder);
-    //     ERC721Checkpointable(address(nounsToken)).delegate(proxy);
-    //     vm.stopPrank();
-
     //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
     //     vm.roll(block.number + 1);
 
