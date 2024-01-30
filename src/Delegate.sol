@@ -5,13 +5,19 @@ import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals
 import {NounsDAOLogicV3} from "nouns-monorepo/governance/NounsDAOLogicV3.sol";
 import {NounsDAOStorageV3} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 
+/// @title PropLot Protocol Delegate
+/// @author 📯📯📯.eth
+/// @notice All PropLot Protocol Delegate contracts are managed by the PropLot Core. They are designed to receive
+/// Nouns token delegation noncustodially so they can be used as proxies to push onchain proposals to Nouns governance.
+/// @notice For utmost security, Delegates never custody Nouns tokens and can only push proposals
+
 contract Delegate {
-    error NotOrchestrator(address caller);
+    error NotPropLotCore(address caller);
 
-    address immutable orchestrator;
+    address public immutable propLot;
 
-    constructor(address _orchestrator) {
-        orchestrator = _orchestrator;
+    constructor(address propLot_) {
+        propLot = propLot_;
     }
 
     
@@ -20,7 +26,7 @@ contract Delegate {
         NounsDAOV3Proposals.ProposalTxs calldata txs, 
         string calldata description
     ) external {
-        if (msg.sender != orchestrator) revert NotOrchestrator(msg.sender);
+        if (msg.sender != propLot) revert NotPropLotCore(msg.sender);
         
         NounsDAOLogicV3(governor).propose(txs.targets, txs.values, txs.signatures, txs.calldatas, description);
     }

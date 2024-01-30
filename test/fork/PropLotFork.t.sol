@@ -5,21 +5,20 @@ import {Test, console2} from "forge-std/Test.sol";
 import {NounsDAOProxyV3} from "nouns-monorepo/governance/NounsDAOProxyV3.sol";
 import {NounsDAOLogicV3} from "nouns-monorepo/governance/NounsDAOLogicV3.sol";
 import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
-import {ERC721Checkpointable} from "nouns-monorepo/base/ERC721Checkpointable.sol";
-import {PropLotCore} from "../../src/PropLotCore.sol";
+import {NounsToken} from "nouns-monorepo/NounsToken.sol";
+import {IERC721Checkpointable} from "../../src/interfaces/IERC721Checkpointable.sol";
+import {PropLot} from "../../src/PropLot.sol";
 
-contract OrchestratorTest is Test {
+contract PropLotForkTest is Test {
     uint256 mainnetFork;
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
 
-    // address public alligator; // todo: decide if dep is relevant
-    PropLotCore public propLotCore;
+    PropLot public propLot;
     NounsDAOLogicV3 public nounsGovernorProxy;
-    NounsTokenLike public nounsToken;
+    IERC721Checkpointable public nounsToken;
 
     address ideaTokenHub;
     address payable nounsGovernor;
-    address nounsTokenAddress;
     address someNounHolder; // random Nounder holding 17 Nouns at time of writing
     uint256 someTokenId;
     uint256 anotherTokenId;
@@ -33,30 +32,18 @@ contract OrchestratorTest is Test {
     bytes[] calldatas;
     string description;
 
-    struct Rules {
-        uint8 permissions;
-        uint8 maxRedelegations;
-        uint32 notValidBefore;
-        uint32 notValidAfter;
-        uint16 blocksBeforeVoteCloses;
-        address customRule;
-    }
-
     function setUp() public {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
         vm.selectFork(mainnetFork);
 
-        // alligator = 0xb6D1EB1A7BE7d55224bB1942C74a5251E6c9Dab3;
-
-        ideaTokenHub = address(0x0); //todo: integrate ideaTokenHub deployment to tests
+        ideaTokenHub = address(0x0); // not yet deployed to mainnet
         nounsGovernor = payable(address(0x6f3E6272A167e8AcCb32072d08E0957F9c79223d));
-        nounsTokenAddress = 0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03;
+        nounsToken = IERC721Checkpointable(0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03);
 
-        propLotCore = new PropLotCore(ideaTokenHub, nounsGovernor, nounsTokenAddress);
+        propLot = new PropLot(ideaTokenHub, nounsGovernor, nounsToken);
         
-        nounsToken = NounsTokenLike(propLotCore.nounsToken()); 
-        nounsGovernorProxy = NounsDAOLogicV3(propLotCore.nounsGovernor());
-        assertEq(address(nounsToken), nounsTokenAddress);
+        nounsGovernorProxy = NounsDAOLogicV3(propLot.nounsGovernor());
+        assertEq(address(nounsToken), address(nounsGovernorProxy.nouns()));
         assertEq(address(nounsGovernorProxy), nounsGovernor);
 
         // pulled from etherscan for testing
@@ -80,6 +67,7 @@ contract OrchestratorTest is Test {
         vm.deal(address(this), 1 ether);
     }
 
+    //todo pre-deployment, revamp mainnet fork tests
     // function test_delegateBySig() public {
     //     // to test signatures in a forked env, tokens must first be transferred to a signer address w/ known privkey
     //     uint256 privKey = 0xdeadbeef;
@@ -89,7 +77,7 @@ contract OrchestratorTest is Test {
     //     nounsToken.transferFrom(someNounHolder, signer, anotherTokenId);
     //     vm.stopPrank();
 
-    //     address delegate = propLotCore.getDelegateAddress(signer);
+    //     address delegate = propLot.getDelegateAddress(signer);
     //     bytes32 nounsDomainSeparator = keccak256(abi.encode(
     //         ERC721Checkpointable(address(nounsToken)).DOMAIN_TYPEHASH(), 
     //         keccak256(bytes(ERC721Checkpointable(address(nounsToken)).name())), 
@@ -105,10 +93,10 @@ contract OrchestratorTest is Test {
     //     (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, digest);
 
     //     vm.prank(signer);
-    //     propLotCore.delegateBySig(nonce, expiry, abi.encodePacked(r, s, v));
+    //     propLot.delegateBySig(nonce, expiry, abi.encodePacked(r, s, v));
     //     assertEq(
     //         ERC721Checkpointable(address(nounsToken)).delegates(signer), 
-    //         propLotCore.getDelegateAddress(signer)
+    //         propLot.getDelegateAddress(signer)
     //     );
     // }
 
@@ -120,7 +108,7 @@ contract OrchestratorTest is Test {
     //     uint256 nonce = abi.decode(res, (uint256));
     //     bytes memory getTransactionHashCall = abi.encodeWithSignature(
     //         "getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)",
-    //         address(propLotCore),
+    //         address(propLot),
     //         0,
     //         abi.encodeWithSignature("delegateByDelegatecall()"),
     //         uint8(1), // Enum.Operation.DelegateCall
@@ -147,7 +135,7 @@ contract OrchestratorTest is Test {
 
     //     bytes memory execTransactionCall = abi.encodeWithSignature(
     //         "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)",
-    //         address(propLotCore),
+    //         address(propLot),
     //         0,
     //         abi.encodeWithSignature("delegateByDelegatecall()"),
     //         uint8(1), // Enum.Operation.DelegateCall
@@ -164,35 +152,35 @@ contract OrchestratorTest is Test {
     // function test_computeNounsDelegationDigest
     // function test_deleteDelegations() public {}
 
-    // if nounder accumulates tokens, PropLotCore should reflect
+    // if nounder accumulates tokens, propLot should reflect
     function test_checkpointChange() public {
         vm.startPrank(someNounHolder);
-        nounsToken.transferFrom(someNounHolder, someNounHolder, someTokenId);
+        NounsTokenLike(address(nounsToken)).transferFrom(someNounHolder, someNounHolder, someTokenId);
     }
 
     // function test_pushProposal() public {
     //     vm.startPrank(someNounHolder);
-    //     ERC721Checkpointable(address(nounsToken)).delegate(address(propLotCore));
+    //     ERC721Checkpointable(address(nounsToken)).delegate(address(propLot));
     //     vm.stopPrank();
                 
     //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
     //     vm.roll(block.number + 1);
 
-    //     propLotCore.pushProposal(targets, values, funcSigs, calldatas, description); 
+    //     propLot.pushProposal(targets, values, funcSigs, calldatas, description); 
     // }
 
     // function test_NounsProposeViaTransfer() public {
     //     vm.startPrank(someNounHolder);
-    //     nounsToken.transferFrom(someNounHolder, address(propLotCore), someTokenId);
-    //     nounsToken.transferFrom(someNounHolder, address(propLotCore), anotherTokenId);
+    //     nounsToken.transferFrom(someNounHolder, address(propLot), someTokenId);
+    //     nounsToken.transferFrom(someNounHolder, address(propLot), anotherTokenId);
     //     vm.stopPrank();
 
-    //     vm.prank(address(propLotCore));
+    //     vm.prank(address(propLot));
     //     ERC721Checkpointable(address(nounsToken)).delegate(address(type(uint160).max));
         
     //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
     //     vm.roll(block.number + 1);
 
-    //     propLotCore.pushProposal(targets, values, funcSigs, calldatas, description); 
+    //     propLot.pushProposal(targets, values, funcSigs, calldatas, description); 
     // }
 }
