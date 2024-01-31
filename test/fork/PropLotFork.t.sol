@@ -6,8 +6,9 @@ import {NounsDAOProxyV3} from "nouns-monorepo/governance/NounsDAOProxyV3.sol";
 import {NounsDAOLogicV3} from "nouns-monorepo/governance/NounsDAOLogicV3.sol";
 import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {NounsToken} from "nouns-monorepo/NounsToken.sol";
-import {IERC721Checkpointable} from "../../src/interfaces/IERC721Checkpointable.sol";
-import {PropLot} from "../../src/PropLot.sol";
+import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
+import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {PropLot} from "src/PropLot.sol";
 
 contract PropLotForkTest is Test {
     uint256 mainnetFork;
@@ -40,9 +41,9 @@ contract PropLotForkTest is Test {
         nounsGovernor = payable(address(0x6f3E6272A167e8AcCb32072d08E0957F9c79223d));
         nounsToken = IERC721Checkpointable(0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03);
 
-        propLot = new PropLot(ideaTokenHub, nounsGovernor, nounsToken);
+        propLot = new PropLot(ideaTokenHub, INounsDAOLogicV3(nounsGovernor), nounsToken);
         
-        nounsGovernorProxy = NounsDAOLogicV3(propLot.nounsGovernor());
+        nounsGovernorProxy = NounsDAOLogicV3(payable(address(propLot.nounsGovernor())));
         assertEq(address(nounsToken), address(nounsGovernorProxy.nouns()));
         assertEq(address(nounsGovernorProxy), nounsGovernor);
 
