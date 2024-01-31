@@ -3,7 +3,7 @@ pragma solidity ^0.8.19;
 
 import {ECDSA} from "nouns-monorepo/external/openzeppelin/ECDSA.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
-import {NounsDAOLogicV3} from "nouns-monorepo/governance/NounsDAOLogicV3.sol";
+import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
 import {Delegate} from "./Delegate.sol";
@@ -67,9 +67,9 @@ import {console2} from "forge-std/console2.sol"; //todo delete
       Constants
     */
 
-    address public immutable ideaTokenHub;
-    address payable public immutable nounsGovernor;
+    INounsDAOLogicV3 public immutable nounsGovernor;
     IERC721Checkpointable public immutable nounsToken;
+    address public immutable ideaTokenHub;
     address private immutable __self;
     bytes32 private immutable __creationCodeHash;
 
@@ -88,7 +88,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
     /// @dev Returns the Supplement information associated with a supplement delegation
     mapping (uint16 => Delegation) public supplementDelegations;
 
-    constructor(address ideaTokenHub_, address payable nounsGovernor_, IERC721Checkpointable nounsToken_) {
+    constructor(address ideaTokenHub_, INounsDAOLogicV3 nounsGovernor_, IERC721Checkpointable nounsToken_) {
         ideaTokenHub = ideaTokenHub_;
         nounsGovernor = nounsGovernor_;
         nounsToken = nounsToken_;
@@ -111,7 +111,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
         // todo: replace with _updateOptimisticState();
-        uint256 proposalThreshold = NounsDAOLogicV3(nounsGovernor).proposalThreshold();
+        uint256 proposalThreshold = INounsDAOLogicV3(nounsGovernor).proposalThreshold();
         // check for external Nouns transfers or rogue redelegations, update state
         uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices(proposalThreshold);
         _deleteDelegations(disqualifiedIndices);
@@ -140,7 +140,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
 
         uint256 votingPower = nounsToken.votesToDelegate(propLotSig.signer);
         if (votingPower == 0) revert ZeroVotesToDelegate(propLotSig.signer);
-        uint256 proposalThreshold = NounsDAOLogicV3(nounsGovernor).proposalThreshold();
+        uint256 proposalThreshold = INounsDAOLogicV3(nounsGovernor).proposalThreshold();
         if (votingPower > proposalThreshold) votingPower = proposalThreshold;
         
         address delegate;
@@ -179,7 +179,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
         uint256 votingPower = nounsToken.votesToDelegate(nounder);
         if (votingPower == 0) revert ZeroVotesToDelegate(nounder);
 
-        uint256 proposalThreshold = NounsDAOLogicV3(nounsGovernor).proposalThreshold();
+        uint256 proposalThreshold = INounsDAOLogicV3(nounsGovernor).proposalThreshold();
         // votingPower above proposalThreshold is not usable due to Nouns token implementation constraint
         if (votingPower > proposalThreshold) votingPower = proposalThreshold; //todo
 
@@ -199,7 +199,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
         uint256 votingPower = uint16(nounsToken.votesToDelegate(address(this)));
         if (votingPower == 0) revert ZeroVotesToDelegate(address(this));
 
-        uint256 proposalThreshold = NounsDAOLogicV3(nounsGovernor).proposalThreshold();
+        uint256 proposalThreshold = INounsDAOLogicV3(nounsGovernor).proposalThreshold();
         uint256 delegateId;
         address delegate;
         if (votingPower < proposalThreshold) {
@@ -327,7 +327,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
                 
                 // check for active proposals
                 bool noActiveProp;
-                uint256 delegatesLatestProposal = NounsDAOLogicV3(nounsGovernor).latestProposalIds(currentDelegate);
+                uint256 delegatesLatestProposal = INounsDAOLogicV3(nounsGovernor).latestProposalIds(currentDelegate);
                 if (delegatesLatestProposal != 0) {
                     noActiveProp =_isEligibleProposalState(delegatesLatestProposal);
                 } else {
@@ -444,7 +444,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
 
     /// @dev References the Nouns governor contract to determine whether a proposal is in a disqualifying state
     function _isEligibleProposalState(uint256 _latestProposal) internal view returns (bool) {
-        NounsDAOStorageV3.ProposalState delegatesLatestProposalState = NounsDAOLogicV3(nounsGovernor).state(_latestProposal);
+        NounsDAOStorageV3.ProposalState delegatesLatestProposalState = INounsDAOLogicV3(nounsGovernor).state(_latestProposal);
         if (
             delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod ||
             delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Active ||

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.6;
 
+/// @dev Interface for interacting with the Nouns ERC721 governance token with minimal deployment bytecode overhead
 interface IERC721Checkpointable {
     /// @notice A checkpoint for marking number of votes from a given block
     struct Checkpoint {

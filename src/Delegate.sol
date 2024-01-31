@@ -2,8 +2,7 @@
 pragma solidity ^0.8.19;
 
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
-import {NounsDAOLogicV3} from "nouns-monorepo/governance/NounsDAOLogicV3.sol";
-import {NounsDAOStorageV3} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 
 /// @title PropLot Protocol Delegate
 /// @author 📯📯📯.eth
@@ -22,12 +21,12 @@ contract Delegate {
 
     
     function pushProposal(
-        address payable governor,
+        INounsDAOLogicV3 governor,
         NounsDAOV3Proposals.ProposalTxs calldata txs, 
         string calldata description
     ) external {
         if (msg.sender != propLot) revert NotPropLotCore(msg.sender);
         
-        NounsDAOLogicV3(governor).propose(txs.targets, txs.values, txs.signatures, txs.calldatas, description);
+        INounsDAOLogicV3(governor).propose(txs.targets, txs.values, txs.signatures, txs.calldatas, description);
     }
 }
