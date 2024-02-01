@@ -124,6 +124,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
         address proposer = _findProposerDelegate(proposalThreshold);
 
         if (proposer != address(0x0)) {
+            // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
             Delegate(proposer).pushProposal(nounsGovernor, txs, description);
         } else {
             //todo handle situation where there is no eligible delegate
@@ -155,6 +156,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
         if (currentVotes >= proposalThreshold) revert DelegateSaturated(propLotSig.delegateId);
 
         Delegation memory delegation = Delegation(propLotSig.signer, uint32(block.number), uint32(nounsToken.numCheckpoints(propLotSig.signer)), uint16(votingPower), uint16(propLotSig.delegateId));
+        // emits `DelegationActivated` event
         _setActiveDelegation(delegation);
 
         nounsToken.delegateBySig(
@@ -188,6 +190,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
         
         Delegation memory delegation = Delegation(nounder, uint32(block.number), numCheckpoints, uint16(votingPower), uint16(delegateId));
 
+        // emits `DelegationActivated` event
         _setActiveDelegation(delegation);
     }
 
@@ -201,25 +204,26 @@ import {console2} from "forge-std/console2.sol"; //todo delete
         if (votingPower == 0) revert ZeroVotesToDelegate(address(this));
 
         uint256 proposalThreshold = INounsDAOLogicV3(nounsGovernor).proposalThreshold();
-        uint256 delegateId;
-        address delegate;
+        bool isSupplementary;
         if (votingPower < proposalThreshold) {
-            delegateId = getSupplementDelegateId(proposalThreshold);
-            // if no Delegate is eligible for supplementing, create a new one
-            if (delegateId == _nextDelegateId) {
-                delegate = PropLot(__self).createDelegate();
-            } else {
-                delegate = getDelegateAddress(delegateId);
-            }
+            isSupplementary = true;
         } else {
             // votingPower above proposalThreshold is not usable due to Nouns token implementation constraint
             votingPower = proposalThreshold;
-            delegateId = _nextDelegateId;
-            delegate = createDelegate();
+        }
+        uint256 delegateId = getDelegateId(proposalThreshold, isSupplementary);
+        
+        address delegate;
+        if (delegateId == _nextDelegateId) {
+            // if no Delegate is eligible for supplementing, create a new one
+            delegate = PropLot(__self).createDelegate();
+        } else {
+            delegate = getDelegateAddress(delegateId);
         }
 
         nounsToken.delegate(delegate);
 
+        // emits `DelegationActivated` event
         PropLot(__self).setActiveDelegation(address(this), delegateId);
     }
 
@@ -250,16 +254,25 @@ import {console2} from "forge-std/console2.sol"; //todo delete
         delegate = _simulateCreate2(bytes32(uint256(delegateId)), __creationCodeHash);
     }
 
-    /// @dev Returns the most recent existing Delegate that doesn't meet the current proposal threshold. If all existing
-    /// Delegates meet the current proposal threshold, returns the counterfactual address for the next `delegateId`
-    function getSupplementDelegateId(uint256 proposalThreshold) public view returns (uint256 supplementId) {
-        uint256 supplementDelegateId = _findSupplementDelegate(proposalThreshold);
-        if (supplementDelegateId != 0) {
-            return supplementDelegateId;
-        } else {
-            return _nextDelegateId;
-        }
+    /// @dev Returns either an existing delegate ID if one meets the given parameters, otherwise returns the next delegate ID
+    /// @param proposalThreshold The current proposal threshold which is dynamic based on Nouns token supply 
+    /// @param isSupplementary Whether or not to search for a Delegate that doesn't meet the current proposal threshold
+    function getDelegateId(uint256 proposalThreshold, bool isSupplementary) public view returns (uint256 delegateId) {
+        delegateId = _findDelegateId(proposalThreshold, isSupplementary);
     }
+
+    /// @dev Returns a suitable delegate address for an account based on its voting power
+    function getSuitableDelegateFor(address nounder, uint256 proposalThreshold) external view returns (address delegate) {
+        uint256 votingPower = nounsToken.votesToDelegate(nounder);
+        bool isSupplementary;
+        if (votingPower < proposalThreshold) isSupplementary = true;
+
+        uint256 delegateId = getDelegateId(proposalThreshold, isSupplementary);
+        delegate = getDelegateAddress(delegateId);
+    }
+
+    //todo function to return all existing partial Delegates
+    //todo function to return all existing Delegates eligible for proposing
 
     /// @dev Convenience function to facilitate offchain development by computing the `delegateBySig()` digest 
     /// for a given signer and expiry
@@ -290,28 +303,48 @@ import {console2} from "forge-std/console2.sol"; //todo delete
         digest = ECDSA.toTypedDataHash(nounsDomainSeparator, structHash);
     }
 
-    function _getActiveDelegations() internal view returns (Delegation[] memory) {
-        return _activeDelegations;
-    }
-
     /*
       Internals
     */
 
-    /// @dev Returns the id of the first Delegate found to not meet the proposal threshold, looping from latest `delegateId` to earliest
-    function _findSupplementDelegate(uint256 _proposalThreshold) internal view returns (uint256 supplementId) {
+    /// @dev Returns the id of the first delegate ID found to meet the given parameters
+    /// @param _proposalThreshold The current proposal threshold which is dynamic based on Nouns token supply 
+    /// @param _isSupplementary Whether or not the returned Delegate should accept partial voting power, ie `< proposalThreshold`
+    function _findDelegateId(uint256 _proposalThreshold, bool _isSupplementary) internal view returns (uint256 delegateId) {
         // cache in memory to reduce SLOADs
         uint256 nextDelegateId = _nextDelegateId;
         // bounded by (Nouns token supply / proposal threshold)
-        unchecked { 
-            for (uint256 i = nextDelegateId; i > 0; --i) {
-                uint256 currentDelegateId = i - 1;
-                address delegateAddress = getDelegateAddress(currentDelegateId);
-                uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
+        unchecked {
+            if (_isSupplementary) {
+                // since recent Delegates are more likely to be partial, loop from latest `delegateId` to earliest
+                for (uint256 i = nextDelegateId; i > 0; --i) {
+                    // `_nextDelegateId` is incremented to 2 in constructor, preventing underflow
+                    uint256 currentDelegateId = i - 1;
+                    address delegateAddress = getDelegateAddress(currentDelegateId);
+                    uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
 
-                if (currentVotes < _proposalThreshold) {
-                    supplementId = currentDelegateId;
-                   break;
+                    if (currentVotes < _proposalThreshold) {
+                        delegateId = currentDelegateId;
+                        break;
+                    }
+                }
+
+                // when no suitable Delegate is found, a new one must be created
+                if (delegateId == 0) return nextDelegateId;
+            } else {
+                // find solo delegate ID, looping sequentially
+                for (uint256 i; i < nextDelegateId; ++i) {
+                    // if last iteration is reached, all Delegates have nonzero voting power -> break
+                    if (i == nextDelegateId - 1) return nextDelegateId;
+    
+                    uint256 currentDelegateId = i + 1;
+                    address delegateAddress = getDelegateAddress(currentDelegateId);
+                    uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
+    
+                    if (currentVotes == 0) {
+                        delegateId = currentDelegateId;
+                        break;
+                    }
                 }
             }
         }
@@ -436,6 +469,11 @@ import {console2} from "forge-std/console2.sol"; //todo delete
                 emit DelegationDeleted(currentDelegation);
             }
         }
+    }
+
+    /// @notice Marked internal since Delegations recorded in storage are optimistic and should not be relied on externally
+    function _getActiveDelegations() internal view returns (Delegation[] memory) {
+        return _activeDelegations;
     }
 
     function _setActiveDelegation(Delegation memory _delegation) internal {

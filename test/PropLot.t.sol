@@ -28,6 +28,8 @@ import {PropLot} from "src/PropLot.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
 
+/// @notice Fuzz iteration params can be increased to larger types to match implementation
+/// They are temporarily set to smaller types for speed only
 contract PropLotTest is Test {
 
     PropLot propLot;
@@ -138,10 +140,12 @@ contract PropLotTest is Test {
 
         vm.deal(address(this), 1 ether);
 
-        // balances to match mainnet
+        // balances to roughly mirror mainnet
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30);
-        //todo mint more to match current total supply in prod
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 308);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
         nounder = vm.addr(0xc0ffeebabe);
         NounsTokenHarness(address(nounsTokenHarness)).mintTo(nounder);
     }
@@ -160,8 +164,52 @@ contract PropLotTest is Test {
         assertEq(nextDelegateId, 2);
 
         uint256 proposalThreshold = nounsGovernorProxy.proposalThreshold();
-        uint256 incompleteDelegateId = propLot.getSupplementDelegateId(proposalThreshold);
+        uint256 incompleteDelegateId = propLot.getDelegateId(proposalThreshold, true);
         assertEq(incompleteDelegateId, 1);
+    }
+
+    function test_getDelegateAddress(uint8 fuzzIterations) public {
+        vm.assume(fuzzIterations < type(uint16).max - 1);
+        for (uint16 i; i < fuzzIterations; ++i) {
+            // setup includes a call to `createDelegate()` so next delegate ID is already incremented
+            uint16 fuzzDelegateId = i + 2;
+            address resultDelegate = propLot.getDelegateAddress(fuzzDelegateId);
+            
+            address actualDelegate = propLot.createDelegate();
+            assertEq(resultDelegate, actualDelegate);
+        }
+    }
+
+    // function test_getDelegateId()
+    // function test_getSoloDelegateId()
+
+    function test_createDelegate(uint8 fuzzIterations) public {
+        uint256 startDelegateId = propLot.getNextDelegateId();
+        assertEq(startDelegateId, 2);
+
+        for (uint16 i; i < fuzzIterations; ++i) {
+            uint256 fuzzDelegateId = startDelegateId + i;
+            propLot.createDelegate();
+            
+            // assert next delegate ID was incremented
+            uint256 nextDelegateId = propLot.getNextDelegateId();
+            assertEq(fuzzDelegateId + 1, nextDelegateId);
+        }
+    }
+
+    function test_setActiveDelegation() public {
+        // perform external delegation to relevant delegate
+        uint256 proposalThreshold = nounsGovernorProxy.proposalThreshold();
+        uint256 delegateId = propLot.getDelegateId(proposalThreshold, true);
+        address delegate = propLot.getDelegateAddress(delegateId);
+        vm.prank(nounder);
+        nounsTokenHarness.delegate(delegate);
+    }
+
+    function test_revertPushProposalNotIdeaTokenHub() public {
+        bytes memory err = abi.encodeWithSelector(PropLot.OnlyIdeaContract.selector);
+        vm.expectRevert(err);
+        propLot.pushProposal(txs, description);
     }
 
     function test_revertPushProposalNotPropLot() public {
@@ -170,10 +218,6 @@ contract PropLotTest is Test {
         bytes memory err = abi.encodeWithSelector(Delegate.NotPropLotCore.selector, address(this));
         vm.expectRevert(err);
         firstDelegate.pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
-    }
-
-    function test_setActiveDelegation() public {
-
     }
 
     //function test_pushProposal()
@@ -185,7 +229,6 @@ contract PropLotTest is Test {
     //function test_deleteDelegations()
     //function test_deleteDelegationsZeroMembers()
     //function test_simulateCreate2()
-    //function test_getDelegateAddress()
     //function test_createDelegate()
     //function test_setActiveDelegation()
     //function test_computeNounsDelegationDigest
