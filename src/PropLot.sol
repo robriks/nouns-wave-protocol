@@ -55,6 +55,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
     error NotDelegated(address nounder, address delegate);
     error ZeroVotesToDelegate(address nounder);
     error DelegateSaturated(uint256 delegateId);
+    error InvalidDelegateId(uint256 delegateId);
     error InvalidSignature();
     error OnlyDelegatecallContext();
     error Create2Failure();
@@ -245,6 +246,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
 
     /// @dev Computes the counterfactual address for a given delegate ID whether or not it has been deployed
     function getDelegateAddress(uint256 delegateId) public view returns (address delegate) {
+        if (delegateId == 0) revert InvalidDelegateId(delegateId);
         delegate = _simulateCreate2(bytes32(uint256(delegateId)), __creationCodeHash);
     }
 
