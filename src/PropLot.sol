@@ -60,8 +60,8 @@ import {Delegate} from "./Delegate.sol";
     error Create2Failure();
     
     event DelegateCreated(address delegate, uint256 id);
-    event DelegationActivated(Delegation activeDelegation);
-    event DelegationDeleted(Delegation inactiveDelegation);
+    event DelegationRegistered(Delegation optimisticDelegation);
+    event DelegationDeleted(Delegation disqualifiedDelegation);
     
     /*
       Constants
@@ -78,7 +78,7 @@ import {Delegate} from "./Delegate.sol";
     */
 
     /// @notice Since delegations can be revoked directly on the Nouns token contract, active delegations are handled optimistically
-    Delegation[] private _activeDelegations;
+    Delegation[] private _optimisticDelegations;
 
     /// @dev Identifier used to derive and refer to the address of Delegate proxy contracts
     /// @notice Declared as `uint16` type to efficiently pack into storage structs, but used as `uint256` or `bytes32`
@@ -111,16 +111,17 @@ import {Delegate} from "./Delegate.sol";
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
         // todo: replace with _updateOptimisticState();
-        uint256 proposalThreshold = INounsDAOLogicV3(nounsGovernor).proposalThreshold();
+        // to propose, votes must be greater than the proposal threshold
+        uint256 minRequiredVotes = INounsDAOLogicV3(nounsGovernor).proposalThreshold() + 1;
         // check for external Nouns transfers or rogue redelegations, update state
-        uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices(proposalThreshold);
+        uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices(minRequiredVotes);
         _deleteDelegations(disqualifiedIndices);
 
-        uint256 len = _activeDelegations.length; 
+        uint256 len = _optimisticDelegations.length; 
         if (len == 0) revert InsufficientDelegations();
 
         // find a suitable proposer delegate
-        address proposer = _findProposerDelegate(proposalThreshold);
+        address proposer = _findProposerDelegate(minRequiredVotes);
 
         if (proposer != address(0x0)) {
             // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
@@ -141,8 +142,8 @@ import {Delegate} from "./Delegate.sol";
 
         uint256 votingPower = nounsToken.votesToDelegate(propLotSig.signer);
         if (votingPower == 0) revert ZeroVotesToDelegate(propLotSig.signer);
-        uint256 proposalThreshold = INounsDAOLogicV3(nounsGovernor).proposalThreshold();
-        if (votingPower > proposalThreshold) votingPower = proposalThreshold;
+        uint256 minRequiredVotes = INounsDAOLogicV3(nounsGovernor).proposalThreshold() + 1;
+        if (votingPower > minRequiredVotes) votingPower = minRequiredVotes;
         
         address delegate;
         if (propLotSig.delegateId == _nextDelegateId) {
@@ -151,12 +152,13 @@ import {Delegate} from "./Delegate.sol";
             delegate = getDelegateAddress(propLotSig.delegateId);
         }
 
+        // filter outdated signatures to prevent excess delegation- will require new signature
         uint256 currentVotes = nounsToken.getCurrentVotes(delegate);
-        if (currentVotes >= proposalThreshold) revert DelegateSaturated(propLotSig.delegateId);
+        if (currentVotes >= minRequiredVotes) revert DelegateSaturated(propLotSig.delegateId);
 
         Delegation memory delegation = Delegation(propLotSig.signer, uint32(block.number), uint32(nounsToken.numCheckpoints(propLotSig.signer)), uint16(votingPower), uint16(propLotSig.delegateId));
-        // emits `DelegationActivated` event
-        _setActiveDelegation(delegation);
+        // emits `DelegationRegistered` event
+        _setOptimisticDelegation(delegation);
 
         nounsToken.delegateBySig(
             delegate, 
@@ -172,7 +174,7 @@ import {Delegate} from "./Delegate.sol";
     /// @dev Serves as an alternative to `delegateByDelegatecall()` for smart contract wallets
     /// @notice Delegation to must have been performed via a call to the Nouns token contract using either the
     /// `delegate()` or `delegateBySig()` function, having provided the correct Delegate address for the given ID
-    function setActiveDelegation(address nounder, uint256 delegateId) external {
+    function registerDelegation(address nounder, uint256 delegateId) external {
         address delegate = getDelegateAddress(delegateId);
         
         address externalDelegate = nounsToken.delegates(nounder);
@@ -181,19 +183,19 @@ import {Delegate} from "./Delegate.sol";
         uint256 votingPower = nounsToken.votesToDelegate(nounder);
         if (votingPower == 0) revert ZeroVotesToDelegate(nounder);
 
-        uint256 proposalThreshold = INounsDAOLogicV3(nounsGovernor).proposalThreshold();
-        // votingPower above proposalThreshold is not usable due to Nouns token implementation constraint
-        if (votingPower > proposalThreshold) votingPower = proposalThreshold; //todo
+        uint256 minRequiredVotes = INounsDAOLogicV3(nounsGovernor).proposalThreshold() + 1;
+        // votingPower above minimum required votes is not usable due to Nouns token implementation constraint
+        if (votingPower > minRequiredVotes) votingPower = minRequiredVotes; //todo
 
         uint32 numCheckpoints = nounsToken.numCheckpoints(nounder);
         
         Delegation memory delegation = Delegation(nounder, uint32(block.number), numCheckpoints, uint16(votingPower), uint16(delegateId));
 
-        // emits `DelegationActivated` event
-        _setActiveDelegation(delegation);
+        // emits `DelegationRegistered` event
+        _setOptimisticDelegation(delegation);
     }
 
-    /// @dev Convenience function enabling the bundling of `nounsToken.delegate()` and `this._setActiveDelegation()`
+    /// @dev Convenience function enabling the bundling of `nounsToken.delegate()` and `this._setoptimisticDelegation()`
     /// into a single transaction, simultaneously performing the token delegation and updating this contract's state
     /// @notice Must be invoked in the context of `delegatecall`
     function delegateByDelegatecall() external {
@@ -202,15 +204,15 @@ import {Delegate} from "./Delegate.sol";
         uint256 votingPower = uint16(nounsToken.votesToDelegate(address(this)));
         if (votingPower == 0) revert ZeroVotesToDelegate(address(this));
 
-        uint256 proposalThreshold = INounsDAOLogicV3(nounsGovernor).proposalThreshold();
+        uint256 minRequiredVotes = INounsDAOLogicV3(nounsGovernor).proposalThreshold() + 1;
         bool isSupplementary;
-        if (votingPower < proposalThreshold) {
+        if (votingPower < minRequiredVotes) {
             isSupplementary = true;
         } else {
-            // votingPower above proposalThreshold is not usable due to Nouns token implementation constraint
-            votingPower = proposalThreshold;
+            // votingPower above minimum required votes is not usable due to Nouns token implementation constraint
+            votingPower = minRequiredVotes;
         }
-        uint256 delegateId = getDelegateId(proposalThreshold, isSupplementary);
+        uint256 delegateId = getDelegateId(minRequiredVotes, isSupplementary);
         
         address delegate;
         if (delegateId == _nextDelegateId) {
@@ -222,8 +224,8 @@ import {Delegate} from "./Delegate.sol";
 
         nounsToken.delegate(delegate);
 
-        // emits `DelegationActivated` event
-        PropLot(__self).setActiveDelegation(address(this), delegateId);
+        // emits `DelegationRegistered` event
+        PropLot(__self).registerDelegation(address(this), delegateId);
     }
 
     /*todo Registers a planned vote, allowing a brief redelegation to the sender for the vote to be cast
@@ -264,19 +266,19 @@ import {Delegate} from "./Delegate.sol";
     }
 
     /// @dev Returns either an existing delegate ID if one meets the given parameters, otherwise returns the next delegate ID
-    /// @param proposalThreshold The current proposal threshold which is dynamic based on Nouns token supply 
+    /// @param minRequiredVotes Minimum votes to make a proposal. Must be more than current proposal threshold which is based on Nouns token supply 
     /// @param isSupplementary Whether or not to search for a Delegate that doesn't meet the current proposal threshold
-    function getDelegateId(uint256 proposalThreshold, bool isSupplementary) public view returns (uint256 delegateId) {
-        delegateId = _findDelegateId(proposalThreshold, isSupplementary);
+    function getDelegateId(uint256 minRequiredVotes, bool isSupplementary) public view returns (uint256 delegateId) {
+        delegateId = _findDelegateId(minRequiredVotes, isSupplementary);
     }
 
     /// @dev Returns a suitable delegate address for an account based on its voting power
-    function getSuitableDelegateFor(address nounder, uint256 proposalThreshold) external view returns (address delegate) {
+    function getSuitableDelegateFor(address nounder, uint256 minRequiredVotes) external view returns (address delegate) {
         uint256 votingPower = nounsToken.votesToDelegate(nounder);
         bool isSupplementary;
-        if (votingPower < proposalThreshold) isSupplementary = true;
+        if (votingPower < minRequiredVotes) isSupplementary = true;
 
-        uint256 delegateId = getDelegateId(proposalThreshold, isSupplementary);
+        uint256 delegateId = getDelegateId(minRequiredVotes, isSupplementary);
         delegate = getDelegateAddress(delegateId);
     }
 
@@ -317,31 +319,31 @@ import {Delegate} from "./Delegate.sol";
     */
 
     /// @dev Returns the id of the first delegate ID found to meet the given parameters
-    /// @param _proposalThreshold The current proposal threshold which is dynamic based on Nouns token supply 
-    /// @param _isSupplementary Whether or not the returned Delegate should accept partial voting power, ie `< proposalThreshold`
-    function _findDelegateId(uint256 _proposalThreshold, bool _isSupplementary) internal view returns (uint256 delegateId) {
+    /// @param _minRequiredVotes The votes needed to make a proposal, dynamic based on Nouns token supply
+    /// @param _isSupplementary Whether or not the returned Delegate should accept fewer than required votes
+    function _findDelegateId(uint256 _minRequiredVotes, bool _isSupplementary) internal view returns (uint256 delegateId) {
         // cache in memory to reduce SLOADs
         uint256 nextDelegateId = _nextDelegateId;
         // bounded by (Nouns token supply / proposal threshold)
         unchecked {
             for (uint256 i; i < nextDelegateId; ++i) {
-                // if last iteration is reached, all Delegates have nonzero voting power -> break
-                if (i == nextDelegateId - 1) return nextDelegateId;
-
                 uint256 currentDelegateId = i + 1;
                 address delegateAddress = getDelegateAddress(currentDelegateId);
                 uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
 
                 // when searching for supplement delegate ID, return if additional votes are required
-                if (_isSupplementary && currentVotes < _proposalThreshold) return currentDelegateId;
+                if (_isSupplementary && currentVotes < _minRequiredVotes) return currentDelegateId;
                 // when searching for solo delegate ID, return if votes are 0
                 if (!_isSupplementary && currentVotes == 0) return currentDelegateId;
             }
         }
+
+        // if no existing Delegates match the criteria, a new one must be created
+        delegateId = nextDelegateId;
     }
 
     /// @dev Returns the first Delegate found to be eligible for pushing a proposal to Nouns governance
-    function _findProposerDelegate(uint256 _proposalThreshold) internal view returns (address proposerDelegate) {
+    function _findProposerDelegate(uint256 _minRequiredVotes) internal view returns (address proposerDelegate) {
         // cache in memory to reduce SLOADs
         uint256 nextDelegateId = _nextDelegateId;
         // bounded by Nouns token supply / proposal threshold
@@ -363,7 +365,7 @@ import {Delegate} from "./Delegate.sol";
                 if (noActiveProp == false) continue;
 
                 uint256 currentVotingPower = nounsToken.getCurrentVotes(currentDelegate);
-                if (currentVotingPower < _proposalThreshold) continue;
+                if (currentVotingPower < _minRequiredVotes) continue;
 
                 // if checks pass, return eligible delegate
                 return currentDelegate;
@@ -372,24 +374,24 @@ import {Delegate} from "./Delegate.sol";
     }
 
     /// @dev Returns an array of delegation IDs that violated the protocol rules and are ineligible for yield
-    function _disqualifiedDelegationIndices(uint256 _proposalThreshold) internal returns (uint256[] memory) {
-        // cache _activeDelegations to memory to reduce SLOADs for potential event & gas optimization
-        Delegation[] memory activeDelegations = _getActiveDelegations();
-        bool[] memory disqualifyingIndices = new bool[](activeDelegations.length);
+    function _disqualifiedDelegationIndices(uint256 _minRequiredVotes) internal returns (uint256[] memory) {
+        // cache _optimisticDelegations to memory to reduce SLOADs for potential event & gas optimization
+        Delegation[] memory optimisticDelegations = _getOptimisticDelegations();
+        bool[] memory disqualifyingIndices = new bool[](optimisticDelegations.length);
         uint256 numDisqualifiedIndices;
         
         // array length is bounded by Nouns token supply and will not overflow for eons
         unchecked {
             // search for number of disqualifications
-            for (uint256 i; i < activeDelegations.length; ++i) {
-                address nounder = activeDelegations[i].delegator;
-                address delegate = getDelegateAddress(activeDelegations[i].delegateId);
+            for (uint256 i; i < optimisticDelegations.length; ++i) {
+                address nounder = optimisticDelegations[i].delegator;
+                address delegate = getDelegateAddress(optimisticDelegations[i].delegateId);
                 
                 bool disqualify;
                 uint256 currentCheckpoints = nounsToken.numCheckpoints(nounder);
-                if (currentCheckpoints != activeDelegations[i].numCheckpointsSnapshot) {
+                if (currentCheckpoints != optimisticDelegations[i].numCheckpointsSnapshot) {
                     //todo handle supplements so that legitimate supplementers are not penalized for pairing with violators
-                    disqualify = _inspectCheckpoints(nounder, delegate, currentCheckpoints, activeDelegations[i].numCheckpointsSnapshot, activeDelegations[i].votingPower, _proposalThreshold);
+                    disqualify = _inspectCheckpoints(nounder, delegate, currentCheckpoints, optimisticDelegations[i].numCheckpointsSnapshot, optimisticDelegations[i].votingPower, _minRequiredVotes);
                     
                     if (disqualify == true) {
                         disqualifyingIndices[i] = true;
@@ -420,7 +422,7 @@ import {Delegate} from "./Delegate.sol";
     }
 
     //todo add return param to mark which supplement violated protocol rules and granularly disqualify
-    function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower, uint256 _proposalThreshold) internal view returns (bool _disqualify) {
+    function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower, uint256 _minRequiredVotes) internal view returns (bool _disqualify) {
         // Nouns token contract uses safe Uint32 math, preventing underflow
         uint256 delta = _currentCheckpoints - _numCheckpointsSnapshot;
         unchecked {
@@ -430,7 +432,7 @@ import {Delegate} from "./Delegate.sol";
                 
                 // disqualify redelegations and transfers/burns that dropped voting power below recorded value
                 uint256 checkpointVotes = nounsToken.getPriorVotes(_delegate, checkpoint.fromBlock);
-                //todo bug in disqualifications, test for more granularity ie if (checkpointVotes < _proposalThreshold)
+                //todo bug in disqualifications, test each delegator in supplement ie if (checkpointVotes < _minRequiredVotes)
                 if (checkpointVotes < _votingPower || checkpoint.votes < _votingPower) {
                     _disqualify = true;
                     break;
@@ -445,16 +447,16 @@ import {Delegate} from "./Delegate.sol";
         unchecked {
             for (uint256 i; i < _indices.length; ++i) {
                 // will not underflow as this function is only invoked if delegation indices were found
-                uint256 lastIndex = _activeDelegations.length - 1;
+                uint256 lastIndex = _optimisticDelegations.length - 1;
                 uint256 indexToDelete = _indices[i];
 
-                Delegation memory currentDelegation = _activeDelegations[indexToDelete];
+                Delegation memory currentDelegation = _optimisticDelegations[indexToDelete];
 
                 if (indexToDelete != lastIndex) {
                     // replace Delegation to be deleted with last member of array
-                    _activeDelegations[indexToDelete] = _activeDelegations[lastIndex];
+                    _optimisticDelegations[indexToDelete] = _optimisticDelegations[lastIndex];
                 }
-                _activeDelegations.pop();
+                _optimisticDelegations.pop();
         
                 emit DelegationDeleted(currentDelegation);
             }
@@ -462,14 +464,14 @@ import {Delegate} from "./Delegate.sol";
     }
 
     /// @notice Marked internal since Delegations recorded in storage are optimistic and should not be relied on externally
-    function _getActiveDelegations() internal view returns (Delegation[] memory) {
-        return _activeDelegations;
+    function _getOptimisticDelegations() internal view returns (Delegation[] memory) {
+        return _optimisticDelegations;
     }
 
-    function _setActiveDelegation(Delegation memory _delegation) internal {
-        _activeDelegations.push(_delegation);
+    function _setOptimisticDelegation(Delegation memory _delegation) internal {
+        _optimisticDelegations.push(_delegation);
 
-        emit DelegationActivated(_delegation);
+        emit DelegationRegistered(_delegation);
     }
 
     /// @dev References the Nouns governor contract to determine whether a proposal is in a disqualifying state

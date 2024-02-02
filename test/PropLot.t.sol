@@ -26,6 +26,7 @@ import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
+import {PropLot} from "src/PropLot.sol";
 import {PropLotHarness} from "test/harness/PropLotHarness.sol";
 
 /// @notice Fuzz iteration params can be increased to larger types to match implementation
@@ -66,8 +67,8 @@ contract PropLotTest is Test {
 
     // copied from PropLot to facilitate event testing
     event DelegateCreated(address delegate, uint256 id);
-    event DelegationActivated(PropLotHarness.Delegation activeDelegation);
-    event DelegationDeleted(PropLotHarness.Delegation inactiveDelegation);
+    event DelegationRegistered(PropLot.Delegation optimisticDelegation);
+    event DelegationDeleted(PropLot.Delegation disqualifiedDelegation);
 
 
     function setUp() public {
@@ -163,20 +164,20 @@ contract PropLotTest is Test {
     function test_setUp() public {
         assertEq(address(nounsTokenHarness), address(nounsGovernorProxy.nouns()));
         assertEq(NounsTokenHarness(address(nounsTokenHarness)).balanceOf(nounder), 1);
-        assertEq(propLot._getActiveDelegations().length, 0);
+        assertEq(propLot.getOptimisticDelegations().length, 0);
         
         uint256 totalSupply = NounsTokenHarness(address(nounsTokenHarness)).totalSupply();
         assertEq(NounsTokenHarness(address(nounsTokenHarness)).ownerOf(totalSupply - 1), nounder);
         
         address firstDelegate = propLot.getDelegateAddress(1);
         assertTrue(firstDelegate.code.length > 0);
-        assertTrue(firstDelegate == propLot._simulateCreate2(bytes32(uint256(1)),  propLot.__creationCodeHash()));
+        assertTrue(firstDelegate == propLot.simulateCreate2(bytes32(uint256(1)),  propLot.__creationCodeHash()));
 
         uint256 nextDelegateId = propLot.getNextDelegateId();
         assertEq(nextDelegateId, 2);
 
-        uint256 proposalThreshold = nounsGovernorProxy.proposalThreshold();
-        uint256 incompleteDelegateId = propLot.getDelegateId(proposalThreshold, true);
+        uint256 minRequiredVotes = nounsGovernorProxy.proposalThreshold() + 1;
+        uint256 incompleteDelegateId = propLot.getDelegateId(minRequiredVotes, true);
         assertEq(incompleteDelegateId, 1);
 
         uint256 numCheckpoints = nounsTokenHarness.numCheckpoints(nounder);
@@ -196,7 +197,7 @@ contract PropLotTest is Test {
     }
 
     function test_revertGetDelegateAddressInvalidDelegateId() public {
-        bytes memory err = abi.encodeWithSelector(PropLotHarness.InvalidDelegateId.selector, 0);
+        bytes memory err = abi.encodeWithSelector(PropLot.InvalidDelegateId.selector, 0);
         vm.expectRevert(err);
         propLot.getDelegateAddress(0);
     }
@@ -225,13 +226,13 @@ contract PropLotTest is Test {
     function test_simulateCreate2(uint8 fuzzIterations) public {
         address firstDelegate = propLot.getDelegateAddress(1);
         assertTrue(firstDelegate.code.length != 0);
-        assertTrue(firstDelegate == propLot._simulateCreate2(bytes32(uint256(1)),  propLot.__creationCodeHash()));
+        assertTrue(firstDelegate == propLot.simulateCreate2(bytes32(uint256(1)),  propLot.__creationCodeHash()));
         
         uint256 startDelegateId = propLot.getNextDelegateId();
 
         for (uint256 i; i < fuzzIterations; ++i) {
             uint256 fuzzDelegateId = startDelegateId + i;
-            address expectedDelegate = propLot._simulateCreate2(bytes32(fuzzDelegateId), propLot.__creationCodeHash());
+            address expectedDelegate = propLot.simulateCreate2(bytes32(fuzzDelegateId), propLot.__creationCodeHash());
             address createdDelegate = propLot.createDelegate();
             assertEq(expectedDelegate, createdDelegate);
             assertEq(expectedDelegate, propLot.getDelegateAddress(fuzzDelegateId));
@@ -241,7 +242,7 @@ contract PropLotTest is Test {
     // function test_getDelegateIdSolo()
     // function test_getDelegateIdSupplement()
 
-    function test_setActiveDelegation() public {
+    function test_registerDelegation() public {
         // roll forward one block so `numCheckpoints` is updated when delegating
         vm.roll(block.number + 1);
 
@@ -252,8 +253,8 @@ contract PropLotTest is Test {
         uint256 votingPower = nounsTokenHarness.votesToDelegate(nounder);
 
         // perform external delegation to relevant delegate
-        uint256 proposalThreshold = nounsGovernorProxy.proposalThreshold();
-        uint256 delegateId = propLot.getDelegateId(proposalThreshold, true);
+        uint256 minRequiredVotes = nounsGovernorProxy.proposalThreshold() + 1;
+        uint256 delegateId = propLot.getDelegateId(minRequiredVotes, true);
         address delegate = propLot.getDelegateAddress(delegateId);
         vm.prank(nounder);
         nounsTokenHarness.delegate(delegate);
@@ -265,7 +266,7 @@ contract PropLotTest is Test {
         assertEq(nextCheckpoints, startCheckpoints + 1);
         uint256 nextDelegateId = propLot.getNextDelegateId();
 
-        PropLotHarness.Delegation memory delegation = PropLotHarness.Delegation(
+        PropLot.Delegation memory delegation = PropLot.Delegation(
             nounder, 
             uint32(block.number),
             uint32(nextCheckpoints),
@@ -273,34 +274,34 @@ contract PropLotTest is Test {
             uint16(delegateId)
         );
         vm.expectEmit(true, false, false, false);
-        emit DelegationActivated(delegation);
+        emit DelegationRegistered(delegation);
         vm.prank(nounder);
-        propLot.setActiveDelegation(nounder, delegateId);
+        propLot.registerDelegation(nounder, delegateId);
 
         // assert no new delegate was created
         assertEq(nextDelegateId, propLot.getNextDelegateId());
 
-        PropLotHarness.Delegation[] memory activeDelegations = propLot._getActiveDelegations();
-        assertEq(activeDelegations.length, 1);
-        assertEq(activeDelegations[0].delegator, nounder);
-        assertEq(activeDelegations[0].blockDelegated, uint32(block.number));
-        assertEq(activeDelegations[0].numCheckpointsSnapshot, uint32(nextCheckpoints));
-        assertEq(activeDelegations[0].votingPower, uint16(votingPower));
-        assertEq(activeDelegations[0].delegateId, uint16(delegateId));
+        PropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
+        assertEq(optimisticDelegations.length, 1);
+        assertEq(optimisticDelegations[0].delegator, nounder);
+        assertEq(optimisticDelegations[0].blockDelegated, uint32(block.number));
+        assertEq(optimisticDelegations[0].numCheckpointsSnapshot, uint32(nextCheckpoints));
+        assertEq(optimisticDelegations[0].votingPower, uint16(votingPower));
+        assertEq(optimisticDelegations[0].delegateId, uint16(delegateId));
 
-        uint256 existingSupplementId = propLot.getDelegateId(proposalThreshold, true);
+        uint256 existingSupplementId = propLot.getDelegateId(minRequiredVotes, true);
         assertEq(existingSupplementId, delegateId);
 
-        uint256 expectNewDelegateId = propLot.getDelegateId(proposalThreshold, false);
+        uint256 expectNewDelegateId = propLot.getDelegateId(minRequiredVotes, false);
         assertEq(expectNewDelegateId, nextDelegateId);
     }
 
-    //todo try calling `setActiveDelegation()` and then immediately redelegate back to self in same block
+    //todo try calling `setOptimisticDelegation()` and then immediately redelegate back to self in same block
     // to test internal state and make sure the falsified Delegation is cleared upon settlement
-    //function test_setActiveDelegationRedelegateSameBlock()
+    //function test_setOptimisticDelegationRedelegateSameBlock()
 
     function test_revertPushProposalNotIdeaTokenHub() public {
-        bytes memory err = abi.encodeWithSelector(PropLotHarness.OnlyIdeaContract.selector);
+        bytes memory err = abi.encodeWithSelector(PropLot.OnlyIdeaContract.selector);
         vm.expectRevert(err);
         propLot.pushProposal(txs, description);
     }
