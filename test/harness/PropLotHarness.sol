@@ -5,18 +5,12 @@ import {ECDSA} from "nouns-monorepo/external/openzeppelin/ECDSA.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
-import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
-import {Delegate} from "./Delegate.sol";
+import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
+import {Delegate} from "src/Delegate.sol";
+import {console2} from "forge-std/console2.sol";
 
-/// @title PropLot Protocol Core
-/// @author 📯📯📯.eth
-/// @notice The PropLot Protocol Core contract manages a set of deterministic Delegate contracts whose sole purpose
-/// is to noncustodially receive delegation from Noun token holders who wish to earn yield in exchange for granting 
-/// PropLot the ability to push onchain proposals to the Nouns governance ecosystem. Winning proposals are chosen
-/// via a permissionless ERC115 mint managed by the PropLot IdeaHub contract.
-/// @notice Since Nouns voting power delegation is all-or-nothing on an address basis, Nounders can only delegate 
-/// (and earn yield) on Nouns token balances up to the proposal threshold per wallet address.
-    contract PropLot {
+/// @dev PropLot harness contract exposing all internal functions externally for testing
+    contract PropLotHarness {
 
     /*
       Structs
@@ -70,8 +64,8 @@ import {Delegate} from "./Delegate.sol";
     INounsDAOLogicV3 public immutable nounsGovernor;
     IERC721Checkpointable public immutable nounsToken;
     address public immutable ideaTokenHub;
-    address private immutable __self;
-    bytes32 private immutable __creationCodeHash;
+    address public immutable __self;
+    bytes32 public immutable __creationCodeHash;
 
     /*
       Storage
@@ -215,7 +209,7 @@ import {Delegate} from "./Delegate.sol";
         address delegate;
         if (delegateId == _nextDelegateId) {
             // if no Delegate is eligible for supplementing, create a new one
-            delegate = PropLot(__self).createDelegate();
+            delegate = PropLotHarness(__self).createDelegate();
         } else {
             delegate = getDelegateAddress(delegateId);
         }
@@ -223,7 +217,7 @@ import {Delegate} from "./Delegate.sol";
         nounsToken.delegate(delegate);
 
         // emits `DelegationActivated` event
-        PropLot(__self).setActiveDelegation(address(this), delegateId);
+        PropLotHarness(__self).setActiveDelegation(address(this), delegateId);
     }
 
     /*todo Registers a planned vote, allowing a brief redelegation to the sender for the vote to be cast
@@ -313,7 +307,7 @@ import {Delegate} from "./Delegate.sol";
     }
 
     /*
-      Internals
+      publics
     */
 
     /// @dev Returns the id of the first delegate ID found to meet the given parameters
@@ -341,7 +335,7 @@ import {Delegate} from "./Delegate.sol";
     }
 
     /// @dev Returns the first Delegate found to be eligible for pushing a proposal to Nouns governance
-    function _findProposerDelegate(uint256 _proposalThreshold) internal view returns (address proposerDelegate) {
+    function _findProposerDelegate(uint256 _proposalThreshold) public view returns (address proposerDelegate) {
         // cache in memory to reduce SLOADs
         uint256 nextDelegateId = _nextDelegateId;
         // bounded by Nouns token supply / proposal threshold
@@ -372,7 +366,7 @@ import {Delegate} from "./Delegate.sol";
     }
 
     /// @dev Returns an array of delegation IDs that violated the protocol rules and are ineligible for yield
-    function _disqualifiedDelegationIndices(uint256 _proposalThreshold) internal returns (uint256[] memory) {
+    function _disqualifiedDelegationIndices(uint256 _proposalThreshold) public returns (uint256[] memory) {
         // cache _activeDelegations to memory to reduce SLOADs for potential event & gas optimization
         Delegation[] memory activeDelegations = _getActiveDelegations();
         bool[] memory disqualifyingIndices = new bool[](activeDelegations.length);
@@ -420,7 +414,7 @@ import {Delegate} from "./Delegate.sol";
     }
 
     //todo add return param to mark which supplement violated protocol rules and granularly disqualify
-    function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower, uint256 _proposalThreshold) internal view returns (bool _disqualify) {
+    function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower, uint256 _proposalThreshold) public view returns (bool _disqualify) {
         // Nouns token contract uses safe Uint32 math, preventing underflow
         uint256 delta = _currentCheckpoints - _numCheckpointsSnapshot;
         unchecked {
@@ -440,7 +434,7 @@ import {Delegate} from "./Delegate.sol";
     }
 
     /// @dev Deletes Delegations by swapping the non-final index members to be removed with members to be preserved
-    function _deleteDelegations(uint256[] memory _indices) internal {
+    function _deleteDelegations(uint256[] memory _indices) public {
         // bounded by Noun token supply and will not overflow
         unchecked {
             for (uint256 i; i < _indices.length; ++i) {
@@ -461,19 +455,19 @@ import {Delegate} from "./Delegate.sol";
         }
     }
 
-    /// @notice Marked internal since Delegations recorded in storage are optimistic and should not be relied on externally
-    function _getActiveDelegations() internal view returns (Delegation[] memory) {
+    /// @notice Marked public since Delegations recorded in storage are optimistic and should not be relied on externally
+    function _getActiveDelegations() public view returns (Delegation[] memory) {
         return _activeDelegations;
     }
 
-    function _setActiveDelegation(Delegation memory _delegation) internal {
+    function _setActiveDelegation(Delegation memory _delegation) public {
         _activeDelegations.push(_delegation);
 
         emit DelegationActivated(_delegation);
     }
 
     /// @dev References the Nouns governor contract to determine whether a proposal is in a disqualifying state
-    function _isEligibleProposalState(uint256 _latestProposal) internal view returns (bool) {
+    function _isEligibleProposalState(uint256 _latestProposal) public view returns (bool) {
         NounsDAOStorageV3.ProposalState delegatesLatestProposalState = INounsDAOLogicV3(nounsGovernor).state(_latestProposal);
         if (
             delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod ||
@@ -486,7 +480,7 @@ import {Delegate} from "./Delegate.sol";
     }
 
     /// @dev Computes a counterfactual Delegate address via `create2` using its creation code and `delegateId` as salt
-    function _simulateCreate2(bytes32 _salt, bytes32 _creationCodeHash) internal view returns (address simulatedDeployment) {
+    function _simulateCreate2(bytes32 _salt, bytes32 _creationCodeHash) public view returns (address simulatedDeployment) {
         address self = __self;
 
         assembly {

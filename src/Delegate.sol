@@ -18,7 +18,6 @@ contract Delegate {
     constructor(address propLot_) {
         propLot = propLot_;
     }
-
     
     function pushProposal(
         INounsDAOLogicV3 governor,
