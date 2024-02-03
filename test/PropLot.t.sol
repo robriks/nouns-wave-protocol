@@ -310,13 +310,20 @@ contract PropLotTest is Test {
         uint256 expectNewDelegateId = propLot.getDelegateId(minRequiredVotes, false);
         assertEq(expectNewDelegateId, nextDelegateId);
 
+        // the delegation should register as an eligible proposer
+        address[] memory allEligibleProposers = propLot.getAllEligibleProposerDelegates(minRequiredVotes);
+        assertEq(allEligibleProposers.length, 0);
+        // no partial delegates should be found
+        address[] memory allPartialDelegates = propLot.getAllPartialDelegates(minRequiredVotes);
+        assertEq(allPartialDelegates.length, 1);
+        assertEq(allPartialDelegates[0], delegate);
+
         // proposal cannot pushed using the first delegate after 1 block as it requires another vote
         vm.roll(block.number + 1);
         vm.prank(address(propLot));
         bytes memory err = abi.encodeWithSignature("VotesBelowProposalThreshold()");
         vm.expectRevert(err);
         Delegate(delegate).pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
-
     }
 
     function test_registerDelegationSolo() public {
