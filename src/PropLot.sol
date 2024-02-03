@@ -86,9 +86,6 @@ import {console2} from "forge-std/console2.sol";//todo
     /// when used as part of `create2` deployment or other function parameter
     uint16 private _nextDelegateId;
 
-    /// @dev Returns the Supplement information associated with a supplement delegation
-    mapping (uint16 => Delegation) public supplementDelegations;
-
     constructor(address ideaTokenHub_, INounsDAOLogicV3 nounsGovernor_, IERC721Checkpointable nounsToken_) {
         ideaTokenHub = ideaTokenHub_;
         nounsGovernor = nounsGovernor_;
@@ -104,7 +101,6 @@ import {console2} from "forge-std/console2.sol";//todo
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
     /// Checks for changes in delegation state on `nounsToken` contract and updates PropLot recordkeeping accordingly
     /// @notice May only be called by the PropLot's ERC1155 Idea token hub at the conclusion of each 2-week round
-    /// todo: rename to finalizeRound()
     function pushProposal(
         NounsDAOV3Proposals.ProposalTxs calldata txs,
         string calldata description
@@ -255,11 +251,6 @@ import {console2} from "forge-std/console2.sol";//todo
       Views
     */
 
-    /// @dev Typecasts and returns the next delegate ID as a `uint256`
-    function getNextDelegateId() public view returns (uint256 nextDelegateId) {
-        return uint256(_nextDelegateId);
-    }
-
     /// @dev Computes the counterfactual address for a given delegate ID whether or not it has been deployed
     function getDelegateAddress(uint256 delegateId) public view returns (address delegate) {
         if (delegateId == 0) revert InvalidDelegateId(delegateId);
@@ -271,6 +262,11 @@ import {console2} from "forge-std/console2.sol";//todo
     /// @param isSupplementary Whether or not to search for a Delegate that doesn't meet the current proposal threshold
     function getDelegateId(uint256 minRequiredVotes, bool isSupplementary) public view returns (uint256 delegateId) {
         delegateId = _findDelegateId(minRequiredVotes, isSupplementary);
+    }
+
+    /// @dev Typecasts and returns the next delegate ID as a `uint256`
+    function getNextDelegateId() public view returns (uint256 nextDelegateId) {
+        return uint256(_nextDelegateId);
     }
 
     /// @dev Returns a suitable delegate address for an account based on its voting power

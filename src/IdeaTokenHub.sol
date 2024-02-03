@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-// import {ERC1155} from "openzeppelin-contracts/token/ERC1155/ERC1155.sol";
+import {ERC1155} from "openzeppelin-contracts/token/ERC1155/ERC1155.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
-import {NounsDAOLogicV3} from "nouns-monorepo/governance/NounsDAOLogicV3.sol";
-import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+// import {IPropLot} from "./IPropLot.sol";
 import {PropLot} from "./PropLot.sol";
 import {console2} from "forge-std/console2.sol"; //todo delete
 
@@ -23,6 +22,63 @@ import {console2} from "forge-std/console2.sol"; //todo delete
 // split sum of minting fees between existing noun delegates in a claim() func
 // non-winning tokens w/ existing votes can roll over into following two week periods
 
-contract IdeaTokenHub /*is ERC1155*/ {
-    //todo
+contract IdeaTokenHub is ERC1155 {
+    
+    struct Sponsorship {
+        address sponsor;
+        uint96 ideaId;
+        SponsorshipParams params;
+    }
+
+    struct SponsorshipParams {
+        uint224 amount;
+        uint32 blockNumber;
+    }
+
+    error BelowMinimumSponsorshipAmount(uint256 value);
+
+    // IPropLot private immutable propLotCore;
+    
+    /// @dev The length of time for a round in blocks, marking the block number where winning ideas are chosen 
+    uint256 public constant roundLength = 1209600;
+    uint256 public constant minSponsorshipAmount = 0.001 ether;
+
+    uint256 nextIdeaId;
+
+    mapping (uint96 => uint256) ideaTotalFunding;
+    mapping (address => mapping (uint96 => SponsorshipParams)) sponsorships;
+
+    constructor() {
+        // propLotCore = IPropLot(msg.sender);
+        ++nextIdeaId;
+    }
+
+    function createIdea(NounsDAOV3Proposals.ProposalTxs memory ideaTxs) public payable {
+        //todo
+        if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
+        
+        ideaId = nextIdeaId;
+        ++nextIdeaId;
+        totalFunding[id] += msg.value;
+
+        SponsorshipParams memory params = SponsorshipParams(msg.value, msg.block);
+        Sponsorship memory sponsorship = Sponsorship(msg.sender, ideaId, params);
+        
+
+        _mint(msg.sender, ideaId, 1, abi.encode(params));
+    }
+
+    function sponsorIdea(uint256 ideaId) public payable {
+        if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
+
+        //todo
+    }
+
+
+    function finalizeRound() external {
+        // check that roundLength has passed
+        // determine winners by checking balances
+        propLot.pushProposal(); // must return winning Delegations
+        // pay Delegations.delegator proportional to their usable voting power
+    }
 }
