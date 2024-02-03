@@ -63,7 +63,9 @@ contract PropLotTest is Test {
     NounsDAOV3Proposals.ProposalTxs txs;
     string description;
 
-    address nounder;
+    address nounderSupplement;
+    address nounderSupplement2;
+    address nounderSolo;
 
     // copied from PropLot to facilitate event testing
     event DelegateCreated(address delegate, uint256 id);
@@ -154,20 +156,32 @@ contract PropLotTest is Test {
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
 
-        // mint 1 to nounder
-        nounder = vm.addr(0xc0ffeebabe);
-        assertEq(nounsTokenHarness.numCheckpoints(nounder), 0);
-        NounsTokenHarness(address(nounsTokenHarness)).mintTo(nounder);
-        assertEq(nounsTokenHarness.numCheckpoints(nounder), 1);
+        // mint 1 to nounderSupplement
+        nounderSupplement = vm.addr(0xc0ffeebabe);
+        assertEq(nounsTokenHarness.numCheckpoints(nounderSupplement), 0);
+        NounsTokenHarness(address(nounsTokenHarness)).mintTo(nounderSupplement);
+        assertEq(nounsTokenHarness.numCheckpoints(nounderSupplement), 1);
+        // mint 1 to nounderSupplement2
+        nounderSupplement2 = vm.addr(0xc0ffeebae);
+        assertEq(nounsTokenHarness.numCheckpoints(nounderSupplement2), 0);
+        NounsTokenHarness(address(nounsTokenHarness)).mintTo(nounderSupplement2);
+        assertEq(nounsTokenHarness.numCheckpoints(nounderSupplement2), 1);
+        // mint 2 to nounderSolo
+        nounderSolo = vm.addr(0xbeefEbabe);
+        assertEq(nounsTokenHarness.numCheckpoints(nounderSolo), 0);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounderSolo, 2);
+        assertEq(nounsTokenHarness.numCheckpoints(nounderSolo), 1);
     }
 
     function test_setUp() public {
         assertEq(address(nounsTokenHarness), address(nounsGovernorProxy.nouns()));
-        assertEq(NounsTokenHarness(address(nounsTokenHarness)).balanceOf(nounder), 1);
+        assertEq(NounsTokenHarness(address(nounsTokenHarness)).balanceOf(nounderSupplement), 1);
         assertEq(propLot.getOptimisticDelegations().length, 0);
         
         uint256 totalSupply = NounsTokenHarness(address(nounsTokenHarness)).totalSupply();
-        assertEq(NounsTokenHarness(address(nounsTokenHarness)).ownerOf(totalSupply - 1), nounder);
+        assertEq(NounsTokenHarness(address(nounsTokenHarness)).ownerOf(totalSupply - 4), nounderSupplement);
+        assertEq(NounsTokenHarness(address(nounsTokenHarness)).ownerOf(totalSupply - 3), nounderSupplement2);
+        assertEq(NounsTokenHarness(address(nounsTokenHarness)).ownerOf(totalSupply - 2), nounderSolo);
         
         address firstDelegate = propLot.getDelegateAddress(1);
         assertTrue(firstDelegate.code.length > 0);
@@ -180,7 +194,7 @@ contract PropLotTest is Test {
         uint256 incompleteDelegateId = propLot.getDelegateId(minRequiredVotes, true);
         assertEq(incompleteDelegateId, 1);
 
-        uint256 numCheckpoints = nounsTokenHarness.numCheckpoints(nounder);
+        uint256 numCheckpoints = nounsTokenHarness.numCheckpoints(nounderSupplement);
         assertEq(numCheckpoints, 1);
     }
 
@@ -239,35 +253,36 @@ contract PropLotTest is Test {
         }
     }
 
-    // function test_getDelegateIdSolo()
-    // function test_getDelegateIdSupplement()
-
-    function test_registerDelegation() public {
+    function test_registerDelegationSupplement() public {
         // roll forward one block so `numCheckpoints` is updated when delegating
         vm.roll(block.number + 1);
 
-        address selfDelegate = nounsTokenHarness.delegates(nounder);
-        assertEq(selfDelegate, nounder);
-        uint256 startCheckpoints = nounsTokenHarness.numCheckpoints(nounder);
+        address selfDelegate = nounsTokenHarness.delegates(nounderSupplement);
+        assertEq(selfDelegate, nounderSupplement);
+        uint256 startCheckpoints = nounsTokenHarness.numCheckpoints(nounderSupplement);
         assertEq(startCheckpoints, 1);
-        uint256 votingPower = nounsTokenHarness.votesToDelegate(nounder);
+        uint256 votingPower = nounsTokenHarness.votesToDelegate(nounderSupplement);
 
-        // perform external delegation to relevant delegate
         uint256 minRequiredVotes = nounsGovernorProxy.proposalThreshold() + 1;
         uint256 delegateId = propLot.getDelegateId(minRequiredVotes, true);
+        assertEq(delegateId, 1);
         address delegate = propLot.getDelegateAddress(delegateId);
-        vm.prank(nounder);
+        address suitableDelegate = propLot.getSuitableDelegateFor(nounderSupplement, minRequiredVotes);
+        assertEq(suitableDelegate, delegate);
+
+        // perform external delegation to relevant delegate
+        vm.prank(nounderSupplement);
         nounsTokenHarness.delegate(delegate);
 
-        address delegated = nounsTokenHarness.delegates(nounder);
+        address delegated = nounsTokenHarness.delegates(nounderSupplement);
         assertEq(delegated, delegate);
 
-        uint256 nextCheckpoints = nounsTokenHarness.numCheckpoints(nounder);
+        uint256 nextCheckpoints = nounsTokenHarness.numCheckpoints(nounderSupplement);
         assertEq(nextCheckpoints, startCheckpoints + 1);
         uint256 nextDelegateId = propLot.getNextDelegateId();
 
         PropLot.Delegation memory delegation = PropLot.Delegation(
-            nounder, 
+            nounderSupplement, 
             uint32(block.number),
             uint32(nextCheckpoints),
             uint16(votingPower),
@@ -275,15 +290,15 @@ contract PropLotTest is Test {
         );
         vm.expectEmit(true, false, false, false);
         emit DelegationRegistered(delegation);
-        vm.prank(nounder);
-        propLot.registerDelegation(nounder, delegateId);
+        vm.prank(nounderSupplement);
+        propLot.registerDelegation(nounderSupplement, delegateId);
 
         // assert no new delegate was created
         assertEq(nextDelegateId, propLot.getNextDelegateId());
 
         PropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
         assertEq(optimisticDelegations.length, 1);
-        assertEq(optimisticDelegations[0].delegator, nounder);
+        assertEq(optimisticDelegations[0].delegator, nounderSupplement);
         assertEq(optimisticDelegations[0].blockDelegated, uint32(block.number));
         assertEq(optimisticDelegations[0].numCheckpointsSnapshot, uint32(nextCheckpoints));
         assertEq(optimisticDelegations[0].votingPower, uint16(votingPower));
@@ -294,11 +309,92 @@ contract PropLotTest is Test {
 
         uint256 expectNewDelegateId = propLot.getDelegateId(minRequiredVotes, false);
         assertEq(expectNewDelegateId, nextDelegateId);
+
+        // proposal cannot pushed using the first delegate after 1 block as it requires another vote
+        vm.roll(block.number + 1);
+        vm.prank(address(propLot));
+        bytes memory err = abi.encodeWithSignature("VotesBelowProposalThreshold()");
+        vm.expectRevert(err);
+        Delegate(delegate).pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
+
+    }
+
+    function test_registerDelegationSolo() public {
+        // roll forward one block so `numCheckpoints` is updated when delegating
+        vm.roll(block.number + 1);
+
+        address selfDelegate = nounsTokenHarness.delegates(nounderSolo);
+        assertEq(selfDelegate, nounderSolo);
+        uint256 startCheckpoints = nounsTokenHarness.numCheckpoints(nounderSolo);
+        assertEq(startCheckpoints, 1);
+        
+        uint256 votingPower = nounsTokenHarness.votesToDelegate(nounderSolo);
+        uint256 minRequiredVotes = nounsGovernorProxy.proposalThreshold() + 1;
+        assertEq(votingPower, minRequiredVotes);
+
+        uint256 delegateId = propLot.getDelegateId(minRequiredVotes, true);
+        assertEq(delegateId, 1);
+        address delegate = propLot.getDelegateAddress(delegateId);
+        address suitableDelegate = propLot.getSuitableDelegateFor(nounderSolo, minRequiredVotes);
+        assertEq(suitableDelegate, delegate);
+
+        // perform external delegation to relevant delegate
+        vm.prank(nounderSolo);
+        nounsTokenHarness.delegate(delegate);
+
+        address delegated = nounsTokenHarness.delegates(nounderSolo);
+        assertEq(delegated, delegate);
+
+        uint256 nextCheckpoints = nounsTokenHarness.numCheckpoints(nounderSolo);
+        assertEq(nextCheckpoints, startCheckpoints + 1);
+        uint256 nextDelegateId = propLot.getNextDelegateId();
+
+        PropLot.Delegation memory delegation = PropLot.Delegation(
+            nounderSolo, 
+            uint32(block.number),
+            uint32(nextCheckpoints),
+            uint16(votingPower),
+            uint16(delegateId)
+        );
+        vm.expectEmit(true, false, false, false);
+        emit DelegationRegistered(delegation);
+        vm.prank(nounderSolo);
+        propLot.registerDelegation(nounderSolo, delegateId);
+
+        // assert no new delegate was created
+        assertEq(nextDelegateId, propLot.getNextDelegateId());
+
+        PropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
+        assertEq(optimisticDelegations.length, 1);
+        assertEq(optimisticDelegations[0].delegator, nounderSolo);
+        assertEq(optimisticDelegations[0].blockDelegated, uint32(block.number));
+        assertEq(optimisticDelegations[0].numCheckpointsSnapshot, uint32(nextCheckpoints));
+        assertEq(optimisticDelegations[0].votingPower, uint16(votingPower));
+        assertEq(optimisticDelegations[0].delegateId, uint16(delegateId));
+
+        // delegateId 1 is saturated so getDelegateId should always return nextDelegateId
+        uint256 returnedSoloId = propLot.getDelegateId(minRequiredVotes, true);
+        assertEq(returnedSoloId, nextDelegateId);
+        uint256 returnedSupplementDelegateId = propLot.getDelegateId(minRequiredVotes, false);
+        assertEq(returnedSupplementDelegateId, nextDelegateId);
+
+        // the delegation should register as an eligible proposer
+        address[] memory allEligibleProposers = propLot.getAllEligibleProposerDelegates(minRequiredVotes);
+        assertEq(allEligibleProposers.length, 1);
+        assertEq(allEligibleProposers[0], delegate);
+        // no partial delegates should be found
+        address[] memory allPartialDelegates = propLot.getAllPartialDelegates(minRequiredVotes);
+        assertEq(allPartialDelegates.length, 0);
+
+        // proposal can now be pushed using the first delegate after 1 block (simple POC)
+        vm.roll(block.number + 1);
+        vm.prank(address(propLot));
+        Delegate(delegate).pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
     }
 
     //todo try calling `setOptimisticDelegation()` and then immediately redelegate back to self in same block
     // to test internal state and make sure the falsified Delegation is cleared upon settlement
-    //function test_setOptimisticDelegationRedelegateSameBlock()
+    //function test_registerDelegationRedelegateSameBlock()
 
     function test_revertPushProposalNotIdeaTokenHub() public {
         bytes memory err = abi.encodeWithSelector(PropLot.OnlyIdeaContract.selector);
@@ -313,6 +409,10 @@ contract PropLotTest is Test {
         vm.expectRevert(err);
         firstDelegate.pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
     }
+
+    
+    // function test_getDelegateIdSolo()
+    // function test_getDelegateIdSupplement()
 
     //function test_pushProposal()
     //function test_delegateBySig()

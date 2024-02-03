@@ -7,6 +7,7 @@ import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
 import {Delegate} from "./Delegate.sol";
+import {console2} from "forge-std/console2.sol";
 
 /// @title PropLot Protocol Core
 /// @author 📯📯📯.eth
@@ -282,8 +283,64 @@ import {Delegate} from "./Delegate.sol";
         delegate = getDelegateAddress(delegateId);
     }
 
-    //todo function to return all existing partial Delegates
-    //todo function to return all existing Delegates eligible for proposing
+    /// @dev Returns all existing Delegates with voting power below the minimum required to make a proposal
+    /// Provided to improve offchain devX; returned values can change at any time as Nouns ecosystem is external
+    function getAllPartialDelegates(uint256 minRequiredVotes) external view returns (address[] memory partialDelegates) {
+        uint256 numPartialDelegates;
+        uint256 nextDelegateId = _nextDelegateId;
+        // determine size of memory array
+        for (uint256 i = 1; i < nextDelegateId; ++i) {
+            address delegateAddress = getDelegateAddress(i);
+            uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
+
+            if (currentVotes < minRequiredVotes) {
+                numPartialDelegates++;
+            }
+        }
+
+        // populate memory array
+        partialDelegates = new address[](numPartialDelegates);
+        uint256 index;
+        for (uint256 j = 1; j < nextDelegateId; ++j) {
+            address delegateAddress = getDelegateAddress(j);
+            uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
+
+            if (currentVotes < minRequiredVotes) {
+                partialDelegates[index] = delegateAddress;
+                index++;
+            }
+        }
+    }
+    /// @dev Returns all existing Delegates currently eligible for making a proposal
+    /// Provided to improve offchain devX: returned values can change at any time as Nouns ecosystem is external
+    function getAllEligibleProposerDelegates(uint256 minRequiredVotes) external view returns (address[] memory eligibleProposers) {
+        uint256 numEligibleProposers;
+        uint256 nextDelegateId = _nextDelegateId;
+        // determine size of memory array
+        for (uint256 i = 1; i < nextDelegateId; ++i) {
+            address delegateAddress = getDelegateAddress(i);
+            bool noActiveProp = _checkForActiveProposal(delegateAddress);
+            uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
+
+            if (noActiveProp && currentVotes >= minRequiredVotes) {
+                numEligibleProposers++;
+            }
+        }
+
+        // populate memory array
+        eligibleProposers = new address[](numEligibleProposers);
+        uint256 index;
+        for (uint256 j = 1; j < nextDelegateId; ++j) {
+            address delegateAddress = getDelegateAddress(j);
+            bool noActiveProp = _checkForActiveProposal(delegateAddress);
+            uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
+
+            if (noActiveProp && currentVotes >= minRequiredVotes) {
+                eligibleProposers[index] = delegateAddress;
+                index++;
+            }
+        }
+    }
 
     /// @dev Convenience function to facilitate offchain development by computing the `delegateBySig()` digest 
     /// for a given signer and expiry
@@ -319,6 +376,7 @@ import {Delegate} from "./Delegate.sol";
     */
 
     /// @dev Returns the id of the first delegate ID found to meet the given parameters
+    /// To save gas by minimizing costly SLOADs, terminates as soon as a delegate meeting the critera is found
     /// @param _minRequiredVotes The votes needed to make a proposal, dynamic based on Nouns token supply
     /// @param _isSupplementary Whether or not the returned Delegate should accept fewer than required votes
     function _findDelegateId(uint256 _minRequiredVotes, bool _isSupplementary) internal view returns (uint256 delegateId) {
@@ -353,13 +411,7 @@ import {Delegate} from "./Delegate.sol";
                 address currentDelegate = getDelegateAddress(i);
                 
                 // check for active proposals
-                bool noActiveProp;
-                uint256 delegatesLatestProposal = INounsDAOLogicV3(nounsGovernor).latestProposalIds(currentDelegate);
-                if (delegatesLatestProposal != 0) {
-                    noActiveProp =_isEligibleProposalState(delegatesLatestProposal);
-                } else {
-                    noActiveProp = true;
-                }
+                bool noActiveProp = _checkForActiveProposal(currentDelegate);
                 
                 // Delegations with active proposals are unable to make additional proposals
                 if (noActiveProp == false) continue;
@@ -472,6 +524,16 @@ import {Delegate} from "./Delegate.sol";
         _optimisticDelegations.push(_delegation);
 
         emit DelegationRegistered(_delegation);
+    }
+
+    /// @dev Returns true when an active proposal exists for the delegate, meaning it is ineligible to propose
+    function _checkForActiveProposal(address delegate) internal view returns (bool _noActiveProp) {
+        uint256 delegatesLatestProposal = INounsDAOLogicV3(nounsGovernor).latestProposalIds(delegate);
+        if (delegatesLatestProposal != 0) {
+            _noActiveProp =_isEligibleProposalState(delegatesLatestProposal);
+        } else {
+            _noActiveProp = true;
+        }
     }
 
     /// @dev References the Nouns governor contract to determine whether a proposal is in a disqualifying state
