@@ -1,4 +1,4 @@
 ds-test/=lib/nouns-monorepo/lib/forge-std/lib/ds-test/src/
 forge-std/=lib/nouns-monorepo/lib/forge-std/src/
 nouns-monorepo/=lib/nouns-monorepo/packages/nouns-contracts/contracts/
-openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/
+@openzeppelin/=lib/nouns-monorepo/node_modules/@openzeppelin/

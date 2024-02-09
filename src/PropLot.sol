@@ -6,6 +6,7 @@ import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
+import {IPropLot} from "./interfaces/IPropLot.sol";
 import {Delegate} from "./Delegate.sol";
 import {IdeaTokenHub} from "./IdeaTokenHub.sol";
 import {console2} from "forge-std/console2.sol";//todo
@@ -46,8 +47,8 @@ contract PropLot is IPropLot {
       PropLot
     */
 
-    constructor(INounsDAOLogicV3 nounsGovernor_, IERC721Checkpointable nounsToken_) {
-        ideaTokenHub = address(new IdeaTokenHub());
+    constructor(INounsDAOLogicV3 nounsGovernor_, IERC721Checkpointable nounsToken_, string memory uri) {
+        ideaTokenHub = address(new IdeaTokenHub(uri));
         nounsGovernor = nounsGovernor_;
         nounsToken = nounsToken_;
         __self = address(this);
@@ -217,7 +218,7 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function getSuitableDelegateFor(address nounder, uint256 minRequiredVotes) external view returns (address delegate) {    function getSuitableDelegateFor(address nounder, uint256 minRequiredVotes) external view returns (address delegate) {
+    function getSuitableDelegateFor(address nounder, uint256 minRequiredVotes) external view returns (address delegate) {
         uint256 votingPower = nounsToken.votesToDelegate(nounder);
         bool isSupplementary;
         if (votingPower < minRequiredVotes) isSupplementary = true;
