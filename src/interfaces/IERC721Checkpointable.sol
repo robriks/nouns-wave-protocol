@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.6;
+pragma solidity ^0.8.24;
 
 /// @dev Interface for interacting with the Nouns ERC721 governance token with minimal deployment bytecode overhead
 interface IERC721Checkpointable {

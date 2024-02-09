@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 /// @dev Interface for interacting with the NounsDAOLogicV3 governor contract with minimal deployment bytecode overhead
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.24;
 
 import {
     NounsDAOStorageV3, 

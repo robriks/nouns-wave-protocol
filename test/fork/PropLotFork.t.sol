@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {NounsDAOProxyV3} from "nouns-monorepo/governance/NounsDAOProxyV3.sol";

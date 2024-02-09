@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.24;
 
 import {ERC1155} from "openzeppelin-contracts/token/ERC1155/ERC1155.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
-// import {IPropLot} from "./IPropLot.sol";
+import {IPropLot} from "./IPropLot.sol";
 import {PropLot} from "./PropLot.sol";
 import {console2} from "forge-std/console2.sol"; //todo delete
 
 /// @title PropLot Protocol IdeaTokenHub
 /// @author 📯📯📯.eth
-/// @notice The PropLot Protocol
+/// @notice The PropLot Protocol ERC1155 token hub of ideas for Nouns governance proposal 
 
 // This democratizes access to publicizing ideas for Nouns governance to any address by lending proposal power 
 // and lowering the barrier of entry to submitting onchain proposals. Competition is introduced by an auction
@@ -23,7 +23,11 @@ import {console2} from "forge-std/console2.sol"; //todo delete
 // non-winning tokens w/ existing votes can roll over into following two week periods
 
 contract IdeaTokenHub is ERC1155 {
-    
+
+    /*
+      Structs
+    */
+
     struct Sponsorship {
         address sponsor;
         uint96 ideaId;
@@ -37,11 +41,18 @@ contract IdeaTokenHub is ERC1155 {
 
     error BelowMinimumSponsorshipAmount(uint256 value);
 
-    // IPropLot private immutable propLotCore;
-    
+    /*
+      Constants
+    */
+
     /// @dev The length of time for a round in blocks, marking the block number where winning ideas are chosen 
     uint256 public constant roundLength = 1209600;
     uint256 public constant minSponsorshipAmount = 0.001 ether;
+    IPropLot private immutable propLotCore;
+
+    /*
+      Storage
+    */
 
     uint256 nextIdeaId;
 
@@ -49,7 +60,7 @@ contract IdeaTokenHub is ERC1155 {
     mapping (address => mapping (uint96 => SponsorshipParams)) sponsorships;
 
     constructor() {
-        // propLotCore = IPropLot(msg.sender);
+        propLotCore = IPropLot(msg.sender);
         ++nextIdeaId;
     }
 
