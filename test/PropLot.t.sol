@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {Inflator} from "nouns-monorepo/Inflator.sol";
@@ -26,6 +26,7 @@ import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
+import {IPropLot} from "src/interfaces/IPropLot.sol";
 import {PropLot} from "src/PropLot.sol";
 import {PropLotHarness} from "test/harness/PropLotHarness.sol";
 
@@ -59,6 +60,7 @@ contract PropLotTest is Test {
     uint256 votingPeriod_;
     uint256 proposalThresholdBPS_;
     uint256 quorumVotesBPS_;
+    string uri;
 
     NounsDAOV3Proposals.ProposalTxs txs;
     string description;
@@ -69,8 +71,8 @@ contract PropLotTest is Test {
 
     // copied from PropLot to facilitate event testing
     event DelegateCreated(address delegate, uint256 id);
-    event DelegationRegistered(PropLot.Delegation optimisticDelegation);
-    event DelegationDeleted(PropLot.Delegation disqualifiedDelegation);
+    event DelegationRegistered(IPropLot.Delegation optimisticDelegation);
+    event DelegationDeleted(IPropLot.Delegation disqualifiedDelegation);
 
 
     function setUp() public {
@@ -137,8 +139,9 @@ contract PropLotTest is Test {
         vm.stopPrank();
 
         // setup PropLot contracts
-        ideaHub = new IdeaTokenHub();
-        propLot = new PropLotHarness(address(ideaHub), INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)));
+        uri = 'someURI';
+        propLot = new PropLotHarness(INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri);
+        ideaHub = IdeaTokenHub(propLot.ideaTokenHub());
 
         // setup mock proposal
         txs.targets.push(address(0x0));
@@ -211,7 +214,7 @@ contract PropLotTest is Test {
     }
 
     function test_revertGetDelegateAddressInvalidDelegateId() public {
-        bytes memory err = abi.encodeWithSelector(PropLot.InvalidDelegateId.selector, 0);
+        bytes memory err = abi.encodeWithSelector(IPropLot.InvalidDelegateId.selector, 0);
         vm.expectRevert(err);
         propLot.getDelegateAddress(0);
     }
@@ -281,7 +284,7 @@ contract PropLotTest is Test {
         assertEq(nextCheckpoints, startCheckpoints + 1);
         uint256 nextDelegateId = propLot.getNextDelegateId();
 
-        PropLot.Delegation memory delegation = PropLot.Delegation(
+        IPropLot.Delegation memory delegation = IPropLot.Delegation(
             nounderSupplement, 
             uint32(block.number),
             uint32(nextCheckpoints),
@@ -296,7 +299,7 @@ contract PropLotTest is Test {
         // assert no new delegate was created
         assertEq(nextDelegateId, propLot.getNextDelegateId());
 
-        PropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
+        IPropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
         assertEq(optimisticDelegations.length, 1);
         assertEq(optimisticDelegations[0].delegator, nounderSupplement);
         assertEq(optimisticDelegations[0].blockDelegated, uint32(block.number));
@@ -356,7 +359,7 @@ contract PropLotTest is Test {
         assertEq(nextCheckpoints, startCheckpoints + 1);
         uint256 nextDelegateId = propLot.getNextDelegateId();
 
-        PropLot.Delegation memory delegation = PropLot.Delegation(
+        IPropLot.Delegation memory delegation = IPropLot.Delegation(
             nounderSolo, 
             uint32(block.number),
             uint32(nextCheckpoints),
@@ -371,7 +374,7 @@ contract PropLotTest is Test {
         // assert no new delegate was created
         assertEq(nextDelegateId, propLot.getNextDelegateId());
 
-        PropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
+        IPropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
         assertEq(optimisticDelegations.length, 1);
         assertEq(optimisticDelegations[0].delegator, nounderSolo);
         assertEq(optimisticDelegations[0].blockDelegated, uint32(block.number));
@@ -404,7 +407,7 @@ contract PropLotTest is Test {
     //function test_registerDelegationRedelegateSameBlock()
 
     function test_revertPushProposalNotIdeaTokenHub() public {
-        bytes memory err = abi.encodeWithSelector(PropLot.OnlyIdeaContract.selector);
+        bytes memory err = abi.encodeWithSelector(IPropLot.OnlyIdeaContract.selector);
         vm.expectRevert(err);
         propLot.pushProposal(txs, description);
     }

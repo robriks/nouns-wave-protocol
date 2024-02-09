@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.24;
 
-import {ERC1155} from "openzeppelin-contracts/token/ERC1155/ERC1155.sol";
+import {ERC1155} from "lib/openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
-// import {IPropLot} from "./IPropLot.sol";
+import {IPropLot} from "./interfaces/IPropLot.sol";
 import {PropLot} from "./PropLot.sol";
 import {console2} from "forge-std/console2.sol"; //todo delete
 
 /// @title PropLot Protocol IdeaTokenHub
 /// @author 📯📯📯.eth
-/// @notice The PropLot Protocol
+/// @notice The PropLot Protocol ERC1155 token hub of ideas for Nouns governance proposal 
 
 // This democratizes access to publicizing ideas for Nouns governance to any address by lending proposal power 
 // and lowering the barrier of entry to submitting onchain proposals. Competition is introduced by an auction
@@ -23,7 +23,12 @@ import {console2} from "forge-std/console2.sol"; //todo delete
 // non-winning tokens w/ existing votes can roll over into following two week periods
 
 contract IdeaTokenHub is ERC1155 {
-    
+
+    /*
+      Structs
+    */
+
+    /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
     struct Sponsorship {
         address sponsor;
         uint96 ideaId;
@@ -37,19 +42,26 @@ contract IdeaTokenHub is ERC1155 {
 
     error BelowMinimumSponsorshipAmount(uint256 value);
 
-    // IPropLot private immutable propLotCore;
-    
+    /*
+      Constants
+    */
+
     /// @dev The length of time for a round in blocks, marking the block number where winning ideas are chosen 
     uint256 public constant roundLength = 1209600;
     uint256 public constant minSponsorshipAmount = 0.001 ether;
+    IPropLot private immutable propLotCore;
+
+    /*
+      Storage
+    */
 
     uint256 nextIdeaId;
 
     mapping (uint96 => uint256) ideaTotalFunding;
     mapping (address => mapping (uint96 => SponsorshipParams)) sponsorships;
 
-    constructor() {
-        // propLotCore = IPropLot(msg.sender);
+    constructor(string memory uri) ERC1155(uri) {
+        propLotCore = IPropLot(msg.sender);
         ++nextIdeaId;
     }
 
@@ -57,11 +69,12 @@ contract IdeaTokenHub is ERC1155 {
         //todo
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
         
-        ideaId = nextIdeaId;
+        uint96 ideaId = uint96(nextIdeaId);
         ++nextIdeaId;
-        totalFunding[id] += msg.value;
+        ideaTotalFunding[ideaId] += msg.value;
 
-        SponsorshipParams memory params = SponsorshipParams(msg.value, msg.block);
+        // typecasting `msg.value` to `uint224` is safe as it can fit all ETH in existence barring major protocol change
+        SponsorshipParams memory params = SponsorshipParams(uint224(msg.value), uint32(block.number));
         Sponsorship memory sponsorship = Sponsorship(msg.sender, ideaId, params);
         
 
@@ -76,9 +89,13 @@ contract IdeaTokenHub is ERC1155 {
 
 
     function finalizeRound() external {
+        //todo populate with winning txs & description
+        NounsDAOV3Proposals.ProposalTxs memory txs;
+        string memory description;
+
         // check that roundLength has passed
         // determine winners by checking balances
-        propLot.pushProposal(); // must return winning Delegations
+        propLotCore.pushProposal(txs, description); // must return winning Delegations
         // pay Delegations.delegator proportional to their usable voting power
     }
 }

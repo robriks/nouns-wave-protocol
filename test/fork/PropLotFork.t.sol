@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {NounsDAOProxyV3} from "nouns-monorepo/governance/NounsDAOProxyV3.sol";
@@ -32,6 +32,7 @@ contract PropLotForkTest is Test {
     string[] funcSigs;
     bytes[] calldatas;
     string description;
+    string uri;
 
     function setUp() public {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
@@ -41,7 +42,7 @@ contract PropLotForkTest is Test {
         nounsGovernor = payable(address(0x6f3E6272A167e8AcCb32072d08E0957F9c79223d));
         nounsToken = IERC721Checkpointable(0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03);
 
-        propLot = new PropLot(ideaTokenHub, INounsDAOLogicV3(nounsGovernor), nounsToken);
+        propLot = new PropLot(INounsDAOLogicV3(nounsGovernor), nounsToken, uri);
         
         nounsGovernorProxy = NounsDAOLogicV3(payable(address(propLot.nounsGovernor())));
         assertEq(address(nounsToken), address(nounsGovernorProxy.nouns()));
