@@ -28,19 +28,38 @@ contract IdeaTokenHub is ERC1155 {
       Structs
     */
 
-    /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
-    struct Sponsorship {
-        address sponsor;
-        uint96 ideaId;
-        SponsorshipParams params;
-    }
+    // struct Sponsorship {
+    //     address sponsor;
+    //     uint96 ideaId;
+    //     SponsorshipParams params;
+    // }
 
     struct SponsorshipParams {
-        uint224 amount;
-        uint32 blockNumber;
+        uint216 contributedBalance;
+        bool isCreator;
+    }
+
+    struct IdeaRecord {
+        uint216 totalFunding;
+        uint32 blockCreated;
+        bool isProposed;
+        NounsDAOV3Proposals.ProposalTxs ideaTxs;
+        string description;
+    }
+
+    struct RoundInfo {
+        uint32 currentRound;
+        uint32 startBlock;
     }
 
     error BelowMinimumSponsorshipAmount(uint256 value);
+    error NonexistentIdeaId(uint256 ideaId);
+    error AlreadyProposed(uint256 ideaId);
+    error RoundIncomplete();
+
+    event IdeaCreated(IdeaRecord ideaRecord);
+    event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params);
+    event IdeaProposed(IdeaRecord ideaRecord);
 
     /*
       Constants
@@ -48,54 +67,82 @@ contract IdeaTokenHub is ERC1155 {
 
     /// @dev The length of time for a round in blocks, marking the block number where winning ideas are chosen 
     uint256 public constant roundLength = 1209600;
+    /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
     uint256 public constant minSponsorshipAmount = 0.001 ether;
+    uint256 public constant decimals = 18;
+
     IPropLot private immutable propLotCore;
 
     /*
       Storage
     */
 
+    RoundInfo public currentRoundInfo;
     uint256 nextIdeaId;
 
-    mapping (uint96 => uint256) ideaTotalFunding;
-    mapping (address => mapping (uint96 => SponsorshipParams)) sponsorships;
+    /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
+    mapping (uint96 => IdeaRecord) internal ideaRecords;
+    mapping (address => mapping (uint96 => SponsorshipParams)) internal sponsorships;
 
-    constructor(string memory uri) ERC1155(uri) {
+    constructor(string memory uri_) ERC1155(uri_) {
         propLotCore = IPropLot(msg.sender);
+        
+        ++currentRoundInfo.currentRound;
         ++nextIdeaId;
     }
 
-    function createIdea(NounsDAOV3Proposals.ProposalTxs memory ideaTxs) public payable {
-        //todo
+    function createIdea(NounsDAOV3Proposals.ProposalTxs memory ideaTxs, string memory description) public payable {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
-        
+
         uint96 ideaId = uint96(nextIdeaId);
+        uint216 value = uint216(msg.value);
+        IdeaRecord memory ideaRecord = IdeaRecord(value, uint32(block.number), false, ideaTxs, description);
+        ideaRecords[ideaId] = ideaRecord;
         ++nextIdeaId;
-        ideaTotalFunding[ideaId] += msg.value;
 
-        // typecasting `msg.value` to `uint224` is safe as it can fit all ETH in existence barring major protocol change
-        SponsorshipParams memory params = SponsorshipParams(uint224(msg.value), uint32(block.number));
-        Sponsorship memory sponsorship = Sponsorship(msg.sender, ideaId, params);
-        
+        sponsorships[msg.sender][ideaId].contributedBalance = value;
+        sponsorships[msg.sender][ideaId].isCreator = true;
 
-        _mint(msg.sender, ideaId, 1, abi.encode(params));
+        _mint(msg.sender, ideaId, msg.value, '');
+
+        emit IdeaCreated(ideaRecord);
     }
 
     function sponsorIdea(uint256 ideaId) public payable {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
+        if (ideaId >= nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
+        // revert if a new round should be started
+        if (block.number - roundLength >= currentRoundInfo.startBlock) revert RoundIncomplete();
+        
+        // typecast values can contain all Ether in existence && quintillions of ideas per human on earth
+        uint216 value = uint216(msg.value);
+        uint96 id = uint96(ideaId);
+        if (ideaRecords[id].isProposed) revert AlreadyProposed(ideaId);
 
-        //todo
+        ideaRecords[id].totalFunding += value;
+        // `isCreator` for caller remains the same as at creation
+        sponsorships[msg.sender][id].contributedBalance += value;
+
+        SponsorshipParams storage params = sponsorships[msg.sender][id];
+        
+        _mint(msg.sender, ideaId, msg.value, '');
+
+        emit Sponsorship(msg.sender, id, params);
     }
 
-
     function finalizeRound() external {
+        // check that roundLength has passed
+        if (block.number - roundLength < currentRoundInfo.startBlock) revert RoundIncomplete();
+        ++currentRoundInfo.currentRound;
+        currentRoundInfo.startBlock = uint32(block.number);
+
+        // determine winners by checking balances
+
         //todo populate with winning txs & description
         NounsDAOV3Proposals.ProposalTxs memory txs;
         string memory description;
 
-        // check that roundLength has passed
-        // determine winners by checking balances
-        propLotCore.pushProposal(txs, description); // must return winning Delegations
+        /* address[] memory delegators = */ propLotCore.pushProposal(txs, description); // must return winning Delegations
         // pay Delegations.delegator proportional to their usable voting power
     }
 }
