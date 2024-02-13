@@ -160,7 +160,7 @@ contract PropLotForkTest is Test {
         NounsTokenLike(address(nounsToken)).transferFrom(someNounHolder, someNounHolder, someTokenId);
     }
 
-    // function test_pushProposal() public {
+    // function test_pushProposals() public {
     //     vm.startPrank(someNounHolder);
     //     ERC721Checkpointable(address(nounsToken)).delegate(address(propLot));
     //     vm.stopPrank();
@@ -168,7 +168,7 @@ contract PropLotForkTest is Test {
     //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
     //     vm.roll(block.number + 1);
 
-    //     propLot.pushProposal(targets, values, funcSigs, calldatas, description); 
+    //     propLot.pushProposals(targets, values, funcSigs, calldatas, description); 
     // }
 
     // function test_NounsProposeViaTransfer() public {
@@ -183,6 +183,6 @@ contract PropLotForkTest is Test {
     //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
     //     vm.roll(block.number + 1);
 
-    //     propLot.pushProposal(targets, values, funcSigs, calldatas, description); 
+    //     propLot.pushProposals(targets, values, funcSigs, calldatas, description); 
     // }
 }

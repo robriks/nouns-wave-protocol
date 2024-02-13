@@ -165,7 +165,7 @@ contract IdeaTokenHub is ERC1155 {
             proposals[l] = ideaInfos[winningIds[l]].proposal;
         }
 
-        /* address[] memory delegators = */ __propLotCore.pushProposal(proposals); 
+        /* address[] memory delegators = */ __propLotCore.pushProposals(proposals); 
         // pay Delegations.delegator proportional to their usable voting power
     }
 

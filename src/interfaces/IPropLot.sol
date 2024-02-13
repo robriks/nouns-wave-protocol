@@ -62,9 +62,9 @@ interface IPropLot {
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
     /// Checks for changes in delegation state on `nounsToken` contract and updates PropLot recordkeeping accordingly
     /// @notice May only be called by the PropLot's ERC1155 Idea token hub at the conclusion of each 2-week round
-    function pushProposal(
+    function pushProposals(
       Proposal[] calldata proposals
-    ) external payable;
+    ) external payable returns (address[] memory delegators);
 
     /// @dev Simultaneously creates a delegate if it doesn't yet exist and grants voting power to the delegate
     /// in a single function call. This is the most convenient option standard wallets using EOA private keys
@@ -117,7 +117,7 @@ interface IPropLot {
 
     /// @dev Returns all existing Delegates currently eligible for making a proposal
     /// Provided to improve offchain devX: returned values can change at any time as Nouns ecosystem is external
-    function getAllEligibleProposerDelegates() external view returns (uint256 minRequiredVotes, address[] memory eligibleProposers);
+    function getAllEligibleProposerDelegates() external view returns (uint256 minRequiredVotes, uint256[] memory eligibleProposerIds);
 
     /// @dev Convenience function to facilitate offchain development by computing the `delegateBySig()` digest 
     /// for a given signer and expiry

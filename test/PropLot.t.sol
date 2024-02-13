@@ -41,7 +41,7 @@ contract PropLotTest is Test {
     NounsDAOExecutorV2 nounsTimelockImpl;
     NounsDAOExecutorV2 nounsTimelockProxy;
     IERC721Checkpointable nounsTokenHarness;
-    IdeaTokenHub ideaHub;
+    IdeaTokenHub ideaTokenHub;
 
     IInflator inflator_;
     INounsArt nounsArt_;
@@ -64,6 +64,7 @@ contract PropLotTest is Test {
 
     NounsDAOV3Proposals.ProposalTxs txs;
     string description;
+    IPropLot.Proposal[] proposals;
 
     address nounderSupplement;
     address nounderSupplement2;
@@ -141,7 +142,7 @@ contract PropLotTest is Test {
         // setup PropLot contracts
         uri = 'someURI';
         propLot = new PropLotHarness(INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri);
-        ideaHub = IdeaTokenHub(propLot.ideaTokenHub());
+        ideaTokenHub = IdeaTokenHub(propLot.ideaTokenHub());
 
         // setup mock proposal
         txs.targets.push(address(0x0));
@@ -149,6 +150,7 @@ contract PropLotTest is Test {
         txs.signatures.push('');
         txs.calldatas.push('');
         description = 'test';
+        proposals.push(IPropLot.Proposal(txs, description));
 
         vm.deal(address(this), 1 ether);
 
@@ -317,8 +319,8 @@ contract PropLotTest is Test {
         assertEq(expectNewDelegateId, nextDelegateId);
 
         // the delegation should not register as an eligible proposer
-        (, address[] memory allEligibleProposers) = propLot.getAllEligibleProposerDelegates();
-        assertEq(allEligibleProposers.length, 0);
+        (, uint256[] memory allEligibleProposerIds) = propLot.getAllEligibleProposerDelegates();
+        assertEq(allEligibleProposerIds.length, 0);
         // the partial delegation should be found
         (, address[] memory allPartialDelegates) = propLot.getAllPartialDelegates();
         assertEq(allPartialDelegates.length, 1);
@@ -392,9 +394,9 @@ contract PropLotTest is Test {
         assertEq(returnedSupplementDelegateId, nextDelegateId);
 
         // the delegation should register as an eligible proposer
-        (, address[] memory allEligibleProposers) = propLot.getAllEligibleProposerDelegates();
-        assertEq(allEligibleProposers.length, 1);
-        assertEq(allEligibleProposers[0], delegate);
+        (, uint256[] memory allEligibleProposerIds) = propLot.getAllEligibleProposerDelegates();
+        assertEq(allEligibleProposerIds.length, 1);
+        assertEq(propLot.getDelegateAddress(allEligibleProposerIds[0]), delegate);
         // no partial delegates should be found
         (, address[] memory allPartialDelegates) = propLot.getAllPartialDelegates();
         assertEq(allPartialDelegates.length, 0);
@@ -412,7 +414,7 @@ contract PropLotTest is Test {
     function test_revertPushProposalNotIdeaTokenHub() public {
         bytes memory err = abi.encodeWithSelector(IPropLot.OnlyIdeaContract.selector);
         vm.expectRevert(err);
-        propLot.pushProposal(txs, description);
+        propLot.pushProposals(proposals);
     }
 
     function test_revertPushProposalNotPropLot() public {
@@ -427,7 +429,63 @@ contract PropLotTest is Test {
     // function test_getDelegateIdByTypeSolo()
     // function test_getDelegateIdByTypeSupplement()
 
-    //function test_pushProposal()
+    function test_pushProposals(uint8 numFullDelegations, uint8 numPartialDelegations) public {
+        vm.assume(numFullDelegations != 0 || numPartialDelegations > 1);
+        for (uint256 i; i < numPartialDelegations; ++i) {
+            // mint `minRequiredVotes - 1` to new nounder and delegate
+            address currentPartialNounder = _createNounder(i);
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 notMinRequiredVotes = minRequiredVotes / 2;
+            for (uint256 j; j < notMinRequiredVotes; ++j) {
+                NounsTokenHarness(address(nounsTokenHarness)).mintTo(currentPartialNounder);
+            }
+            uint256 returnedPartialBalance = NounsTokenLike(address(nounsTokenHarness)).balanceOf(currentPartialNounder);
+            assertEq(returnedPartialBalance, notMinRequiredVotes);
+            
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentPartialNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentPartialNounder, delegateId);
+            vm.stopPrank();
+        }
+
+        for (uint256 k; k < numFullDelegations; ++k) {
+            // mint `minRequiredVotes`to new nounder and delegate
+            address currentFullNounder = _createNounder(k);
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            console2.logUint(minRequiredVotes);
+            return;
+            for (uint256 l; l < minRequiredVotes; ++l) {
+                NounsTokenHarness(address(nounsTokenHarness)).mintTo(currentFullNounder);
+            }
+            uint256 returnedFullBalance = NounsTokenLike(address(nounsTokenHarness)).balanceOf(currentFullNounder);
+            assertEq(returnedFullBalance, minRequiredVotes);
+
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentFullNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentFullNounder, delegateId);
+            vm.stopPrank();
+        }
+
+        return;
+        (, uint256 numEligibleProposers) = propLot.numEligibleProposerDelegates();
+        for (uint256 m = 1; m < numEligibleProposers; ++m) {
+            proposals.push(IPropLot.Proposal(txs, description));
+        }
+        console2.logUint(proposals.length);
+
+        // push proposal to Nouns ecosystem
+        vm.prank(address(ideaTokenHub));
+        propLot.pushProposals(proposals);
+    }
+
+    //function test_pushProposalsRemoveRogueDelegators()
+    //function test_finalizeAuction
     //function test_delegateBySig()
     //function test_delegateByDelegateCall
     //function test_proposalThresholdIncrease()
@@ -441,4 +499,14 @@ contract PropLotTest is Test {
     //function test_deleteDelegations()
     //function test_deleteDelegationsZeroMembers()
     //function test_computeNounsDelegationDigest
+
+    
+    /*
+      Internals
+    */
+
+    /// @notice Returns an *unsafe* address createded with a *known private key*; for testing use _only_
+    function _createNounder(uint256 unsafeSeed) internal pure returns (address _newNounder) {
+        _newNounder = vm.addr(unsafeSeed + 1);
+    }
 }

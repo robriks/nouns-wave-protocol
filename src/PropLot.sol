@@ -60,9 +60,9 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function pushProposal(
+    function pushProposals(
         IPropLot.Proposal[] calldata proposals
-    ) public payable {
+    ) public payable returns (address[] memory delegators) {
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
         // todo: replace with _updateOptimisticState();
@@ -72,18 +72,33 @@ contract PropLot is IPropLot {
         uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices(minRequiredVotes);
         _deleteDelegations(disqualifiedIndices);
 
-        uint256 len = _optimisticDelegations.length; 
+        // todo handle these assertions earlier in flow to establish them as invariants
+        // ie what to do when there are no eligible proposers?
+        uint256 len = _optimisticDelegations.length;
         if (len == 0) revert InsufficientDelegations();
+        (, uint256[] memory eligibleProposerIds) = getAllEligibleProposerDelegates();
+        assert(eligibleProposerIds.length == proposals.length);
 
-        INounsDAOLogicV3 governor = nounsGovernor;
-        for (uint256 i; i < proposals.length; ++i) {
-            // find a suitable proposer delegate
-            address proposer = _findProposerDelegate(minRequiredVotes);
+        unchecked {
+            for (uint256 i; i < eligibleProposerIds.length; ++i) {
+                // establish current proposer delegate
+                uint256 currentProposerId = eligibleProposerIds[i];
+                address currentProposer = getDelegateAddress(eligibleProposerIds[i]);
 
-            if (proposer != address(0x0)) {
                 // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
-                Delegate(proposer).pushProposal(governor, proposals[i].ideaTxs, proposals[i].description);
-            } else {
+                Delegate(currentProposer).pushProposal(nounsGovernor, proposals[i].ideaTxs, proposals[i].description);
+                
+                // populate return array with Nounder-delegators for yield distribution
+                //todo find a way to do this without looping through all of storage yet again
+                uint256 index;
+                for (uint256 j; j < len; ++j) {
+                    if (_optimisticDelegations[j].delegateId == uint16(currentProposerId)) {
+                        // add delegator to return array
+                        delegators[index] = _optimisticDelegations[j].delegator;
+                        ++index;
+                    }
+                }
+                
                 //todo handle situation where there is no eligible delegate
             }
         }
@@ -282,12 +297,12 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function getAllEligibleProposerDelegates() external view returns (uint256 minRequiredVotes, address[] memory eligibleProposers) {
+    function getAllEligibleProposerDelegates() public view returns (uint256 minRequiredVotes, uint256[] memory eligibleProposerIds) {
         uint256 numEligibleProposers;
         (minRequiredVotes, numEligibleProposers) = numEligibleProposerDelegates();
 
         // populate memory array
-        eligibleProposers = new address[](numEligibleProposers);
+        eligibleProposerIds = new uint256[](numEligibleProposers);
         uint256 nextDelegateId = _nextDelegateId;
         uint256 index;
         for (uint256 i = 1; i < nextDelegateId; ++i) {
@@ -296,7 +311,7 @@ contract PropLot is IPropLot {
             uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
 
             if (noActiveProp && currentVotes >= minRequiredVotes) {
-                eligibleProposers[index] = delegateAddress;
+                eligibleProposerIds[index] = i;
                 index++;
             }
         }
