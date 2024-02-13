@@ -32,6 +32,11 @@ interface IPropLot {
         bytes signature;
     }
 
+    struct Proposal {
+      NounsDAOV3Proposals.ProposalTxs ideaTxs;
+      string description;
+    }
+
     /*
       Errors + Events
     */
@@ -58,8 +63,7 @@ interface IPropLot {
     /// Checks for changes in delegation state on `nounsToken` contract and updates PropLot recordkeeping accordingly
     /// @notice May only be called by the PropLot's ERC1155 Idea token hub at the conclusion of each 2-week round
     function pushProposal(
-        NounsDAOV3Proposals.ProposalTxs calldata txs,
-        string calldata description
+      Proposal[] calldata proposals
     ) external payable;
 
     /// @dev Simultaneously creates a delegate if it doesn't yet exist and grants voting power to the delegate
@@ -90,23 +94,30 @@ interface IPropLot {
     function getDelegateAddress(uint256 delegateId) external view returns (address delegate);
 
     /// @dev Returns either an existing delegate ID if one meets the given parameters, otherwise returns the next delegate ID
-    /// @param minRequiredVotes Minimum votes to make a proposal. Must be more than current proposal threshold which is based on Nouns token supply 
     /// @param isSupplementary Whether or not to search for a Delegate that doesn't meet the current proposal threshold
-    function getDelegateId(uint256 minRequiredVotes, bool isSupplementary) external view returns (uint256 delegateId);
+    /// @return delegateId The ID of a delegate that matches the given criteria 
+    /// @return minRequiredVotes Minimum votes to make a proposal. Must be more than current proposal threshold which is based on Nouns token supply 
+    function getDelegateIdByType(bool isSupplementary) external view returns (uint256 delegateId, uint256 minRequiredVotes);
 
     /// @dev Typecasts and returns the next delegate ID as a `uint256`
     function getNextDelegateId() external view returns (uint256 nextDelegateId);
 
     /// @dev Returns a suitable delegate address for an account based on its voting power
-    function getSuitableDelegateFor(address nounder, uint256 minRequiredVotes) external view returns (address delegate);
+    function getSuitableDelegateFor(address nounder) external view returns (address delegate, uint256 minRequiredVotes);
+
+    /// @dev Returns the current minimum votes required to submit an onchain proposal to Nouns governance
+    function getCurrentMinRequiredVotes() external view returns (uint256 minRequiredVotes);
 
     /// @dev Returns all existing Delegates with voting power below the minimum required to make a proposal
     /// Provided to improve offchain devX; returned values can change at any time as Nouns ecosystem is external
-    function getAllPartialDelegates(uint256 minRequiredVotes) external view returns (address[] memory partialDelegates);
+    function getAllPartialDelegates() external view returns (uint256 minRequiredVotes, address[] memory partialDelegates);
+
+    /// @dev Returns the number of existing Delegates currently eligible to make a proposal
+    function numEligibleProposerDelegates() external view returns (uint256 minRequiredVotes, uint256 numEligibleProposers);
 
     /// @dev Returns all existing Delegates currently eligible for making a proposal
     /// Provided to improve offchain devX: returned values can change at any time as Nouns ecosystem is external
-    function getAllEligibleProposerDelegates(uint256 minRequiredVotes) external view returns (address[] memory eligibleProposers);
+    function getAllEligibleProposerDelegates() external view returns (uint256 minRequiredVotes, address[] memory eligibleProposers);
 
     /// @dev Convenience function to facilitate offchain development by computing the `delegateBySig()` digest 
     /// for a given signer and expiry

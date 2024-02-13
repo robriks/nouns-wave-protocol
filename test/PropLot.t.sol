@@ -193,8 +193,9 @@ contract PropLotTest is Test {
         uint256 nextDelegateId = propLot.getNextDelegateId();
         assertEq(nextDelegateId, 2);
 
-        uint256 minRequiredVotes = nounsGovernorProxy.proposalThreshold() + 1;
-        uint256 incompleteDelegateId = propLot.getDelegateId(minRequiredVotes, true);
+        uint256 minRequiredVotesExpected = nounsGovernorProxy.proposalThreshold() + 1;
+        (uint256 incompleteDelegateId, uint256 minRequiredVotes) = propLot.getDelegateIdByType(true);
+        assertEq(minRequiredVotesExpected, minRequiredVotes);
         assertEq(incompleteDelegateId, 1);
 
         uint256 numCheckpoints = nounsTokenHarness.numCheckpoints(nounderSupplement);
@@ -265,12 +266,14 @@ contract PropLotTest is Test {
         uint256 startCheckpoints = nounsTokenHarness.numCheckpoints(nounderSupplement);
         assertEq(startCheckpoints, 1);
         uint256 votingPower = nounsTokenHarness.votesToDelegate(nounderSupplement);
+        assertEq(votingPower, 1);
 
-        uint256 minRequiredVotes = nounsGovernorProxy.proposalThreshold() + 1;
-        uint256 delegateId = propLot.getDelegateId(minRequiredVotes, true);
+        (uint256 delegateId, uint256 minRequiredVotes) = propLot.getDelegateIdByType(true);
         assertEq(delegateId, 1);
+        assertEq(minRequiredVotes, 2);
+
         address delegate = propLot.getDelegateAddress(delegateId);
-        address suitableDelegate = propLot.getSuitableDelegateFor(nounderSupplement, minRequiredVotes);
+        (address suitableDelegate, ) = propLot.getSuitableDelegateFor(nounderSupplement);
         assertEq(suitableDelegate, delegate);
 
         // perform external delegation to relevant delegate
@@ -307,17 +310,17 @@ contract PropLotTest is Test {
         assertEq(optimisticDelegations[0].votingPower, uint16(votingPower));
         assertEq(optimisticDelegations[0].delegateId, uint16(delegateId));
 
-        uint256 existingSupplementId = propLot.getDelegateId(minRequiredVotes, true);
+        (uint256 existingSupplementId, ) = propLot.getDelegateIdByType(true);
         assertEq(existingSupplementId, delegateId);
 
-        uint256 expectNewDelegateId = propLot.getDelegateId(minRequiredVotes, false);
+        (uint256 expectNewDelegateId, ) = propLot.getDelegateIdByType(false);
         assertEq(expectNewDelegateId, nextDelegateId);
 
-        // the delegation should register as an eligible proposer
-        address[] memory allEligibleProposers = propLot.getAllEligibleProposerDelegates(minRequiredVotes);
+        // the delegation should not register as an eligible proposer
+        (, address[] memory allEligibleProposers) = propLot.getAllEligibleProposerDelegates();
         assertEq(allEligibleProposers.length, 0);
-        // no partial delegates should be found
-        address[] memory allPartialDelegates = propLot.getAllPartialDelegates(minRequiredVotes);
+        // the partial delegation should be found
+        (, address[] memory allPartialDelegates) = propLot.getAllPartialDelegates();
         assertEq(allPartialDelegates.length, 1);
         assertEq(allPartialDelegates[0], delegate);
 
@@ -342,10 +345,10 @@ contract PropLotTest is Test {
         uint256 minRequiredVotes = nounsGovernorProxy.proposalThreshold() + 1;
         assertEq(votingPower, minRequiredVotes);
 
-        uint256 delegateId = propLot.getDelegateId(minRequiredVotes, true);
+        (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
         assertEq(delegateId, 1);
         address delegate = propLot.getDelegateAddress(delegateId);
-        address suitableDelegate = propLot.getSuitableDelegateFor(nounderSolo, minRequiredVotes);
+        (address suitableDelegate, ) = propLot.getSuitableDelegateFor(nounderSolo);
         assertEq(suitableDelegate, delegate);
 
         // perform external delegation to relevant delegate
@@ -382,18 +385,18 @@ contract PropLotTest is Test {
         assertEq(optimisticDelegations[0].votingPower, uint16(votingPower));
         assertEq(optimisticDelegations[0].delegateId, uint16(delegateId));
 
-        // delegateId 1 is saturated so getDelegateId should always return nextDelegateId
-        uint256 returnedSoloId = propLot.getDelegateId(minRequiredVotes, true);
+        // delegateId 1 is saturated so getDelegateIdByType should always return nextDelegateId
+        (, uint256 returnedSoloId) = propLot.getDelegateIdByType(true);
         assertEq(returnedSoloId, nextDelegateId);
-        uint256 returnedSupplementDelegateId = propLot.getDelegateId(minRequiredVotes, false);
+        (, uint256 returnedSupplementDelegateId) = propLot.getDelegateIdByType(false);
         assertEq(returnedSupplementDelegateId, nextDelegateId);
 
         // the delegation should register as an eligible proposer
-        address[] memory allEligibleProposers = propLot.getAllEligibleProposerDelegates(minRequiredVotes);
+        (, address[] memory allEligibleProposers) = propLot.getAllEligibleProposerDelegates();
         assertEq(allEligibleProposers.length, 1);
         assertEq(allEligibleProposers[0], delegate);
         // no partial delegates should be found
-        address[] memory allPartialDelegates = propLot.getAllPartialDelegates(minRequiredVotes);
+        (, address[] memory allPartialDelegates) = propLot.getAllPartialDelegates();
         assertEq(allPartialDelegates.length, 0);
 
         // proposal can now be pushed using the first delegate after 1 block (simple POC)
@@ -421,15 +424,15 @@ contract PropLotTest is Test {
     }
 
     
-    // function test_getDelegateIdSolo()
-    // function test_getDelegateIdSupplement()
+    // function test_getDelegateIdByTypeSolo()
+    // function test_getDelegateIdByTypeSupplement()
 
     //function test_pushProposal()
     //function test_delegateBySig()
     //function test_delegateByDelegateCall
     //function test_proposalThresholdIncrease()
 
-    //function test_getDelegateId
+    //function test_getDelegateIdByType
     //function test_findDelegateId
     //function test_findProposerDelegate
     //function test_disqualifiedDelegationIndices()

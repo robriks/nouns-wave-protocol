@@ -28,28 +28,21 @@ contract IdeaTokenHub is ERC1155 {
       Structs
     */
 
-    // struct Sponsorship {
-    //     address sponsor;
-    //     uint96 ideaId;
-    //     SponsorshipParams params;
-    // }
+    struct RoundInfo {
+        uint32 currentRound;
+        uint32 startBlock;
+    }
+
+    struct IdeaInfo {
+        uint216 totalFunding;
+        uint32 blockCreated;
+        bool isProposed;
+        IPropLot.Proposal proposal;
+    }
 
     struct SponsorshipParams {
         uint216 contributedBalance;
         bool isCreator;
-    }
-
-    struct IdeaRecord {
-        uint216 totalFunding;
-        uint32 blockCreated;
-        bool isProposed;
-        NounsDAOV3Proposals.ProposalTxs ideaTxs;
-        string description;
-    }
-
-    struct RoundInfo {
-        uint32 currentRound;
-        uint32 startBlock;
     }
 
     error BelowMinimumSponsorshipAmount(uint256 value);
@@ -57,9 +50,9 @@ contract IdeaTokenHub is ERC1155 {
     error AlreadyProposed(uint256 ideaId);
     error RoundIncomplete();
 
-    event IdeaCreated(IdeaRecord ideaRecord);
+    event IdeaCreated(IdeaInfo ideaInfo);
     event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params);
-    event IdeaProposed(IdeaRecord ideaRecord);
+    event IdeaProposed(IdeaInfo ideaInfo);
 
     /*
       Constants
@@ -71,55 +64,61 @@ contract IdeaTokenHub is ERC1155 {
     uint256 public constant minSponsorshipAmount = 0.001 ether;
     uint256 public constant decimals = 18;
 
-    IPropLot private immutable propLotCore;
+    IPropLot private immutable __propLotCore;
 
     /*
       Storage
     */
 
     RoundInfo public currentRoundInfo;
-    uint256 nextIdeaId;
+    uint96 private _nextIdeaId;
 
     /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
-    mapping (uint96 => IdeaRecord) internal ideaRecords;
+    mapping (uint96 => IdeaInfo) internal ideaInfos;
     mapping (address => mapping (uint96 => SponsorshipParams)) internal sponsorships;
 
+    /*
+      IdeaTokenHub
+    */
+    
     constructor(string memory uri_) ERC1155(uri_) {
-        propLotCore = IPropLot(msg.sender);
+        __propLotCore = IPropLot(msg.sender);
         
         ++currentRoundInfo.currentRound;
-        ++nextIdeaId;
+        ++_nextIdeaId;
     }
 
     function createIdea(NounsDAOV3Proposals.ProposalTxs memory ideaTxs, string memory description) public payable {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
 
-        uint96 ideaId = uint96(nextIdeaId);
+        // cache in memory to save on SLOADs
+        uint96 ideaId = _nextIdeaId;
         uint216 value = uint216(msg.value);
-        IdeaRecord memory ideaRecord = IdeaRecord(value, uint32(block.number), false, ideaTxs, description);
-        ideaRecords[ideaId] = ideaRecord;
-        ++nextIdeaId;
+        IPropLot.Proposal memory proposal = IPropLot.Proposal(ideaTxs, description);
+        IdeaInfo memory ideaInfo = IdeaInfo(value, uint32(block.number), false, proposal);
+        ideaInfos[ideaId] = ideaInfo;
+        ++_nextIdeaId;
 
         sponsorships[msg.sender][ideaId].contributedBalance = value;
         sponsorships[msg.sender][ideaId].isCreator = true;
 
         _mint(msg.sender, ideaId, msg.value, '');
 
-        emit IdeaCreated(ideaRecord);
+        emit IdeaCreated(ideaInfo);
     }
 
     function sponsorIdea(uint256 ideaId) public payable {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
-        if (ideaId >= nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
+        if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
         // revert if a new round should be started
         if (block.number - roundLength >= currentRoundInfo.startBlock) revert RoundIncomplete();
         
         // typecast values can contain all Ether in existence && quintillions of ideas per human on earth
         uint216 value = uint216(msg.value);
         uint96 id = uint96(ideaId);
-        if (ideaRecords[id].isProposed) revert AlreadyProposed(ideaId);
+        if (ideaInfos[id].isProposed) revert AlreadyProposed(ideaId);
 
-        ideaRecords[id].totalFunding += value;
+        ideaInfos[id].totalFunding += value;
         // `isCreator` for caller remains the same as at creation
         sponsorships[msg.sender][id].contributedBalance += value;
 
@@ -136,13 +135,53 @@ contract IdeaTokenHub is ERC1155 {
         ++currentRoundInfo.currentRound;
         currentRoundInfo.startBlock = uint32(block.number);
 
+        // identify number of proposals to push for current voting threshold
+        (uint256 minRequiredVotes, uint256 numWinners) = __propLotCore.numEligibleProposerDelegates();
+        
         // determine winners by checking balances
+        uint96[] memory winningIds = new uint96[](numWinners);
+        uint96 nextIdeaId = _nextIdeaId;
+        //todo abstract to internal function & testing
+        for (uint96 i = 1; i < nextIdeaId; ++i) {
+            IdeaInfo storage currentIdeaInfo = ideaInfos[i];
+            // skip previous winners
+            if (currentIdeaInfo.isProposed) continue;
+
+            for (uint256 j; j < numWinners; ++j) {
+                IdeaInfo storage currentWinner = ideaInfos[winningIds[j]];
+                if (currentIdeaInfo.totalFunding > currentWinner.totalFunding) {
+                    for (uint256 k = numWinners - 1; k > j; k--) {
+                        winningIds[k] = winningIds[k - 1];
+                    }
+                    winningIds[j] = i;
+                    break;
+                }
+            }
+        }
 
         //todo populate with winning txs & description
-        NounsDAOV3Proposals.ProposalTxs memory txs;
-        string memory description;
+        IPropLot.Proposal[] memory proposals = new IPropLot.Proposal[](numWinners);
+        for (uint256 l; l < numWinners; ++l) {
+            proposals[l] = ideaInfos[winningIds[l]].proposal;
+        }
 
-        /* address[] memory delegators = */ propLotCore.pushProposal(txs, description); // must return winning Delegations
+        /* address[] memory delegators = */ __propLotCore.pushProposal(proposals); 
         // pay Delegations.delegator proportional to their usable voting power
     }
+
+    /*
+      Views
+    */
+
+    function getIdeaInfo(uint256 ideaId) external view returns (IdeaInfo memory) {
+        if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
+        return ideaInfos[uint96(ideaId)];
+    }
+
+    function getSponsorshipInfo(address sponsor, uint256 ideaId) public view returns (SponsorshipParams memory) {
+        if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
+        return sponsorships[sponsor][uint96(ideaId)];
+    }
+
+    //todo override transfer & burn functions to make soulbound
 }

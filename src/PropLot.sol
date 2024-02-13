@@ -61,14 +61,13 @@ contract PropLot is IPropLot {
 
     /// @inheritdoc IPropLot
     function pushProposal(
-        NounsDAOV3Proposals.ProposalTxs calldata txs,
-        string calldata description
+        IPropLot.Proposal[] calldata proposals
     ) public payable {
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
         // todo: replace with _updateOptimisticState();
         // to propose, votes must be greater than the proposal threshold
-        uint256 minRequiredVotes = INounsDAOLogicV3(nounsGovernor).proposalThreshold() + 1;
+        uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         // check for external Nouns transfers or rogue redelegations, update state
         uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices(minRequiredVotes);
         _deleteDelegations(disqualifiedIndices);
@@ -76,14 +75,17 @@ contract PropLot is IPropLot {
         uint256 len = _optimisticDelegations.length; 
         if (len == 0) revert InsufficientDelegations();
 
-        // find a suitable proposer delegate
-        address proposer = _findProposerDelegate(minRequiredVotes);
+        INounsDAOLogicV3 governor = nounsGovernor;
+        for (uint256 i; i < proposals.length; ++i) {
+            // find a suitable proposer delegate
+            address proposer = _findProposerDelegate(minRequiredVotes);
 
-        if (proposer != address(0x0)) {
-            // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
-            Delegate(proposer).pushProposal(nounsGovernor, txs, description);
-        } else {
-            //todo handle situation where there is no eligible delegate
+            if (proposer != address(0x0)) {
+                // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
+                Delegate(proposer).pushProposal(governor, proposals[i].ideaTxs, proposals[i].description);
+            } else {
+                //todo handle situation where there is no eligible delegate
+            }
         }
     }
 
@@ -95,7 +97,7 @@ contract PropLot is IPropLot {
 
         uint256 votingPower = nounsToken.votesToDelegate(propLotSig.signer);
         if (votingPower == 0) revert ZeroVotesToDelegate(propLotSig.signer);
-        uint256 minRequiredVotes = INounsDAOLogicV3(nounsGovernor).proposalThreshold() + 1;
+        uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         if (votingPower > minRequiredVotes) votingPower = minRequiredVotes;
         
         address delegate;
@@ -133,7 +135,7 @@ contract PropLot is IPropLot {
         uint256 votingPower = nounsToken.votesToDelegate(nounder);
         if (votingPower == 0) revert ZeroVotesToDelegate(nounder);
 
-        uint256 minRequiredVotes = INounsDAOLogicV3(nounsGovernor).proposalThreshold() + 1;
+        uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         // votingPower above minimum required votes is not usable due to Nouns token implementation constraint
         if (votingPower > minRequiredVotes) votingPower = minRequiredVotes; //todo
 
@@ -152,7 +154,7 @@ contract PropLot is IPropLot {
         uint256 votingPower = uint16(nounsToken.votesToDelegate(address(this)));
         if (votingPower == 0) revert ZeroVotesToDelegate(address(this));
 
-        uint256 minRequiredVotes = INounsDAOLogicV3(nounsGovernor).proposalThreshold() + 1;
+        uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         bool isSupplementary;
         if (votingPower < minRequiredVotes) {
             isSupplementary = true;
@@ -160,7 +162,7 @@ contract PropLot is IPropLot {
             // votingPower above minimum required votes is not usable due to Nouns token implementation constraint
             votingPower = minRequiredVotes;
         }
-        uint256 delegateId = getDelegateId(minRequiredVotes, isSupplementary);
+        (, uint256 delegateId) = getDelegateIdByType(isSupplementary);
         
         address delegate;
         if (delegateId == _nextDelegateId) {
@@ -208,7 +210,8 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function getDelegateId(uint256 minRequiredVotes, bool isSupplementary) public view returns (uint256 delegateId) {
+    function getDelegateIdByType(bool isSupplementary) public view returns (uint256 delegateId, uint256 minRequiredVotes) {
+        minRequiredVotes = getCurrentMinRequiredVotes();
         delegateId = _findDelegateId(minRequiredVotes, isSupplementary);
     }
 
@@ -218,17 +221,24 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function getSuitableDelegateFor(address nounder, uint256 minRequiredVotes) external view returns (address delegate) {
+    function getSuitableDelegateFor(address nounder) external view returns (address delegate, uint256 minRequiredVotes) {
+        minRequiredVotes = getCurrentMinRequiredVotes();
         uint256 votingPower = nounsToken.votesToDelegate(nounder);
         bool isSupplementary;
         if (votingPower < minRequiredVotes) isSupplementary = true;
 
-        uint256 delegateId = getDelegateId(minRequiredVotes, isSupplementary);
+        (uint256 delegateId, ) = getDelegateIdByType(isSupplementary);
         delegate = getDelegateAddress(delegateId);
     }
 
     /// @inheritdoc IPropLot
-    function getAllPartialDelegates(uint256 minRequiredVotes) external view returns (address[] memory partialDelegates) {
+    function getCurrentMinRequiredVotes() public view returns (uint256 minRequiredVotes) {
+        return nounsGovernor.proposalThreshold() + 1;
+    }
+
+    /// @inheritdoc IPropLot
+    function getAllPartialDelegates() external view returns (uint256 minRequiredVotes, address[] memory partialDelegates) {
+        minRequiredVotes = getCurrentMinRequiredVotes();
         uint256 numPartialDelegates;
         uint256 nextDelegateId = _nextDelegateId;
         // determine size of memory array
@@ -256,8 +266,8 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function getAllEligibleProposerDelegates(uint256 minRequiredVotes) external view returns (address[] memory eligibleProposers) {
-        uint256 numEligibleProposers;
+    function numEligibleProposerDelegates() public view returns (uint256 minRequiredVotes, uint256 numEligibleProposers) {
+        minRequiredVotes = getCurrentMinRequiredVotes();
         uint256 nextDelegateId = _nextDelegateId;
         // determine size of memory array
         for (uint256 i = 1; i < nextDelegateId; ++i) {
@@ -269,12 +279,19 @@ contract PropLot is IPropLot {
                 numEligibleProposers++;
             }
         }
+    }
+
+    /// @inheritdoc IPropLot
+    function getAllEligibleProposerDelegates() external view returns (uint256 minRequiredVotes, address[] memory eligibleProposers) {
+        uint256 numEligibleProposers;
+        (minRequiredVotes, numEligibleProposers) = numEligibleProposerDelegates();
 
         // populate memory array
         eligibleProposers = new address[](numEligibleProposers);
+        uint256 nextDelegateId = _nextDelegateId;
         uint256 index;
-        for (uint256 j = 1; j < nextDelegateId; ++j) {
-            address delegateAddress = getDelegateAddress(j);
+        for (uint256 i = 1; i < nextDelegateId; ++i) {
+            address delegateAddress = getDelegateAddress(i);
             bool noActiveProp = _checkForActiveProposal(delegateAddress);
             uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
 
@@ -470,7 +487,7 @@ contract PropLot is IPropLot {
 
     /// @dev Returns true when an active proposal exists for the delegate, meaning it is ineligible to propose
     function _checkForActiveProposal(address delegate) internal view returns (bool _noActiveProp) {
-        uint256 delegatesLatestProposal = INounsDAOLogicV3(nounsGovernor).latestProposalIds(delegate);
+        uint256 delegatesLatestProposal = nounsGovernor.latestProposalIds(delegate);
         if (delegatesLatestProposal != 0) {
             _noActiveProp =_isEligibleProposalState(delegatesLatestProposal);
         } else {
@@ -480,7 +497,7 @@ contract PropLot is IPropLot {
 
     /// @dev References the Nouns governor contract to determine whether a proposal is in a disqualifying state
     function _isEligibleProposalState(uint256 _latestProposal) internal view returns (bool) {
-        NounsDAOStorageV3.ProposalState delegatesLatestProposalState = INounsDAOLogicV3(nounsGovernor).state(_latestProposal);
+        NounsDAOStorageV3.ProposalState delegatesLatestProposalState = nounsGovernor.state(_latestProposal);
         if (
             delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod ||
             delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Active ||
