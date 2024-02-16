@@ -60,9 +60,7 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function pushProposals(
-        IPropLot.Proposal[] calldata proposals
-    ) public payable returns (address[] memory delegators) {
+    function pushProposals(IPropLot.Proposal[] calldata winningProposals) public payable returns (IPropLot.Delegation[] memory delegations) {
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
         // todo: replace with _updateOptimisticState();
@@ -73,11 +71,12 @@ contract PropLot is IPropLot {
         _deleteDelegations(disqualifiedIndices);
 
         // todo handle these assertions earlier in flow to establish them as invariants
-        // ie what to do when there are no eligible proposers?
+        // ie what to do when there are no eligible proposers? rescue mechanic?
         uint256 len = _optimisticDelegations.length;
         if (len == 0) revert InsufficientDelegations();
+        delegations = new Delegation[](len);
         (, uint256[] memory eligibleProposerIds) = getAllEligibleProposerDelegates();
-        assert(eligibleProposerIds.length == proposals.length);
+        assert(eligibleProposerIds.length == winningProposals.length);
 
         unchecked {
             for (uint256 i; i < eligibleProposerIds.length; ++i) {
@@ -86,20 +85,18 @@ contract PropLot is IPropLot {
                 address currentProposer = getDelegateAddress(eligibleProposerIds[i]);
 
                 // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
-                Delegate(currentProposer).pushProposal(nounsGovernor, proposals[i].ideaTxs, proposals[i].description);
+                Delegate(currentProposer).pushProposal(nounsGovernor, winningProposals[i].ideaTxs, winningProposals[i].description);
                 
-                // populate return array with Nounder-delegators for yield distribution
-                //todo find a way to do this without looping through all of storage yet again
+                // populate return array with Nounder-delegators and their voting power for yield distribution
                 uint256 index;
                 for (uint256 j; j < len; ++j) {
-                    if (_optimisticDelegations[j].delegateId == uint16(currentProposerId)) {
-                        // add delegator to return array
-                        delegators[index] = _optimisticDelegations[j].delegator;
+                    IPropLot.Delegation memory currentDelegation = _optimisticDelegations[j];
+                    if (currentDelegation.delegateId == uint16(currentProposerId)) {
+                        // add delegation details to return array
+                        delegations[index] = currentDelegation;
                         ++index;
                     }
                 }
-                
-                //todo handle situation where there is no eligible delegate
             }
         }
     }
@@ -142,7 +139,12 @@ contract PropLot is IPropLot {
 
     /// @inheritdoc IPropLot
     function registerDelegation(address nounder, uint256 delegateId) external {
-        address delegate = getDelegateAddress(delegateId);
+        address delegate;
+        if (delegateId == _nextDelegateId) {
+            delegate = createDelegate();
+        } else {
+            delegate = getDelegateAddress(delegateId);
+        }
         
         address externalDelegate = nounsToken.delegates(nounder);
         if (externalDelegate != delegate) revert NotDelegated(nounder, delegate);
@@ -152,7 +154,7 @@ contract PropLot is IPropLot {
 
         uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         // votingPower above minimum required votes is not usable due to Nouns token implementation constraint
-        if (votingPower > minRequiredVotes) votingPower = minRequiredVotes; //todo
+        if (votingPower > minRequiredVotes) votingPower = minRequiredVotes;        
 
         uint32 numCheckpoints = nounsToken.numCheckpoints(nounder);
         
@@ -356,21 +358,20 @@ contract PropLot is IPropLot {
     function _findDelegateId(uint256 _minRequiredVotes, bool _isSupplementary) internal view returns (uint256 delegateId) {
         // cache in memory to reduce SLOADs
         uint256 nextDelegateId = _nextDelegateId;
-        // bounded by (Nouns token supply / proposal threshold)
+        // bounded by (Nouns token supply / proposal threshold)        
         unchecked {
-            for (uint256 i; i < nextDelegateId; ++i) {
-                uint256 currentDelegateId = i + 1;
-                address delegateAddress = getDelegateAddress(currentDelegateId);
+            for (uint256 i = 1; i < nextDelegateId; ++i) {
+                address delegateAddress = getDelegateAddress(i);
                 uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
 
                 // when searching for supplement delegate ID, return if additional votes are required
-                if (_isSupplementary && currentVotes < _minRequiredVotes) return currentDelegateId;
+                if (_isSupplementary && currentVotes < _minRequiredVotes) return i;
                 // when searching for solo delegate ID, return if votes are 0
-                if (!_isSupplementary && currentVotes == 0) return currentDelegateId;
+                if (!_isSupplementary && currentVotes == 0) return i;
             }
         }
 
-        // if no existing Delegates match the criteria, a new one must be created
+        // if no delegate matching the given criteria is found, a new one must be created
         delegateId = nextDelegateId;
     }
 

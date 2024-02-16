@@ -150,7 +150,6 @@ contract PropLotTest is Test {
         txs.signatures.push('');
         txs.calldatas.push('');
         description = 'test';
-        proposals.push(IPropLot.Proposal(txs, description));
 
         vm.deal(address(this), 1 ether);
 
@@ -202,6 +201,8 @@ contract PropLotTest is Test {
 
         uint256 numCheckpoints = nounsTokenHarness.numCheckpoints(nounderSupplement);
         assertEq(numCheckpoints, 1);
+
+        assertEq(proposals.length, 0);
     }
 
     function test_getDelegateAddress(uint8 fuzzIterations) public {
@@ -363,6 +364,7 @@ contract PropLotTest is Test {
         uint256 nextCheckpoints = nounsTokenHarness.numCheckpoints(nounderSolo);
         assertEq(nextCheckpoints, startCheckpoints + 1);
         uint256 nextDelegateId = propLot.getNextDelegateId();
+        assertEq(nextDelegateId, 2);
 
         IPropLot.Delegation memory delegation = IPropLot.Delegation(
             nounderSolo, 
@@ -431,6 +433,7 @@ contract PropLotTest is Test {
 
     function test_pushProposals(uint8 numFullDelegations, uint8 numPartialDelegations) public {
         vm.assume(numFullDelegations != 0 || numPartialDelegations > 1);
+
         for (uint256 i; i < numPartialDelegations; ++i) {
             // mint `minRequiredVotes - 1` to new nounder and delegate
             address currentPartialNounder = _createNounder(i);
@@ -452,11 +455,10 @@ contract PropLotTest is Test {
         }
 
         for (uint256 k; k < numFullDelegations; ++k) {
-            // mint `minRequiredVotes`to new nounder and delegate
-            address currentFullNounder = _createNounder(k);
+            // mint `minRequiredVotes`to new nounder and delegate, adding `numPartialDelegates` to `k` to get new addresses
+            address currentFullNounder = _createNounder(k + numPartialDelegations);
             uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
-            console2.logUint(minRequiredVotes);
-            return;
+
             for (uint256 l; l < minRequiredVotes; ++l) {
                 NounsTokenHarness(address(nounsTokenHarness)).mintTo(currentFullNounder);
             }
@@ -472,14 +474,13 @@ contract PropLotTest is Test {
             vm.stopPrank();
         }
 
-        return;
         (, uint256 numEligibleProposers) = propLot.numEligibleProposerDelegates();
-        for (uint256 m = 1; m < numEligibleProposers; ++m) {
+        for (uint256 m; m < numEligibleProposers; ++m) {
             proposals.push(IPropLot.Proposal(txs, description));
         }
-        console2.logUint(proposals.length);
 
         // push proposal to Nouns ecosystem
+        vm.roll(block.number + 1);
         vm.prank(address(ideaTokenHub));
         propLot.pushProposals(proposals);
     }

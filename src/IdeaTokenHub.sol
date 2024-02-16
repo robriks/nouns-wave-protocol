@@ -49,6 +49,7 @@ contract IdeaTokenHub is ERC1155 {
     error NonexistentIdeaId(uint256 ideaId);
     error AlreadyProposed(uint256 ideaId);
     error RoundIncomplete();
+    error ClaimFailure();
 
     event IdeaCreated(IdeaInfo ideaInfo);
     event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params);
@@ -76,6 +77,7 @@ contract IdeaTokenHub is ERC1155 {
     /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
     mapping (uint96 => IdeaInfo) internal ideaInfos;
     mapping (address => mapping (uint96 => SponsorshipParams)) internal sponsorships;
+    mapping (address => uint256) internal claimableYield;
 
     /*
       IdeaTokenHub
@@ -159,14 +161,37 @@ contract IdeaTokenHub is ERC1155 {
             }
         }
 
-        //todo populate with winning txs & description
-        IPropLot.Proposal[] memory proposals = new IPropLot.Proposal[](numWinners);
+        // populate array with winning txs & description and aggregate total payout amount
+        uint256 winningProposalsTotalFunding;
+        IPropLot.Proposal[] memory winningProposals = new IPropLot.Proposal[](numWinners);
         for (uint256 l; l < numWinners; ++l) {
-            proposals[l] = ideaInfos[winningIds[l]].proposal;
+            IdeaInfo storage winner = ideaInfos[winningIds[l]];
+            winner.isProposed = true;
+            winningProposalsTotalFunding += winner.totalFunding;
+            winningProposals[l] = winner.proposal;
         }
 
-        /* address[] memory delegators = */ __propLotCore.pushProposals(proposals); 
-        // pay Delegations.delegator proportional to their usable voting power
+        IPropLot.Delegation[] memory delegations = __propLotCore.pushProposals(winningProposals);
+        for (uint256 m; m < delegations.length; ++m) {
+            uint256 denominator = 10_000 * minRequiredVotes / delegations[m].votingPower;
+            uint256 yield = (winningProposalsTotalFunding / delegations.length) / denominator / 10_000;
+
+            // todo remove in favor of invariant (as this should never happen)
+            assert(yield != 0);
+            
+            // enable claiming of yield calculated as total revenue split between all delegations, proportional to delegated voting power
+            address currentDelegator = delegations[m].delegator;
+            claimableYield[currentDelegator] += yield;
+        }
+    }
+
+    /// @dev Provides a way to collect the yield earned by Nounders who have delegated to PropLot for a full round
+    /// @notice Reentrance prevented via CEI
+    function claim() external {
+        uint256 claimableAmt = claimableYield[msg.sender];
+        claimableYield[msg.sender] = 0;
+        (bool r,) = msg.sender.call{value: claimableAmt}('');
+        if (!r) revert ClaimFailure();
     }
 
     /*
@@ -181,6 +206,10 @@ contract IdeaTokenHub is ERC1155 {
     function getSponsorshipInfo(address sponsor, uint256 ideaId) public view returns (SponsorshipParams memory) {
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
         return sponsorships[sponsor][uint96(ideaId)];
+    }
+
+    function getclaimableYield(address nounder) external view returns (uint256) {
+        return claimableYield[nounder];
     }
 
     //todo override transfer & burn functions to make soulbound
