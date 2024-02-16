@@ -76,11 +76,6 @@ interface IPropLot {
     /// `delegate()` or `delegateBySig()` function, having provided the correct Delegate address for the given ID
     function registerDelegation(address nounder, uint256 delegateId) external;
 
-    /// @dev Convenience function enabling the bundling of `nounsToken.delegate()` and `this._setoptimisticDelegation()`
-    /// into a single transaction, simultaneously performing the token delegation and updating this contract's state
-    /// @notice Must be invoked in the context of `delegatecall`
-    function delegateByDelegatecall() external;
-
     //todo
     // function registerPermittedVote(uint256 delegateId, uint256 proposalId) external;
     

@@ -28,7 +28,6 @@ contract PropLot is IPropLot {
     INounsDAOLogicV3 public immutable nounsGovernor;
     IERC721Checkpointable public immutable nounsToken;
     address public immutable ideaTokenHub;
-    address private immutable __self;
     bytes32 private immutable __creationCodeHash;
 
     /*
@@ -51,8 +50,7 @@ contract PropLot is IPropLot {
         ideaTokenHub = address(new IdeaTokenHub(uri));
         nounsGovernor = nounsGovernor_;
         nounsToken = nounsToken_;
-        __self = address(this);
-        __creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(__self)))));
+        __creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(address(this))))));
         
         // increment `_nextDelegateId` and deploy initial Delegate contract 
         _nextDelegateId++;
@@ -164,37 +162,6 @@ contract PropLot is IPropLot {
         _setOptimisticDelegation(delegation);
     }
 
-    /// @inheritdoc IPropLot
-    function delegateByDelegatecall() external {
-        if (address(this) == __self) revert OnlyDelegatecallContext();
-
-        uint256 votingPower = uint16(nounsToken.votesToDelegate(address(this)));
-        if (votingPower == 0) revert ZeroVotesToDelegate(address(this));
-
-        uint256 minRequiredVotes = getCurrentMinRequiredVotes();
-        bool isSupplementary;
-        if (votingPower < minRequiredVotes) {
-            isSupplementary = true;
-        } else {
-            // votingPower above minimum required votes is not usable due to Nouns token implementation constraint
-            votingPower = minRequiredVotes;
-        }
-        (, uint256 delegateId) = getDelegateIdByType(isSupplementary);
-        
-        address delegate;
-        if (delegateId == _nextDelegateId) {
-            // if no Delegate is eligible for supplementing, create a new one
-            delegate = PropLot(__self).createDelegate();
-        } else {
-            delegate = getDelegateAddress(delegateId);
-        }
-
-        nounsToken.delegate(delegate);
-
-        // emits `DelegationRegistered` event
-        PropLot(__self).registerDelegation(address(this), delegateId);
-    }
-
     /*todo Registers a planned vote, allowing a brief redelegation to the sender for the vote to be cast
     function registerPermittedVote(uint256 delegateId, uint256 proposalId) public {
         // check delegate exists and is delegated to by the sender
@@ -208,7 +175,7 @@ contract PropLot is IPropLot {
     /// @inheritdoc IPropLot
     function createDelegate() public returns (address delegate) {
         uint256 nextDelegateId = uint256(_nextDelegateId);
-        delegate = address(new Delegate{salt: bytes32(nextDelegateId)}(__self));
+        delegate = address(new Delegate{salt: bytes32(nextDelegateId)}(address(this)));
 
         if (delegate == address(0x0)) revert Create2Failure();        
         _nextDelegateId++;
@@ -526,15 +493,14 @@ contract PropLot is IPropLot {
 
     /// @dev Computes a counterfactual Delegate address via `create2` using its creation code and `delegateId` as salt
     function _simulateCreate2(bytes32 _salt, bytes32 _creationCodeHash) internal view returns (address simulatedDeployment) {
-        address self = __self;
-
+        address factory = address(this);
         assembly {
             let ptr := mload(0x40) // instantiate free mem pointer
 
             // populate memory in small-Endian order to prevent `self` from overwriting the `0xff` prefix byte
             mstore(add(ptr, 0x40), _creationCodeHash) // insert 32-byte creationCodeHash at 64th offset
             mstore(add(ptr, 0x20), _salt) // insert 32-byte salt at 32nd offset
-            mstore(ptr, self) // insert 20-byte deployer address at 12th offset
+            mstore(ptr, factory) // insert 20-byte deployer address at 12th offset
             let startOffset := add(ptr, 0x0b) // prefix byte `0xff` must be inserted after `self` so it is not overwritten
             mstore8(startOffset, 0xff) // insert single byte create2 constant at 11th offset within `ptr` word
 

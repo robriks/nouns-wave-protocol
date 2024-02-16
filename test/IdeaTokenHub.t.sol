@@ -14,4 +14,9 @@ contract IdeaTokenHubTest is PropLotTest {
     function test_finalizeAuction() public {
         setUp();
     }
+    // function test_revertTransfer()
+    // function test_revertBurn()
+    // function test_createIdea()
+    // function test_sponsorIdea()
+    // function test_claim()
 }
