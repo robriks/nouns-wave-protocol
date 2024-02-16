@@ -87,6 +87,7 @@ contract IdeaTokenHub is ERC1155 {
         __propLotCore = IPropLot(msg.sender);
         
         ++currentRoundInfo.currentRound;
+        currentRoundInfo.startBlock = uint32(block.number);
         ++_nextIdeaId;
     }
 
@@ -131,7 +132,7 @@ contract IdeaTokenHub is ERC1155 {
         emit Sponsorship(msg.sender, id, params);
     }
 
-    function finalizeRound() external {
+    function finalizeRound() external /* returns (IPropLot.Delegation[] memory)*/ {
         // check that roundLength has passed
         if (block.number - roundLength < currentRoundInfo.startBlock) revert RoundIncomplete();
         ++currentRoundInfo.currentRound;
@@ -210,6 +211,10 @@ contract IdeaTokenHub is ERC1155 {
 
     function getclaimableYield(address nounder) external view returns (uint256) {
         return claimableYield[nounder];
+    }
+    
+    function getNextIdeaId() external view returns (uint256) {
+        return uint256(_nextIdeaId);
     }
 
     //todo override transfer & burn functions to make soulbound
