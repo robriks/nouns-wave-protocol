@@ -12,12 +12,13 @@ import {Delegate} from "src/Delegate.sol";
 import {IPropLot} from "src/interfaces/IPropLot.sol";
 import {PropLot} from "src/PropLot.sol";
 import {PropLotHarness} from "test/harness/PropLotHarness.sol";
-import {NounsEnvSetup} from "test/NounsEnvSetup.sol";
+import {NounsEnvSetup} from "test/helpers/NounsEnvSetup.sol";
+import {TestUtils} from "test/helpers/TestUtils.sol";
 
 /// @notice Fuzz iteration params can be increased to larger types to match implementation
 /// They are temporarily set to smaller types for speed only
 /// @dev This IdeaTokenHub test suite inherits from the Nouns governance setup contract to mimic the onchain environment
-contract PropLotTest is NounsEnvSetup {
+contract PropLotTest is NounsEnvSetup, TestUtils {
 
     PropLotHarness propLot;
     IdeaTokenHub ideaTokenHub;
@@ -342,7 +343,7 @@ contract PropLotTest is NounsEnvSetup {
 
         for (uint256 i; i < numPartialDelegations; ++i) {
             // mint `minRequiredVotes - 1` to new nounder and delegate
-            address currentPartialNounder = _createNounder(i);
+            address currentPartialNounder = _createNounderEOA(i);
             uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
             uint256 notMinRequiredVotes = minRequiredVotes / 2;
             for (uint256 j; j < notMinRequiredVotes; ++j) {
@@ -362,7 +363,7 @@ contract PropLotTest is NounsEnvSetup {
 
         for (uint256 k; k < numFullDelegations; ++k) {
             // mint `minRequiredVotes`to new nounder and delegate, adding `numPartialDelegates` to `k` to get new addresses
-            address currentFullNounder = _createNounder(k + numPartialDelegations);
+            address currentFullNounder = _createNounderEOA(k + numPartialDelegations);
             uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
 
             for (uint256 l; l < minRequiredVotes; ++l) {
@@ -406,14 +407,4 @@ contract PropLotTest is NounsEnvSetup {
     //function test_deleteDelegations()
     //function test_deleteDelegationsZeroMembers()
     //function test_computeNounsDelegationDigest
-
-    
-    /*
-      Internals
-    */
-
-    /// @notice Returns an *unsafe* address createded with a *known private key*; for testing use _only_
-    function _createNounder(uint256 unsafeSeed) internal pure returns (address _newNounder) {
-        _newNounder = vm.addr(unsafeSeed + 1);
-    }
 }

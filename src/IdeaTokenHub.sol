@@ -51,7 +51,7 @@ contract IdeaTokenHub is ERC1155 {
     error RoundIncomplete();
     error ClaimFailure();
 
-    event IdeaCreated(IdeaInfo ideaInfo);
+    event IdeaCreated(IPropLot.Proposal idea, address creator, uint96 ideaId, SponsorshipParams params);
     event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params);
     event IdeaProposed(IdeaInfo ideaInfo);
 
@@ -59,11 +59,11 @@ contract IdeaTokenHub is ERC1155 {
       Constants
     */
 
-    /// @dev The length of time for a round in blocks, marking the block number where winning ideas are chosen 
-    uint256 public constant roundLength = 1209600;
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
     uint256 public constant minSponsorshipAmount = 0.001 ether;
     uint256 public constant decimals = 18;
+    /// @dev The length of time for a round in blocks, marking the block number where winning ideas are chosen 
+    uint256 public immutable roundLength = 1209600;//todo change
 
     IPropLot private immutable __propLotCore;
 
@@ -107,7 +107,7 @@ contract IdeaTokenHub is ERC1155 {
 
         _mint(msg.sender, ideaId, msg.value, '');
 
-        emit IdeaCreated(ideaInfo);
+        emit IdeaCreated(IPropLot.Proposal(ideaTxs, description), msg.sender, ideaId, SponsorshipParams(value, true));
     }
 
     function sponsorIdea(uint256 ideaId) public payable {
