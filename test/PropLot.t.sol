@@ -316,10 +316,6 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         Delegate(delegate).pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
     }
 
-    //todo try calling `setOptimisticDelegation()` and then immediately redelegate back to self in same block
-    // to test internal state and make sure the falsified Delegation is cleared upon settlement
-    //function test_registerDelegationRedelegateSameBlock()
-
     function test_revertPushProposalNotIdeaTokenHub() public {
         bytes memory err = abi.encodeWithSelector(IPropLot.OnlyIdeaContract.selector);
         vm.expectRevert(err);
@@ -334,36 +330,32 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         firstDelegate.pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
     }
 
-    
-    // function test_getDelegateIdByTypeSolo()
-    // function test_getDelegateIdByTypeSupplement()
+    function test_pushProposals(uint8 numFullDelegations, uint8 numSupplementaryDelegations) public {
+        vm.assume(numFullDelegations != 0 || numSupplementaryDelegations > 1);
 
-    function test_pushProposals(uint8 numFullDelegations, uint8 numPartialDelegations) public {
-        vm.assume(numFullDelegations != 0 || numPartialDelegations > 1);
-
-        for (uint256 i; i < numPartialDelegations; ++i) {
-            // mint `minRequiredVotes - 1` to new nounder and delegate
-            address currentPartialNounder = _createNounderEOA(i);
+        for (uint256 i; i < numSupplementaryDelegations; ++i) {
+            // mint `minRequiredVotes / 2` to new nounder and delegate
+            address currentSupplementaryNounder = _createNounderEOA(i);
             uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
             uint256 notMinRequiredVotes = minRequiredVotes / 2;
             for (uint256 j; j < notMinRequiredVotes; ++j) {
-                NounsTokenHarness(address(nounsTokenHarness)).mintTo(currentPartialNounder);
+                NounsTokenHarness(address(nounsTokenHarness)).mintTo(currentSupplementaryNounder);
             }
-            uint256 returnedPartialBalance = NounsTokenLike(address(nounsTokenHarness)).balanceOf(currentPartialNounder);
-            assertEq(returnedPartialBalance, notMinRequiredVotes);
+            uint256 returnedSupplementaryBalance = NounsTokenLike(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+            assertEq(returnedSupplementaryBalance, notMinRequiredVotes);
             
             (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
             address delegate = propLot.getDelegateAddress(delegateId);
             
-            vm.startPrank(currentPartialNounder);
+            vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentPartialNounder, delegateId);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
         }
 
         for (uint256 k; k < numFullDelegations; ++k) {
-            // mint `minRequiredVotes`to new nounder and delegate, adding `numPartialDelegates` to `k` to get new addresses
-            address currentFullNounder = _createNounderEOA(k + numPartialDelegations);
+            // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `k` to get new addresses
+            address currentFullNounder = _createNounderEOA(k + numSupplementaryDelegations);
             uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
 
             for (uint256 l; l < minRequiredVotes; ++l) {
@@ -393,18 +385,98 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         propLot.pushProposals(proposals);
     }
 
+    function test_getDelegateIdByType(uint8 numSupplementaryDelegates, uint8 numFullDelegates) public {
+        vm.assume(numSupplementaryDelegates != 0 && numFullDelegates != 0);
+        uint256 totalDels = uint256(numSupplementaryDelegates) + uint256(numFullDelegates);
+        uint256 delCounter;
+        while (delCounter < totalDels) {
+            uint256 supplementaryCounter;
+            // make delegations in pseudorandom order using sufficiently entropic hash            
+            uint256 entropicHash = uint256(keccak256(abi.encode(delCounter)));
+            bool supplementaryIter = entropicHash % 2 == 0 ? true : false;
+            if (supplementaryIter && supplementaryCounter < numSupplementaryDelegates) {
+                // perform supplementary delegation
+                address currentSupplementaryNounder = _createNounderEOA(delCounter);
+                uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+                uint256 amt = minRequiredVotes / 2;
+                
+                // mint `amt < minRequiredVotes` to new nounder EOA and delegate
+                NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
+                uint256 returnedSupplementaryBalance = NounsTokenLike(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+                assertEq(returnedSupplementaryBalance, amt);
+                
+                (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+                address delegate = propLot.getDelegateAddress(delegateId);
+                
+                vm.startPrank(currentSupplementaryNounder);
+                nounsTokenHarness.delegate(delegate);
+                propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+                vm.stopPrank();
+
+                ++supplementaryCounter;
+            } else {
+                // perform full delegation
+                address currentFullNounder = _createNounderEOA(delCounter);
+                uint256 amt = propLot.getCurrentMinRequiredVotes();
+                
+                // mint `amt == minRequiredVotes` to new nounder EOA and delegate
+                NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
+                uint256 returnedFullBalance = NounsTokenLike(address(nounsTokenHarness)).balanceOf(currentFullNounder);
+                assertEq(returnedFullBalance, amt);
+                
+                (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+                address delegate = propLot.getDelegateAddress(delegateId);
+                
+                vm.startPrank(currentFullNounder);
+                nounsTokenHarness.delegate(delegate);
+                propLot.registerDelegation(currentFullNounder, delegateId);
+                vm.stopPrank();
+            }
+
+            ++delCounter;
+        }
+
+        // assert that delegate returned by getDelegateIdByType has votingPower < or > minRequiredVotes
+        (uint256 supplementId, uint256 newMinRequiredVotes) = propLot.getDelegateIdByType(true);
+        (uint256 fullId, ) = propLot.getDelegateIdByType(false);
+        
+        IPropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
+        bool supplementMatchFound;
+        bool fullMatchFound;
+        uint256 nextDelegateId = propLot.getNextDelegateId();
+        for (uint256 j; j < optimisticDelegations.length; ++j) {
+            if (optimisticDelegations[j].delegateId == fullId || fullId == nextDelegateId) {
+                fullMatchFound = true;
+            }
+            if (optimisticDelegations[j].delegateId == supplementId || supplementId == nextDelegateId) {
+                supplementMatchFound = true;
+            }
+        }
+
+        assertTrue(supplementMatchFound);
+        assertTrue(fullMatchFound);
+
+        address supplement = propLot.getDelegateAddress(supplementId);
+        assertTrue(nounsTokenHarness.getCurrentVotes(supplement) < newMinRequiredVotes);
+        address full = propLot.getDelegateAddress(fullId);
+        assertTrue(nounsTokenHarness.getCurrentVotes(full) >= newMinRequiredVotes);
+    }
+    
+        
+    // function test_getDelegateIdByTypeSolo()
+    // function test_getDelegateIdByTypeSupplement()
+    //todo try calling `setOptimisticDelegation()` and then immediately redelegate back to self in same block
+    // to test internal state and make sure the falsified Delegation is cleared upon settlement
+    //function test_registerDelegationRedelegateSameBlock()
     //function test_pushProposalsRemoveRogueDelegators()
     //function test_delegateBySig()
-    //function test_delegateByDelegateCall
     //function test_proposalThresholdIncrease()
-
-    //function test_getDelegateIdByType
-    //function test_findDelegateId
-    //function test_findProposerDelegate
     //function test_disqualifiedDelegationIndices()
     //function test_inspectCheckpoints
     //function test_isEligibleProposalState
     //function test_deleteDelegations()
     //function test_deleteDelegationsZeroMembers()
     //function test_computeNounsDelegationDigest
+    //function test_findDelegateId
+    // function test_findProposerDelegate
 }

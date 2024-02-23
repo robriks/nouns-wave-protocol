@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {ERC1155} from "lib/openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IPropLot} from "./interfaces/IPropLot.sol";
 import {PropLot} from "./PropLot.sol";
 import {console2} from "forge-std/console2.sol"; //todo delete
@@ -46,6 +47,9 @@ contract IdeaTokenHub is ERC1155 {
     }
 
     error BelowMinimumSponsorshipAmount(uint256 value);
+    error InvalidActionsCount(uint256 count);
+    error ProposalInfoArityMismatch();
+    error InvalidDescription();
     error NonexistentIdeaId(uint256 ideaId);
     error AlreadyProposed(uint256 ideaId);
     error RoundIncomplete();
@@ -66,6 +70,7 @@ contract IdeaTokenHub is ERC1155 {
     uint256 public immutable roundLength = 1209600;//todo change
 
     IPropLot private immutable __propLotCore;
+    INounsDAOLogicV3 private immutable __nounsGovernor;
 
     /*
       Storage
@@ -83,16 +88,17 @@ contract IdeaTokenHub is ERC1155 {
       IdeaTokenHub
     */
     
-    constructor(string memory uri_) ERC1155(uri_) {
+    constructor(INounsDAOLogicV3 nounsGovernor_, string memory uri_) ERC1155(uri_) {
         __propLotCore = IPropLot(msg.sender);
+        __nounsGovernor = nounsGovernor_;
         
         ++currentRoundInfo.currentRound;
         currentRoundInfo.startBlock = uint32(block.number);
         ++_nextIdeaId;
     }
 
-    function createIdea(NounsDAOV3Proposals.ProposalTxs memory ideaTxs, string memory description) public payable {
-        if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
+    function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description) public payable {
+        _validateIdeaCreation(ideaTxs, description);
 
         // cache in memory to save on SLOADs
         uint96 ideaId = _nextIdeaId;
@@ -132,47 +138,47 @@ contract IdeaTokenHub is ERC1155 {
         emit Sponsorship(msg.sender, id, params);
     }
 
-    function finalizeRound() external /* returns (IPropLot.Delegation[] memory)*/ {
+    function finalizeRound() external returns (IPropLot.Delegation[] memory delegations) {
         // check that roundLength has passed
         if (block.number - roundLength < currentRoundInfo.startBlock) revert RoundIncomplete();
         ++currentRoundInfo.currentRound;
         currentRoundInfo.startBlock = uint32(block.number);
 
         // identify number of proposals to push for current voting threshold
-        (uint256 minRequiredVotes, uint256 numWinners) = __propLotCore.numEligibleProposerDelegates();
-        
-        // determine winners by checking balances
-        uint96[] memory winningIds = new uint96[](numWinners);
-        uint96 nextIdeaId = _nextIdeaId;
-        //todo abstract to internal function & testing
-        for (uint96 i = 1; i < nextIdeaId; ++i) {
-            IdeaInfo storage currentIdeaInfo = ideaInfos[i];
-            // skip previous winners
-            if (currentIdeaInfo.isProposed) continue;
+        (uint256 minRequiredVotes, uint256 numEligibleProposers) = __propLotCore.numEligibleProposerDelegates();
+        console2.logString('numEligibleProposers:');
+        console2.logUint(numEligibleProposers);
 
-            for (uint256 j; j < numWinners; ++j) {
-                IdeaInfo storage currentWinner = ideaInfos[winningIds[j]];
-                if (currentIdeaInfo.totalFunding > currentWinner.totalFunding) {
-                    for (uint256 k = numWinners - 1; k > j; k--) {
-                        winningIds[k] = winningIds[k - 1];
-                    }
-                    winningIds[j] = i;
-                    break;
-                }
-            }
+        // determine winners by obtaining list of ordered eligible ids
+        uint96[] memory winningIds = getOrderedEligibleIdeaIds(numEligibleProposers);
+
+        //todo move this assertion loop into an invariant test as it only asserts the invariant that `winningIds` is indeed ordered properly
+        uint256 prevBal;
+        for (uint256 z = winningIds.length; z > 0; --z) {
+            uint256 index = z - 1;
+            uint96 currentWinningId = winningIds[index];
+            assert(ideaInfos[currentWinningId].totalFunding >= prevBal);
+
+            prevBal = ideaInfos[currentWinningId].totalFunding;
         }
 
         // populate array with winning txs & description and aggregate total payout amount
         uint256 winningProposalsTotalFunding;
-        IPropLot.Proposal[] memory winningProposals = new IPropLot.Proposal[](numWinners);
-        for (uint256 l; l < numWinners; ++l) {
-            IdeaInfo storage winner = ideaInfos[winningIds[l]];
+        IPropLot.Proposal[] memory winningProposals = new IPropLot.Proposal[](winningIds.length);
+        for (uint256 l; l < winningIds.length; ++l) {
+            uint96 currentWinnerId = winningIds[l];
+            // if there are more eligible proposers than ideas, rightmost `winningIds` will be 0 which is an invalid `ideaId` value
+            if (currentWinnerId == 0) break;
+
+            IdeaInfo storage winner = ideaInfos[currentWinnerId];
             winner.isProposed = true;
             winningProposalsTotalFunding += winner.totalFunding;
             winningProposals[l] = winner.proposal;
         }
 
-        IPropLot.Delegation[] memory delegations = __propLotCore.pushProposals(winningProposals);
+        delegations = __propLotCore.pushProposals(winningProposals);
+
+        // calculate yield for returned valid delegations
         for (uint256 m; m < delegations.length; ++m) {
             uint256 denominator = 10_000 * minRequiredVotes / delegations[m].votingPower;
             uint256 yield = (winningProposalsTotalFunding / delegations.length) / denominator / 10_000;
@@ -199,6 +205,49 @@ contract IdeaTokenHub is ERC1155 {
       Views
     */
 
+    // todo: can this array eventually run into memory allocation issues (DOS) when enough `ideaIds` have been minted?
+    /// @dev Fetches an array of `ideaIds` eligible for proposal, ordered by total funding
+    /// @param optLimiter An optional limiter used to define the number of desired `ideaIds`, for example the number of 
+    /// eligible proposers or winning ids. If provided, it will be used to define the length of the returned array
+    /// @notice The returned array treats ineligible IDs (ie already proposed) as 0 values at the array end.
+    /// Since 0 is an invalid `ideaId` value, these are simply filtered out when invoked within `finalizeRound()`
+    function getOrderedEligibleIdeaIds(uint256 optLimiter) public view returns (uint96[] memory orderedEligibleIds) {
+        // cache in memory to reduce SLOADs
+        uint256 nextIdeaId = getNextIdeaId();
+        uint256 len;
+        if (optLimiter == 0 || optLimiter >= nextIdeaId) {
+            // there cannot be more winners than existing `ideaIds`
+            len = nextIdeaId - 1;
+        } else {
+            len = optLimiter;
+        }
+
+        orderedEligibleIds = new uint96[](len);
+        for (uint96 i = 1; i < nextIdeaId; ++i) {
+            IdeaInfo storage currentIdeaInfo = ideaInfos[i];
+            // skip previous winners
+            if (currentIdeaInfo.isProposed) {
+                continue;
+            }
+
+            // compare `totalFunding` and push winners into array, ordering by highest funding
+            for (uint256 j; j < len; ++j) {
+                IdeaInfo storage currentWinner = ideaInfos[orderedEligibleIds[j]];
+                // if a tokenId with higher funding is found, reorder array from right to left and then insert it
+                if (currentIdeaInfo.totalFunding > currentWinner.totalFunding) {
+                    for (uint256 k = len - 1; k > j; --k) {
+                        orderedEligibleIds[k] = orderedEligibleIds[k - 1];
+                    }
+
+                    orderedEligibleIds[j] = i; // i represents top level loop's `ideaId`
+                    break;
+                }
+            }
+        }
+    }
+
+    //todo external function to return all previously proposed ideas
+
     function getIdeaInfo(uint256 ideaId) external view returns (IdeaInfo memory) {
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
         return ideaInfos[uint96(ideaId)];
@@ -213,8 +262,28 @@ contract IdeaTokenHub is ERC1155 {
         return claimableYield[nounder];
     }
     
-    function getNextIdeaId() external view returns (uint256) {
+    function getNextIdeaId() public view returns (uint256) {
         return uint256(_nextIdeaId);
+    }
+
+    /*
+      Internals
+    */
+
+    function _validateIdeaCreation(NounsDAOV3Proposals.ProposalTxs calldata _ideaTxs, string calldata _description) internal {
+        if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
+        
+        // To account for Nouns governor contract upgradeability, `PROPOSAL_MAX_OPERATIONS` must be read dynamically
+        uint256 maxOperations = __nounsGovernor.proposalMaxOperations();
+        if (_ideaTxs.targets.length == 0 || _ideaTxs.targets.length > maxOperations) revert InvalidActionsCount(_ideaTxs.targets.length);
+        
+        if (
+            _ideaTxs.targets.length != _ideaTxs.values.length ||
+            _ideaTxs.targets.length != _ideaTxs.signatures.length ||
+            _ideaTxs.targets.length != _ideaTxs.calldatas.length
+        ) revert ProposalInfoArityMismatch();
+        
+        if (keccak256(bytes(_description)) == keccak256('')) revert InvalidDescription();
     }
 
     //todo override transfer & burn functions to make soulbound

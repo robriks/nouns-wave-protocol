@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {console2} from "forge-std/Test.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
@@ -52,6 +53,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
         // provide funds for `txs` value
         vm.deal(address(this), 1 ether);
+
+        // balances to roughly mirror mainnet
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 308);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
 
         // continue with IdeaTokenHub configuration
         firstRoundInfo.currentRound = 1;
@@ -197,19 +205,19 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             eoa = !eoa;
         }
 
-        for (uint256 j; j < numSponsors; ++j) {
+        for (uint256 l; l < numSponsors; ++l) {
             assertEq(ideaTokenHub.getNextIdeaId(), uint256(numCreators) + 1);
             // targets 10e16 order; not truly random but appropriate for testing
-            uint256 pseudoRandomSponsorValue = uint256(keccak256(abi.encode(j << 2))) / 10e15;
+            uint256 pseudoRandomSponsorValue = uint256(keccak256(abi.encode(l << 2))) / 10e15;
 
             // alternate between simulating EOA and smart contract wallets
-            address sponsor = eoa ? _createNounderEOA(numCreators + j) : _createNounderSmartAccount(numCreators + j);
+            address sponsor = eoa ? _createNounderEOA(numCreators + l) : _createNounderSmartAccount(numCreators + l);
             vm.deal(sponsor, pseudoRandomSponsorValue);
 
             // reduce an entropic hash to the `[0:nextIdeaId]` range via modulo
             uint256 numIds = ideaTokenHub.getNextIdeaId() - 1;
             // add 1 since modulo produces one less than desired range, incl 0
-            uint256 pseudoRandomIdeaId = (uint256(keccak256(abi.encode(j))) % numIds) + 1;
+            uint256 pseudoRandomIdeaId = (uint256(keccak256(abi.encode(l))) % numIds) + 1;
             uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
 
             vm.expectEmit(true, true, true, false);
@@ -236,7 +244,271 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         }
     }
 
-    // function test_finalizeAuction() public {}
+    function test_finalizeAuction(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numCreators, uint8 numSponsors) public {
+        vm.assume(numSponsors != 0);
+        vm.assume(numCreators != 0);
+        vm.assume(numFullDelegations != 0 || numSupplementaryDelegations > 1);
+
+        bool eoa; // used to alternate simulating EOA users and smart contract wallet users
+        // perform supplementary delegations
+        for (uint256 i; i < numSupplementaryDelegations; ++i) {
+            // mint `minRequiredVotes / 2` to new nounder and delegate
+            address currentSupplementaryNounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 amt = minRequiredVotes / 2;
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
+
+            uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+            assertEq(returnedSupplementaryBalance, amt);
+            
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentSupplementaryNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            vm.stopPrank();
+
+            eoa = !eoa;
+        }
+
+        // perform full delegations
+        for (uint256 j; j < numFullDelegations; ++j) {
+            // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
+            address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
+            uint256 amt = propLot.getCurrentMinRequiredVotes(); // == `minRequiredVotes`
+
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
+            uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
+            assertEq(returnedFullBalance, amt);
+
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentFullNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentFullNounder, delegateId);
+            vm.stopPrank();
+
+            eoa = !eoa;
+        }
+
+        // no IdeaIds have yet been created (IDs start at 1)
+        uint256 startId = ideaTokenHub.getNextIdeaId();
+        assertEq(startId, 1);
+        
+        // create ideas
+        for (uint256 k; k < numCreators; ++k) {
+            uint256 currentIdeaId = startId + k;
+            assertEq(ideaTokenHub.getNextIdeaId(), currentIdeaId);
+            // targets 10e15 order; not truly random but appropriate for testing
+            uint256 pseudoRandomIdeaValue = uint256(keccak256(abi.encode(k))) / 10e15;
+
+            // alternate between simulating EOA and smart contract wallets
+            uint256 collisionOffset = k + numSupplementaryDelegations + numFullDelegations; // prevent collisions
+            address nounder = eoa ? _createNounderEOA(collisionOffset) : _createNounderSmartAccount(collisionOffset);
+            vm.deal(nounder, pseudoRandomIdeaValue);
+
+            vm.expectEmit(true, true, true, false);
+            emit IdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
+            
+            vm.prank(nounder);
+            ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
+
+            assertEq(ideaTokenHub.balanceOf(nounder, currentIdeaId), pseudoRandomIdeaValue);
+
+            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(currentIdeaId);
+            assertEq(newInfo.totalFunding, pseudoRandomIdeaValue);
+            assertEq(newInfo.blockCreated, uint32(block.number));
+            assertFalse(newInfo.isProposed);
+            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
+            assertEq(newInfo.proposal.description, description);
+
+            eoa = !eoa;
+        }
+
+        // sponsor ideas
+        for (uint256 l; l < numSponsors; ++l) {
+            assertEq(ideaTokenHub.getNextIdeaId(), uint256(numCreators) + 1);
+            // targets 10e16 order; not truly random but appropriate for testing
+            uint256 pseudoRandomSponsorValue = uint256(keccak256(abi.encode(l << 2))) / 10e15;
+
+            // alternate between simulating EOA and smart contract wallets
+            uint256 collisionOffset = l + numCreators + numSupplementaryDelegations + numFullDelegations;
+            address sponsor = eoa ? _createNounderEOA(collisionOffset) : _createNounderSmartAccount(collisionOffset);
+            vm.deal(sponsor, pseudoRandomSponsorValue);
+
+            // reduce an entropic hash to the `[0:nextIdeaId]` range via modulo
+            uint256 numIds = ideaTokenHub.getNextIdeaId() - 1;
+            // add 1 since modulo produces one less than desired range, incl 0
+            uint256 pseudoRandomIdeaId = (uint256(keccak256(abi.encode(l))) % numIds) + 1;
+            uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
+
+            vm.expectEmit(true, true, true, false);
+            emit IdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
+            
+            vm.prank(sponsor);
+            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
+
+            assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
+
+            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId);
+            // check that `IdeaInfo.totalFunding` increased by `pseudoRandomSponsorValue`, ergo `currentTotalFunding`
+            currentIdTotalFunding += pseudoRandomSponsorValue;
+            assertEq(newInfo.totalFunding, currentIdTotalFunding);
+            assertEq(newInfo.blockCreated, uint32(block.number));
+            assertFalse(newInfo.isProposed);
+            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
+            assertEq(newInfo.proposal.description, description);
+
+            eoa = !eoa;
+        }
+
+        // fast forward to round completion block and finalize
+        vm.roll(block.number + roundLength);
+        ideaTokenHub.finalizeRound();
+        //todo asserts
+    }
+    
+    function test_revertFinalizeAuctionIncompleteRound(uint8 numCreators, uint8 numSponsors, uint8 numSupplementaryDelegations, uint8 numFullDelegations) public {
+        vm.assume(numSponsors != 0);
+        vm.assume(numCreators != 0);
+        vm.assume(numFullDelegations != 0 || numSupplementaryDelegations > 1);
+
+        bool eoa; // used to alternate simulating EOA users and smart contract wallet users
+        // perform supplementary delegations
+        for (uint256 i; i < numSupplementaryDelegations; ++i) {
+            // mint `minRequiredVotes / 2` to new nounder and delegate
+            address currentSupplementaryNounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 amt = minRequiredVotes / 2;
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
+
+            uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+            assertEq(returnedSupplementaryBalance, amt);
+            
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentSupplementaryNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            vm.stopPrank();
+
+            eoa = !eoa;
+        }
+
+        // perform full delegations
+        for (uint256 j; j < numFullDelegations; ++j) {
+            // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
+            address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
+            uint256 amt = propLot.getCurrentMinRequiredVotes(); // == `minRequiredVotes`
+
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
+            uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
+            assertEq(returnedFullBalance, amt);
+
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentFullNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentFullNounder, delegateId);
+            vm.stopPrank();
+
+            eoa = !eoa;
+        }
+
+        // no IdeaIds have yet been created (IDs start at 1)
+        uint256 startId = ideaTokenHub.getNextIdeaId();
+        assertEq(startId, 1);
+        
+        // create ideas
+        for (uint256 k; k < numCreators; ++k) {
+            uint256 currentIdeaId = startId + k;
+            assertEq(ideaTokenHub.getNextIdeaId(), currentIdeaId);
+            // targets 10e15 order; not truly random but appropriate for testing
+            uint256 pseudoRandomIdeaValue = uint256(keccak256(abi.encode(k))) / 10e15;
+
+            // alternate between simulating EOA and smart contract wallets
+            uint256 collisionOffset = k + numSupplementaryDelegations + numFullDelegations; // prevent collisions
+            address nounder = eoa ? _createNounderEOA(collisionOffset) : _createNounderSmartAccount(collisionOffset);
+            vm.deal(nounder, pseudoRandomIdeaValue);
+
+            vm.expectEmit(true, true, true, false);
+            emit IdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
+            
+            vm.prank(nounder);
+            ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
+
+            assertEq(ideaTokenHub.balanceOf(nounder, currentIdeaId), pseudoRandomIdeaValue);
+
+            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(currentIdeaId);
+            assertEq(newInfo.totalFunding, pseudoRandomIdeaValue);
+            assertEq(newInfo.blockCreated, uint32(block.number));
+            assertFalse(newInfo.isProposed);
+            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
+            assertEq(newInfo.proposal.description, description);
+
+            eoa = !eoa;
+        }
+
+        // sponsor ideas
+        for (uint256 l; l < numSponsors; ++l) {
+            assertEq(ideaTokenHub.getNextIdeaId(), uint256(numCreators) + 1);
+            // targets 10e16 order; not truly random but appropriate for testing
+            uint256 pseudoRandomSponsorValue = uint256(keccak256(abi.encode(l << 2))) / 10e15;
+
+            // alternate between simulating EOA and smart contract wallets
+            uint256 collisionOffset = l + numCreators + numSupplementaryDelegations + numFullDelegations;
+            address sponsor = eoa ? _createNounderEOA(collisionOffset) : _createNounderSmartAccount(collisionOffset);
+            vm.deal(sponsor, pseudoRandomSponsorValue);
+
+            // reduce an entropic hash to the `[0:nextIdeaId]` range via modulo
+            uint256 numIds = ideaTokenHub.getNextIdeaId() - 1;
+            // add 1 since modulo produces one less than desired range, incl 0
+            uint256 pseudoRandomIdeaId = (uint256(keccak256(abi.encode(l))) % numIds) + 1;
+            uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
+
+            vm.expectEmit(true, true, true, false);
+            emit IdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
+            
+            vm.prank(sponsor);
+            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
+
+            assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
+
+            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId);
+            // check that `IdeaInfo.totalFunding` increased by `pseudoRandomSponsorValue`, ergo `currentTotalFunding`
+            currentIdTotalFunding += pseudoRandomSponsorValue;
+            assertEq(newInfo.totalFunding, currentIdTotalFunding);
+            assertEq(newInfo.blockCreated, uint32(block.number));
+            assertFalse(newInfo.isProposed);
+            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
+            assertEq(newInfo.proposal.description, description);
+
+            eoa = !eoa;
+        }
+
+        // ensure round cannot be finalized until `roundLength` has passed
+        bytes memory err = abi.encodeWithSelector(IdeaTokenHub.RoundIncomplete.selector);
+        vm.expectRevert(err);
+        ideaTokenHub.finalizeRound();
+    }
+
+
     // function test_claim()
     // function test_revertTransfer()
     // function test_revertBurn()

@@ -47,7 +47,7 @@ contract PropLot is IPropLot {
     */
 
     constructor(INounsDAOLogicV3 nounsGovernor_, IERC721Checkpointable nounsToken_, string memory uri) {
-        ideaTokenHub = address(new IdeaTokenHub(uri));
+        ideaTokenHub = address(new IdeaTokenHub(nounsGovernor_, uri));
         nounsGovernor = nounsGovernor_;
         nounsToken = nounsToken_;
         __creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(address(this))))));
@@ -74,27 +74,34 @@ contract PropLot is IPropLot {
         if (len == 0) revert InsufficientDelegations();
         delegations = new Delegation[](len);
         (, uint256[] memory eligibleProposerIds) = getAllEligibleProposerDelegates();
-        assert(eligibleProposerIds.length == winningProposals.length);
+        console2.logString('eligibleProposers then winningProposals');
+        console2.logUint(eligibleProposerIds.length);
+        console2.logUint(winningProposals.length);
+        assert(eligibleProposerIds.length >= winningProposals.length);
 
         unchecked {
-            for (uint256 i; i < eligibleProposerIds.length; ++i) {
+            for (uint256 i; i < winningProposals.length; ++i) {
                 // establish current proposer delegate
                 uint256 currentProposerId = eligibleProposerIds[i];
-                address currentProposer = getDelegateAddress(eligibleProposerIds[i]);
+                address currentProposer = getDelegateAddress(currentProposerId);
 
                 // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
                 Delegate(currentProposer).pushProposal(nounsGovernor, winningProposals[i].ideaTxs, winningProposals[i].description);
                 
                 // populate return array with Nounder-delegators and their voting power for yield distribution
-                uint256 index;
-                for (uint256 j; j < len; ++j) {
-                    IPropLot.Delegation memory currentDelegation = _optimisticDelegations[j];
-                    if (currentDelegation.delegateId == uint16(currentProposerId)) {
-                        // add delegation details to return array
-                        delegations[index] = currentDelegation;
-                        ++index;
-                    }
-                }
+                delegations = _optimisticDelegations;
+                
+                // //todo: this yield schema specifically picks out the delegations that were used to power the proposing delegates;
+                // //cont: maybe would be better just to return all delegations from storage since rogues have already been filtered out?
+                // uint256 index;
+                // for (uint256 j; j < len; ++j) {
+                //     IPropLot.Delegation memory currentDelegation = _optimisticDelegations[j];
+                //     if (currentDelegation.delegateId == uint16(currentProposerId)) {
+                //         // add delegation details to return array
+                //         delegations[index] = currentDelegation;
+                //         ++index;
+                //     }
+                // }
             }
         }
     }
