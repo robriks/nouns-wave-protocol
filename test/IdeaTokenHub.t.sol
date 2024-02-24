@@ -249,11 +249,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         vm.assume(numCreators != 0);
         vm.assume(numFullDelegations != 0 || numSupplementaryDelegations > 1);
 
+        uint256 startMinRequiredVotes = propLot.getCurrentMinRequiredVotes(); // stored for assertions
+
         bool eoa; // used to alternate simulating EOA users and smart contract wallet users
         // perform supplementary delegations
         for (uint256 i; i < numSupplementaryDelegations; ++i) {
             // mint `minRequiredVotes / 2` to new nounder and delegate
             address currentSupplementaryNounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
+
             uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
             uint256 amt = minRequiredVotes / 2;
             NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
@@ -269,6 +272,8 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
+            // simulate time passing
+            vm.roll(block.number + 200);
             eoa = !eoa;
         }
 
@@ -276,7 +281,8 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         for (uint256 j; j < numFullDelegations; ++j) {
             // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
             address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
-            uint256 amt = propLot.getCurrentMinRequiredVotes(); // == `minRequiredVotes`
+
+            uint256 amt = propLot.getCurrentMinRequiredVotes();
 
             NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
             uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
@@ -290,6 +296,8 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             propLot.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
+            // simulate time passing
+            vm.roll(block.number + 200);
             eoa = !eoa;
         }
 
@@ -370,11 +378,43 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             eoa = !eoa;
         }
 
+        // get values for assertions
+        (uint32 prevCurrentRound, uint32 prevStartBlock) = ideaTokenHub.currentRoundInfo();
+        
         // fast forward to round completion block and finalize
         vm.roll(block.number + roundLength);
-        ideaTokenHub.finalizeRound();
-        //todo asserts
+        (IPropLot.Delegation[] memory delegations, uint96[] memory winningIdeaIds, uint256[] memory nounsProposalIds) = ideaTokenHub.finalizeRound();
+        
+        (uint32 postCurrentRound, uint32 postStartBlock) = ideaTokenHub.currentRoundInfo();
+        assertEq(postCurrentRound, prevCurrentRound + 1);
+        assertTrue(postStartBlock > prevStartBlock);
+
+        uint256 endMinRequiredVotes = propLot.getCurrentMinRequiredVotes();
+        if (delegations.length == 0) {
+            assertTrue(startMinRequiredVotes != endMinRequiredVotes);
+            // assert no proposals were made
+            assertEq(nounsProposalIds.length, 0);
+        } else {
+            // assert yield ledger was written properly
+            uint256 winnersTotalFunding;
+            for (uint256 n; n < winningIdeaIds.length; ++n) {
+                uint256 currentWinnerTotalFunding = ideaTokenHub.getIdeaInfo(winningIdeaIds[n]).totalFunding;
+                winnersTotalFunding += currentWinnerTotalFunding;
+            }
+
+            for (uint256 o; o < delegations.length; ++o) {
+                address currentDelegator = delegations[o].delegator;
+                uint256 returnedYield = ideaTokenHub.getClaimableYield(currentDelegator);
+                assertTrue(returnedYield != 0);
+                
+                uint256 denominator = 10_000 * endMinRequiredVotes / delegations[o].votingPower;
+                uint256 currentYield = winnersTotalFunding / delegations.length / denominator / 10_000;
+                assertEq(returnedYield, currentYield);
+            }
+        }
     }
+
+    // function test_invariantWinningProposalsAndNumEligibleProposersEqualLength()
     
     function test_revertFinalizeAuctionIncompleteRound(uint8 numCreators, uint8 numSponsors, uint8 numSupplementaryDelegations, uint8 numFullDelegations) public {
         vm.assume(numSponsors != 0);
@@ -509,6 +549,17 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     }
 
 
+    // function test_invariantGetOrderedEligibleIdeaIds() {
+    //             //todo move this assertion loop into an invariant test as it only asserts the invariant that `winningIds` is indeed ordered properly
+    //             uint256 prevBal;
+    //             for (uint256 z = winningIds.length; z > 0; --z) {
+    //                 uint256 index = z - 1;
+    //                 uint96 currentWinningId = winningIds[index];
+    //                 assert(ideaInfos[currentWinningId].totalFunding >= prevBal);
+        
+    //                 prevBal = ideaInfos[currentWinningId].totalFunding;
+    //             }
+    // }
     // function test_claim()
     // function test_revertTransfer()
     // function test_revertBurn()
