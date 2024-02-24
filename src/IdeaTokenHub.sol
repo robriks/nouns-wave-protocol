@@ -32,6 +32,7 @@ contract IdeaTokenHub is ERC1155 {
     struct RoundInfo {
         uint32 currentRound;
         uint32 startBlock;
+        // uint32 minRequiredVotes;//TODO
     }
 
     struct IdeaInfo {
@@ -138,7 +139,7 @@ contract IdeaTokenHub is ERC1155 {
         emit Sponsorship(msg.sender, id, params);
     }
 
-    function finalizeRound() external returns (IPropLot.Delegation[] memory delegations) {
+    function finalizeRound() external returns (IPropLot.Delegation[] memory delegations, uint96[] memory winningIds, uint256[] memory nounsProposalIds) {
         // check that roundLength has passed
         if (block.number - roundLength < currentRoundInfo.startBlock) revert RoundIncomplete();
         ++currentRoundInfo.currentRound;
@@ -146,21 +147,11 @@ contract IdeaTokenHub is ERC1155 {
 
         // identify number of proposals to push for current voting threshold
         (uint256 minRequiredVotes, uint256 numEligibleProposers) = __propLotCore.numEligibleProposerDelegates();
-        console2.logString('numEligibleProposers:');
-        console2.logUint(numEligibleProposers);
-
-        // determine winners by obtaining list of ordered eligible ids
-        uint96[] memory winningIds = getOrderedEligibleIdeaIds(numEligibleProposers);
-
-        //todo move this assertion loop into an invariant test as it only asserts the invariant that `winningIds` is indeed ordered properly
-        uint256 prevBal;
-        for (uint256 z = winningIds.length; z > 0; --z) {
-            uint256 index = z - 1;
-            uint96 currentWinningId = winningIds[index];
-            assert(ideaInfos[currentWinningId].totalFunding >= prevBal);
-
-            prevBal = ideaInfos[currentWinningId].totalFunding;
-        }
+        
+        // terminate early when there is not enough liquidity for proposals to be made
+        if (numEligibleProposers == 0) return (new IPropLot.Delegation[](0), new uint96[](0), new uint256[](0));
+        // determine winners from ordered list if there are any
+        winningIds = getOrderedEligibleIdeaIds(numEligibleProposers);
 
         // populate array with winning txs & description and aggregate total payout amount
         uint256 winningProposalsTotalFunding;
@@ -176,7 +167,7 @@ contract IdeaTokenHub is ERC1155 {
             winningProposals[l] = winner.proposal;
         }
 
-        delegations = __propLotCore.pushProposals(winningProposals);
+        (delegations, nounsProposalIds) = __propLotCore.pushProposals(winningProposals);
 
         // calculate yield for returned valid delegations
         for (uint256 m; m < delegations.length; ++m) {
@@ -258,7 +249,7 @@ contract IdeaTokenHub is ERC1155 {
         return sponsorships[sponsor][uint96(ideaId)];
     }
 
-    function getclaimableYield(address nounder) external view returns (uint256) {
+    function getClaimableYield(address nounder) external view returns (uint256) {
         return claimableYield[nounder];
     }
     

@@ -58,10 +58,9 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function pushProposals(IPropLot.Proposal[] calldata winningProposals) public payable returns (IPropLot.Delegation[] memory delegations) {
+    function pushProposals(IPropLot.Proposal[] calldata winningProposals) public payable returns (IPropLot.Delegation[] memory delegations, uint256[] memory nounsProposalIds) {
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
-        // todo: replace with _updateOptimisticState();
         // to propose, votes must be greater than the proposal threshold
         uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         // check for external Nouns transfers or rogue redelegations, update state
@@ -74,11 +73,9 @@ contract PropLot is IPropLot {
         if (len == 0) revert InsufficientDelegations();
         delegations = new Delegation[](len);
         (, uint256[] memory eligibleProposerIds) = getAllEligibleProposerDelegates();
-        console2.logString('eligibleProposers then winningProposals');
-        console2.logUint(eligibleProposerIds.length);
-        console2.logUint(winningProposals.length);
         assert(eligibleProposerIds.length >= winningProposals.length);
 
+        nounsProposalIds = new uint256[](winningProposals.length);
         unchecked {
             for (uint256 i; i < winningProposals.length; ++i) {
                 // establish current proposer delegate
@@ -86,24 +83,11 @@ contract PropLot is IPropLot {
                 address currentProposer = getDelegateAddress(currentProposerId);
 
                 // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
-                Delegate(currentProposer).pushProposal(nounsGovernor, winningProposals[i].ideaTxs, winningProposals[i].description);
-                
-                // populate return array with Nounder-delegators and their voting power for yield distribution
-                delegations = _optimisticDelegations;
-                
-                // //todo: this yield schema specifically picks out the delegations that were used to power the proposing delegates;
-                // //cont: maybe would be better just to return all delegations from storage since rogues have already been filtered out?
-                // uint256 index;
-                // for (uint256 j; j < len; ++j) {
-                //     IPropLot.Delegation memory currentDelegation = _optimisticDelegations[j];
-                //     if (currentDelegation.delegateId == uint16(currentProposerId)) {
-                //         // add delegation details to return array
-                //         delegations[index] = currentDelegation;
-                //         ++index;
-                //     }
-                // }
+                nounsProposalIds[i] = Delegate(currentProposer).pushProposal(nounsGovernor, winningProposals[i].ideaTxs, winningProposals[i].description);
             }
         }
+
+        delegations = _optimisticDelegations;
     }
 
     /// @inheritdoc IPropLot
