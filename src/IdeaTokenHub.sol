@@ -4,61 +4,22 @@ pragma solidity ^0.8.24;
 import {ERC1155} from "lib/openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
 import {IPropLot} from "./interfaces/IPropLot.sol";
 import {PropLot} from "./PropLot.sol";
 import {console2} from "forge-std/console2.sol"; //todo delete
 
 /// @title PropLot Protocol IdeaTokenHub
 /// @author 📯📯📯.eth
-/// @notice The PropLot Protocol ERC1155 token hub of ideas for Nouns governance proposal 
+/// @notice The PropLot Protocol Idea Token Hub extends the Nouns governance ecosystem by tokenizing and crowdfunding ideas
+/// for Nouns governance proposals. Nouns NFT holders earn yield in exchange for lending their tokens' proposal power to PropLot,
+/// which democratizes access and lowers the barrier of entry for anyone with a worthy idea, represented as an ERC1155 tokenId.
+/// Use of ERC1155 enables permissionless onchain minting with competition introduced by a crowdfunding auction. 
+/// Each `tokenId` represents a proposal idea which can be individually funded via permissionless mint. At the conclusion
+/// of each auction, the winning tokenized ideas (with the most funding) are officially proposed into the Nouns governance system
+/// via the use of lent Nouns proposal power, provided by token holders who have delegated to the protocol.
 
-// This democratizes access to publicizing ideas for Nouns governance to any address by lending proposal power 
-// and lowering the barrier of entry to submitting onchain proposals. Competition is introduced by an auction
-// of ERC1155s, each `tokenId` representing a single proposal. 
-
-
-
-// proposals -> 1155s that non-nounders can mint for a fee in support of (provenance + liquidity)
-// 1155 w/ most mints wins onchain, two week proposal 'ritual' to push ideas onchain based on highest mints
-// split sum of minting fees between existing noun delegates in a claim() func
-// non-winning tokens w/ existing votes can roll over into following two week periods
-
-contract IdeaTokenHub is ERC1155 {
-
-    /*
-      Structs
-    */
-
-    struct RoundInfo {
-        uint32 currentRound;
-        uint32 startBlock;
-        // uint32 minRequiredVotes;//TODO
-    }
-
-    struct IdeaInfo {
-        uint216 totalFunding;
-        uint32 blockCreated;
-        bool isProposed;
-        IPropLot.Proposal proposal;
-    }
-
-    struct SponsorshipParams {
-        uint216 contributedBalance;
-        bool isCreator;
-    }
-
-    error BelowMinimumSponsorshipAmount(uint256 value);
-    error InvalidActionsCount(uint256 count);
-    error ProposalInfoArityMismatch();
-    error InvalidDescription();
-    error NonexistentIdeaId(uint256 ideaId);
-    error AlreadyProposed(uint256 ideaId);
-    error RoundIncomplete();
-    error ClaimFailure();
-
-    event IdeaCreated(IPropLot.Proposal idea, address creator, uint96 ideaId, SponsorshipParams params);
-    event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params);
-    event IdeaProposed(IdeaInfo ideaInfo);
+contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
 
     /*
       Constants
@@ -98,25 +59,27 @@ contract IdeaTokenHub is ERC1155 {
         ++_nextIdeaId;
     }
 
-    function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description) public payable {
+    /// @inheritdoc IIdeaTokenHub
+    function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description) public payable returns (uint96 newIdeaId) {
         _validateIdeaCreation(ideaTxs, description);
 
         // cache in memory to save on SLOADs
-        uint96 ideaId = _nextIdeaId;
+        newIdeaId = _nextIdeaId;
         uint216 value = uint216(msg.value);
         IPropLot.Proposal memory proposal = IPropLot.Proposal(ideaTxs, description);
         IdeaInfo memory ideaInfo = IdeaInfo(value, uint32(block.number), false, proposal);
-        ideaInfos[ideaId] = ideaInfo;
+        ideaInfos[newIdeaId] = ideaInfo;
         ++_nextIdeaId;
 
-        sponsorships[msg.sender][ideaId].contributedBalance = value;
-        sponsorships[msg.sender][ideaId].isCreator = true;
+        sponsorships[msg.sender][newIdeaId].contributedBalance = value;
+        sponsorships[msg.sender][newIdeaId].isCreator = true;
 
-        _mint(msg.sender, ideaId, msg.value, '');
+        _mint(msg.sender, newIdeaId, msg.value, '');
 
-        emit IdeaCreated(IPropLot.Proposal(ideaTxs, description), msg.sender, ideaId, SponsorshipParams(value, true));
+        emit IdeaCreated(IPropLot.Proposal(ideaTxs, description), msg.sender, newIdeaId, SponsorshipParams(value, true));
     }
 
+    /// @inheritdoc IIdeaTokenHub
     function sponsorIdea(uint256 ideaId) public payable {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
@@ -139,6 +102,7 @@ contract IdeaTokenHub is ERC1155 {
         emit Sponsorship(msg.sender, id, params);
     }
 
+    /// @inheritdoc IIdeaTokenHub
     function finalizeRound() external returns (IPropLot.Delegation[] memory delegations, uint96[] memory winningIds, uint256[] memory nounsProposalIds) {
         // check that roundLength has passed
         if (block.number - roundLength < currentRoundInfo.startBlock) revert RoundIncomplete();
@@ -147,7 +111,6 @@ contract IdeaTokenHub is ERC1155 {
 
         // identify number of proposals to push for current voting threshold
         (uint256 minRequiredVotes, uint256 numEligibleProposers) = __propLotCore.numEligibleProposerDelegates();
-        
         // terminate early when there is not enough liquidity for proposals to be made
         if (numEligibleProposers == 0) return (new IPropLot.Delegation[](0), new uint96[](0), new uint256[](0));
         // determine winners from ordered list if there are any
@@ -173,9 +136,6 @@ contract IdeaTokenHub is ERC1155 {
         for (uint256 m; m < delegations.length; ++m) {
             uint256 denominator = 10_000 * minRequiredVotes / delegations[m].votingPower;
             uint256 yield = (winningProposalsTotalFunding / delegations.length) / denominator / 10_000;
-
-            // todo remove in favor of invariant (as this should never happen)
-            assert(yield != 0);
             
             // enable claiming of yield calculated as total revenue split between all delegations, proportional to delegated voting power
             address currentDelegator = delegations[m].delegator;
@@ -183,12 +143,11 @@ contract IdeaTokenHub is ERC1155 {
         }
     }
 
-    /// @dev Provides a way to collect the yield earned by Nounders who have delegated to PropLot for a full round
-    /// @notice Reentrance prevented via CEI
-    function claim() external {
-        uint256 claimableAmt = claimableYield[msg.sender];
+    /// @inheritdoc IIdeaTokenHub
+    function claim() external returns (uint256 claimAmt) {
+        claimAmt = claimableYield[msg.sender];
         claimableYield[msg.sender] = 0;
-        (bool r,) = msg.sender.call{value: claimableAmt}('');
+        (bool r,) = msg.sender.call{value: claimAmt}('');
         if (!r) revert ClaimFailure();
     }
 
@@ -197,9 +156,8 @@ contract IdeaTokenHub is ERC1155 {
     */
 
     // todo: can this array eventually run into memory allocation issues (DOS) when enough `ideaIds` have been minted?
-    /// @dev Fetches an array of `ideaIds` eligible for proposal, ordered by total funding
-    /// @param optLimiter An optional limiter used to define the number of desired `ideaIds`, for example the number of 
-    /// eligible proposers or winning ids. If provided, it will be used to define the length of the returned array
+
+    /// @inheritdoc IIdeaTokenHub
     /// @notice The returned array treats ineligible IDs (ie already proposed) as 0 values at the array end.
     /// Since 0 is an invalid `ideaId` value, these are simply filtered out when invoked within `finalizeRound()`
     function getOrderedEligibleIdeaIds(uint256 optLimiter) public view returns (uint96[] memory orderedEligibleIds) {
@@ -253,7 +211,7 @@ contract IdeaTokenHub is ERC1155 {
         return claimableYield[nounder];
     }
     
-    function getNextIdeaId() public view returns (uint256) {
+    function getNextIdeaId() public view override returns (uint256) {
         return uint256(_nextIdeaId);
     }
 

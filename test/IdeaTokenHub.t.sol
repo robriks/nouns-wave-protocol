@@ -6,6 +6,7 @@ import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {IIdeaTokenHub} from "src/interfaces/IIdeaTokenHub.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
 import {IPropLot} from "src/interfaces/IPropLot.sol";
@@ -80,7 +81,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         assertEq(currentRound, firstRoundInfo.currentRound);
         assertEq(startBlock, firstRoundInfo.startBlock);
 
-        bytes memory err = abi.encodeWithSelector(IdeaTokenHub.NonexistentIdeaId.selector, startId);
+        bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.NonexistentIdeaId.selector, startId);
         vm.expectRevert(err);
         ideaTokenHub.getIdeaInfo(startId);
     }
@@ -93,7 +94,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         uint256 startId = ideaTokenHub.getNextIdeaId();
         assertEq(startId, 1);
         
-        bytes memory err = abi.encodeWithSelector(IdeaTokenHub.NonexistentIdeaId.selector, startId);
+        bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.NonexistentIdeaId.selector, startId);
         vm.expectRevert(err);
         ideaTokenHub.getIdeaInfo(startId);
 
@@ -103,7 +104,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             uint256 currentIdeaId = startId + i;
             vm.expectEmit(true, true, true, false);
-            emit IdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IdeaTokenHub.SponsorshipParams(ideaValue, true));
+            emit IIdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IIdeaTokenHub.SponsorshipParams(ideaValue, true));
             
             vm.prank(nounder);
             ideaTokenHub.createIdea{value: ideaValue}(txs, description);
@@ -111,7 +112,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             assertEq(ideaTokenHub.balanceOf(nounder, currentIdeaId), ideaValue);
         }
 
-        IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(startId);
+        IIdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(startId);
         assertEq(newInfo.totalFunding, ideaValue);
         assertEq(newInfo.blockCreated, uint32(block.number));
         assertFalse(newInfo.isProposed);
@@ -130,7 +131,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         uint256 startId = ideaTokenHub.getNextIdeaId();
         assertEq(startId, 1);
         
-        bytes memory err = abi.encodeWithSelector(IdeaTokenHub.NonexistentIdeaId.selector, startId);
+        bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.NonexistentIdeaId.selector, startId);
         vm.expectRevert(err);
         ideaTokenHub.getIdeaInfo(startId);
 
@@ -142,14 +143,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             vm.deal(nounder, ideaValue);
 
             vm.expectEmit(true, true, true, false);
-            emit IdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IdeaTokenHub.SponsorshipParams(ideaValue, true));
+            emit IIdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IIdeaTokenHub.SponsorshipParams(ideaValue, true));
             
             vm.prank(nounder);
             ideaTokenHub.createIdea{value: ideaValue}(txs, description);
 
             assertEq(ideaTokenHub.balanceOf(nounder, currentIdeaId), ideaValue);
 
-            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(currentIdeaId);
+            IIdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(currentIdeaId);
             assertEq(newInfo.totalFunding, ideaValue);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
@@ -169,7 +170,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         uint256 startId = ideaTokenHub.getNextIdeaId();
         assertEq(startId, 1);
         
-        bytes memory err = abi.encodeWithSelector(IdeaTokenHub.NonexistentIdeaId.selector, startId);
+        bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.NonexistentIdeaId.selector, startId);
         vm.expectRevert(err);
         ideaTokenHub.getIdeaInfo(startId);
 
@@ -185,14 +186,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             vm.deal(nounder, pseudoRandomIdeaValue);
 
             vm.expectEmit(true, true, true, false);
-            emit IdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
+            emit IIdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
             
             vm.prank(nounder);
             ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
 
             assertEq(ideaTokenHub.balanceOf(nounder, currentIdeaId), pseudoRandomIdeaValue);
 
-            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(currentIdeaId);
+            IIdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(currentIdeaId);
             assertEq(newInfo.totalFunding, pseudoRandomIdeaValue);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
@@ -221,14 +222,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
 
             vm.expectEmit(true, true, true, false);
-            emit IdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
+            emit IIdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
             
             vm.prank(sponsor);
             ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
 
             assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
 
-            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId);
+            IIdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId);
             // check that `IdeaInfo.totalFunding` increased by `pseudoRandomSponsorValue`, ergo `currentTotalFunding`
             currentIdTotalFunding += pseudoRandomSponsorValue;
             assertEq(newInfo.totalFunding, currentIdTotalFunding);
@@ -318,14 +319,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             vm.deal(nounder, pseudoRandomIdeaValue);
 
             vm.expectEmit(true, true, true, false);
-            emit IdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
+            emit IIdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
             
             vm.prank(nounder);
             ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
 
             assertEq(ideaTokenHub.balanceOf(nounder, currentIdeaId), pseudoRandomIdeaValue);
 
-            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(currentIdeaId);
+            IIdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(currentIdeaId);
             assertEq(newInfo.totalFunding, pseudoRandomIdeaValue);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
@@ -356,14 +357,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
 
             vm.expectEmit(true, true, true, false);
-            emit IdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
+            emit IIdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
             
             vm.prank(sponsor);
             ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
 
             assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
 
-            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId);
+            IIdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId);
             // check that `IdeaInfo.totalFunding` increased by `pseudoRandomSponsorValue`, ergo `currentTotalFunding`
             currentIdTotalFunding += pseudoRandomSponsorValue;
             assertEq(newInfo.totalFunding, currentIdTotalFunding);
@@ -414,7 +415,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         }
     }
 
-    // function test_invariantWinningProposalsAndNumEligibleProposersEqualLength()
+    // function test_finalizeAuctionNoEligibleProposers()
     
     function test_revertFinalizeAuctionIncompleteRound(uint8 numCreators, uint8 numSponsors, uint8 numSupplementaryDelegations, uint8 numFullDelegations) public {
         vm.assume(numSponsors != 0);
@@ -482,14 +483,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             vm.deal(nounder, pseudoRandomIdeaValue);
 
             vm.expectEmit(true, true, true, false);
-            emit IdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
+            emit IIdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
             
             vm.prank(nounder);
             ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
 
             assertEq(ideaTokenHub.balanceOf(nounder, currentIdeaId), pseudoRandomIdeaValue);
 
-            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(currentIdeaId);
+            IIdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(currentIdeaId);
             assertEq(newInfo.totalFunding, pseudoRandomIdeaValue);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
@@ -520,14 +521,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
 
             vm.expectEmit(true, true, true, false);
-            emit IdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
+            emit IIdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
             
             vm.prank(sponsor);
             ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
 
             assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
 
-            IdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId);
+            IIdeaTokenHub.IdeaInfo memory newInfo = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId);
             // check that `IdeaInfo.totalFunding` increased by `pseudoRandomSponsorValue`, ergo `currentTotalFunding`
             currentIdTotalFunding += pseudoRandomSponsorValue;
             assertEq(newInfo.totalFunding, currentIdTotalFunding);
@@ -543,7 +544,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         }
 
         // ensure round cannot be finalized until `roundLength` has passed
-        bytes memory err = abi.encodeWithSelector(IdeaTokenHub.RoundIncomplete.selector);
+        bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.RoundIncomplete.selector);
         vm.expectRevert(err);
         ideaTokenHub.finalizeRound();
     }
