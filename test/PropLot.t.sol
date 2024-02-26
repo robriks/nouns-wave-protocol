@@ -482,11 +482,9 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
     // to test internal state and make sure the falsified Delegation is cleared upon settlement
     //function test_registerDelegationRedelegateSameBlock()
     //function test_pushProposalsRemoveRogueDelegators()
-    //function test_delegateBySig()
     //function test_proposalThresholdIncrease()
     //function test_disqualifiedDelegationIndices()
     //function test_inspectCheckpoints
-    //function test_isEligibleProposalState
 
     function test_deleteDelegations(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numDeletions) public {
         vm.assume(numSupplementaryDelegations > 0 || numFullDelegations > 0);
@@ -587,8 +585,74 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         }
     }
 
-    //function test_deleteDelegationsZeroMembers()
+    function test_deleteDelegationsZeroMembers(uint8 numSupplementaryDelegations, uint8 numFullDelegations) public {
+        vm.assume(numSupplementaryDelegations > 0 || numFullDelegations > 0);
+        uint256 totalDelegations = uint256(numSupplementaryDelegations) + uint256(numFullDelegations);
+
+        bool eoa; // used to alternate simulating EOA users and smart contract wallet users
+        // make fuzzed supplementary delegations
+        for (uint256 i; i < numSupplementaryDelegations; ++i) {
+            address currentSupplementaryNounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
+            // mint `minRequiredVotes / 2` to new nounder and delegate
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 amt = minRequiredVotes / 2;
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
+
+            uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+            assertEq(returnedSupplementaryBalance, amt);
+            
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentSupplementaryNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            vm.stopPrank();
+
+            // simulate time passing
+            vm.roll(block.number + 200);
+            eoa = !eoa;
+        }
+
+        // perform fuzzed full delegations
+        for (uint256 j; j < numFullDelegations; ++j) {
+            // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
+            address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
+            uint256 amt = propLot.getCurrentMinRequiredVotes();
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
+
+            uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
+            assertEq(returnedFullBalance, amt);
+
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentFullNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentFullNounder, delegateId);
+            vm.stopPrank();
+
+            // simulate time passing
+            vm.roll(block.number + 200);
+            eoa = !eoa;
+        }
+
+        // used for assertion
+        IPropLot.Delegation[] memory arrayBeforeDeletion = propLot.getOptimisticDelegations();
+
+        // create empty array
+        uint256[] memory indicesToDelete = new uint256[](0);
+
+        // delete zero delegations
+        propLot.deleteDelegations(indicesToDelete);
+
+        // asserts
+        IPropLot.Delegation[] memory arrayAfterDeletion = propLot.getOptimisticDelegations();
+        assertEq(arrayBeforeDeletion.length, arrayAfterDeletion.length);
+    }
+
     //function test_computeNounsDelegationDigest
+    //function test_delegateBySig()
     //function test_findDelegateId
     // function test_findProposerDelegate
 }
