@@ -68,7 +68,6 @@ contract PropLot is IPropLot {
         _deleteDelegations(disqualifiedIndices);
 
         // todo handle these assertions earlier in flow to establish them as invariants
-        // ie what to do when there are no eligible proposers? rescue mechanic?
         uint256 len = _optimisticDelegations.length;
         if (len == 0) revert InsufficientDelegations();
         delegations = new Delegation[](len);
@@ -428,13 +427,14 @@ contract PropLot is IPropLot {
 
     /// @dev Deletes Delegations by swapping the non-final index members to be removed with members to be preserved
     function _deleteDelegations(uint256[] memory _indices) internal {
+        uint256[] memory sortedIndices = _sortIndicesDescending(_indices);
+
         // bounded by Noun token supply and will not overflow
         unchecked {
             for (uint256 i; i < _indices.length; ++i) {
                 // will not underflow as this function is only invoked if delegation indices were found
                 uint256 lastIndex = _optimisticDelegations.length - 1;
-                uint256 indexToDelete = _indices[i];
-
+                uint256 indexToDelete = sortedIndices[i];
                 Delegation memory currentDelegation = _optimisticDelegations[indexToDelete];
 
                 if (indexToDelete != lastIndex) {
@@ -446,6 +446,21 @@ contract PropLot is IPropLot {
                 emit DelegationDeleted(currentDelegation);
             }
         }
+    }
+
+    /// @dev Sorts array of indices to be deleted in descending order so the remaining indexes are not disturbed via resizing
+    function _sortIndicesDescending(uint256[] memory _indices) internal pure returns (uint256[] memory) {
+        for (uint256 i = 0; i < _indices.length; i++) {
+            for (uint256 j = i + 1; j < _indices.length; j++) {
+                if (_indices[i] < _indices[j]) {
+                    // Swap
+                    uint256 temp = _indices[i];
+                    _indices[i] = _indices[j];
+                    _indices[j] = temp;
+                }
+            }
+        }
+        return _indices;
     }
 
     /// @notice Marked internal since Delegations recorded in storage are optimistic and should not be relied on externally

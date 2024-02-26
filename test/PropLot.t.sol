@@ -457,14 +457,27 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertTrue(fullMatchFound);
 
         address supplement = propLot.getDelegateAddress(supplementId);
-        assertTrue(nounsTokenHarness.getCurrentVotes(supplement) < newMinRequiredVotes);
+        uint256 supplementVotes = nounsTokenHarness.getCurrentVotes(supplement);
+        // if the `supplementId` returned by `getDelegateIdByType()` is the next delegate id, that Delegate address
+        // will have 0 votes, thus the `votingPower` assert is only necessary if a partially saturated Delegate ID was returned
+        if (supplementId != nextDelegateId) {
+            assertTrue(supplementVotes < newMinRequiredVotes);
+        } else {
+            assertEq(supplementVotes, 0);
+        }
+
         address full = propLot.getDelegateAddress(fullId);
-        assertTrue(nounsTokenHarness.getCurrentVotes(full) >= newMinRequiredVotes);
+        uint256 fullVotes = nounsTokenHarness.getCurrentVotes(full);
+        // if the `fullId` returned by `getDelegateIdByType()` is the next delegate id, that Delegate address
+        // will have 0 votes, thus the `votingPower` assert is only necessary if a totally unsaturated Delegate ID was returned
+        if (fullId != nextDelegateId) {
+            assertTrue(fullVotes >= newMinRequiredVotes);
+        } else {
+            assertEq(fullVotes, 0);
+        }
     }
     
-        
-    // function test_getDelegateIdByTypeSolo()
-    // function test_getDelegateIdByTypeSupplement()
+
     //todo try calling `setOptimisticDelegation()` and then immediately redelegate back to self in same block
     // to test internal state and make sure the falsified Delegation is cleared upon settlement
     //function test_registerDelegationRedelegateSameBlock()
@@ -474,7 +487,106 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
     //function test_disqualifiedDelegationIndices()
     //function test_inspectCheckpoints
     //function test_isEligibleProposalState
-    //function test_deleteDelegations()
+
+    function test_deleteDelegations(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numDeletions) public {
+        vm.assume(numSupplementaryDelegations > 0 || numFullDelegations > 0);
+        uint256 totalDelegations = uint256(numSupplementaryDelegations) + uint256(numFullDelegations);
+        vm.assume(numDeletions > 0 && numDeletions < totalDelegations);
+
+        bool eoa; // used to alternate simulating EOA users and smart contract wallet users
+        // make fuzzed supplementary delegations
+        for (uint256 i; i < numSupplementaryDelegations; ++i) {
+            address currentSupplementaryNounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
+            // mint `minRequiredVotes / 2` to new nounder and delegate
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 amt = minRequiredVotes / 2;
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
+
+            uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+            assertEq(returnedSupplementaryBalance, amt);
+            
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentSupplementaryNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            vm.stopPrank();
+
+            // simulate time passing
+            vm.roll(block.number + 200);
+            eoa = !eoa;
+        }
+
+        // perform fuzzed full delegations
+        for (uint256 j; j < numFullDelegations; ++j) {
+            // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
+            address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
+            uint256 amt = propLot.getCurrentMinRequiredVotes();
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
+
+            uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
+            assertEq(returnedFullBalance, amt);
+
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentFullNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentFullNounder, delegateId);
+            vm.stopPrank();
+
+            // simulate time passing
+            vm.roll(block.number + 200);
+            eoa = !eoa;
+        }
+
+        // used for assertions
+        IPropLot.Delegation[] memory arrayBeforeDeletion = propLot.getOptimisticDelegations();
+
+        // populate pseudo-random set of indices to delete without regard for disqualification
+        uint256[] memory indicesToDelete = new uint256[](numDeletions);
+        for (uint256 k; k < numDeletions; ++k) {
+            // first initialize array with ordered indices
+            indicesToDelete[k] = k;
+        }
+
+        // then perform Fisher-Yates shuffle on `indicesToDelete` to create a random permutation of [0:numDeletions]
+        for (uint256 l = indicesToDelete.length - 1; l > 0; l--) {
+            uint256 m = uint256(keccak256(abi.encode(l))) % (l + 1);
+            // swap indicesToDelete[i] and indicesToDelete[j]
+            (indicesToDelete[l], indicesToDelete[m]) = (indicesToDelete[m], indicesToDelete[l]);
+        }
+
+        // used to assert delegations were deleted
+        IPropLot.Delegation[] memory delegationsToDelete = new IPropLot.Delegation[](numDeletions);
+        for (uint256 z; z < numDeletions; ++z) {
+            delegationsToDelete[z] = arrayBeforeDeletion[indicesToDelete[z]];
+        }
+
+        // assert all events emitted properly
+        for (uint256 n; n < indicesToDelete.length; ++n) {
+            vm.expectEmit(true, true, true, false);
+            emit IPropLot.DelegationDeleted(arrayBeforeDeletion[indicesToDelete[n]]);
+        }
+
+        // delete fuzzed number of delegations
+        propLot.deleteDelegations(indicesToDelete);
+
+        // asserts
+        IPropLot.Delegation[] memory arrayAfterDeletion = propLot.getOptimisticDelegations();
+        assertEq(arrayAfterDeletion.length, arrayBeforeDeletion.length - numDeletions);
+
+        // since delegator addresses are derived from unique privkeys/create2 salts, they uniquely identify each delegation 
+        for (uint256 o; o < delegationsToDelete.length; ++o) {
+            address currentDelegator = delegationsToDelete[o].delegator;
+            for (uint256 p; p < arrayAfterDeletion.length; ++p) {
+                // assert deleted deletion no longer exists
+                assertTrue(currentDelegator != arrayAfterDeletion[p].delegator);
+            }
+        }
+    }
+
     //function test_deleteDelegationsZeroMembers()
     //function test_computeNounsDelegationDigest
     //function test_findDelegateId
