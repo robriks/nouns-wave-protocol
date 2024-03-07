@@ -61,8 +61,11 @@ contract PropLot is IPropLot {
     function pushProposals(IPropLot.Proposal[] calldata winningProposals) public payable returns (IPropLot.Delegation[] memory delegations, uint256[] memory nounsProposalIds) {
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
+        // to propose, votes must be greater than the proposal threshold
+        uint256 minRequiredVotes = getCurrentMinRequiredVotes();
+
         // check for external Nouns transfers or rogue redelegations, update state
-        uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices();
+        uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices(minRequiredVotes);
         _deleteDelegations(disqualifiedIndices);
 
         // todo handle these assertions earlier in flow to establish them as invariants
@@ -357,7 +360,7 @@ contract PropLot is IPropLot {
     }
 
     /// @dev Returns an array of delegation IDs that violated the protocol rules and are ineligible for yield
-    function _disqualifiedDelegationIndices() internal returns (uint256[] memory) {
+    function _disqualifiedDelegationIndices(uint256 _minRequiredVotes) internal returns (uint256[] memory) {
         // cache _optimisticDelegations to memory to reduce SLOADs for potential event & gas optimization
         Delegation[] memory optimisticDelegations = _getOptimisticDelegations();
         bool[] memory disqualifyingIndices = new bool[](optimisticDelegations.length);
@@ -371,7 +374,7 @@ contract PropLot is IPropLot {
                 address delegate = getDelegateAddress(optimisticDelegations[i].delegateId);
                 
                 uint256 currentCheckpoints = nounsToken.numCheckpoints(delegate);
-                bool disqualify = _inspectCheckpoints(nounder, delegate, currentCheckpoints, optimisticDelegations[i].numCheckpointsSnapshot, optimisticDelegations[i].votingPower);
+                bool disqualify = _inspectCheckpoints(nounder, delegate, currentCheckpoints, optimisticDelegations[i].numCheckpointsSnapshot, optimisticDelegations[i].votingPower, _minRequiredVotes);
                     
                 if (disqualify == true) {
                     disqualifyingIndices[i] = true;
@@ -400,7 +403,7 @@ contract PropLot is IPropLot {
         }
     }
 
-    function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower) internal view returns (bool _disqualify) {
+    function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower, uint256 _minRequiredVotes) internal view returns (bool _disqualify) {
         // Nouns token contract uses safe Uint32 math, preventing underflow
         uint256 delta = _currentCheckpoints - _numCheckpointsSnapshot;
         unchecked {

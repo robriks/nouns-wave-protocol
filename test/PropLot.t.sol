@@ -23,12 +23,22 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
     PropLotHarness propLot;
     IdeaTokenHub ideaTokenHub;
 
+    struct DelegatorInfo {
+        address nounder;
+        uint256[] ownedTokenIds;
+    }
+
     string uri;
     NounsDAOV3Proposals.ProposalTxs txs;
     string description;
     // for fuzzing purposes, should remain empty until `numEligibleProposers` is known
     IPropLot.Proposal[] proposals;
+    DelegatorInfo[] supplementaryDelegatorsTemp;
+    DelegatorInfo[] fullDelegatorsTemp;
 
+    uint256 nounderSupplementPK;
+    uint256 nounderSupplement2PK;
+    uint256 nounderSoloPK;
     address nounderSupplement;
     address nounderSupplement2;
     address nounderSolo;
@@ -37,7 +47,6 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
     event DelegateCreated(address delegate, uint256 id);
     event DelegationRegistered(IPropLot.Delegation optimisticDelegation);
     event DelegationDeleted(IPropLot.Delegation disqualifiedDelegation);
-
 
     function setUp() public {
         // establish clone of onchain Nouns governance environment
@@ -66,19 +75,22 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
 
         // mint 1 token to nounderSupplement
-        nounderSupplement = vm.addr(0xc0ffeebabe);
+        nounderSupplementPK = 0xc0ffeebabe;
+        nounderSupplement = vm.addr(nounderSupplementPK);
         assertEq(nounsTokenHarness.numCheckpoints(nounderSupplement), 0);
         NounsTokenHarness(address(nounsTokenHarness)).mintTo(nounderSupplement);
         assertEq(nounsTokenHarness.numCheckpoints(nounderSupplement), 1);
         
         // mint 1 token to nounderSupplement2
-        nounderSupplement2 = vm.addr(0xc0ffeebae);
+        nounderSupplement2PK = 0xc0ffeebae;
+        nounderSupplement2 = vm.addr(nounderSupplement2PK);
         assertEq(nounsTokenHarness.numCheckpoints(nounderSupplement2), 0);
         NounsTokenHarness(address(nounsTokenHarness)).mintTo(nounderSupplement2);
         assertEq(nounsTokenHarness.numCheckpoints(nounderSupplement2), 1);
         
         // mint 2 tokens to nounderSolo
-        nounderSolo = vm.addr(0xbeefEbabe);
+        nounderSoloPK = 0xbeefEbabe;
+        nounderSolo = vm.addr(nounderSoloPK);
         assertEq(nounsTokenHarness.numCheckpoints(nounderSolo), 0);
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounderSolo, 2);
         assertEq(nounsTokenHarness.numCheckpoints(nounderSolo), 1);
@@ -193,6 +205,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         address delegated = nounsTokenHarness.delegates(nounderSupplement);
         assertEq(delegated, delegate);
 
+        uint256 delegateCheckpoints = nounsTokenHarness.numCheckpoints(delegate);
         uint256 nextCheckpoints = nounsTokenHarness.numCheckpoints(nounderSupplement);
         assertEq(nextCheckpoints, startCheckpoints + 1);
         uint256 nextDelegateId = propLot.getNextDelegateId();
@@ -216,7 +229,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertEq(optimisticDelegations.length, 1);
         assertEq(optimisticDelegations[0].delegator, nounderSupplement);
         assertEq(optimisticDelegations[0].blockDelegated, uint32(block.number));
-        assertEq(optimisticDelegations[0].numCheckpointsSnapshot, uint32(nextCheckpoints));
+        assertEq(optimisticDelegations[0].numCheckpointsSnapshot, uint32(delegateCheckpoints));
         assertEq(optimisticDelegations[0].votingPower, uint16(votingPower));
         assertEq(optimisticDelegations[0].delegateId, uint16(delegateId));
 
@@ -268,6 +281,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         address delegated = nounsTokenHarness.delegates(nounderSolo);
         assertEq(delegated, delegate);
 
+        uint256 delegateCheckpoints = nounsTokenHarness.numCheckpoints(delegate);
         uint256 nextCheckpoints = nounsTokenHarness.numCheckpoints(nounderSolo);
         assertEq(nextCheckpoints, startCheckpoints + 1);
         uint256 nextDelegateId = propLot.getNextDelegateId();
@@ -292,7 +306,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertEq(optimisticDelegations.length, 1);
         assertEq(optimisticDelegations[0].delegator, nounderSolo);
         assertEq(optimisticDelegations[0].blockDelegated, uint32(block.number));
-        assertEq(optimisticDelegations[0].numCheckpointsSnapshot, uint32(nextCheckpoints));
+        assertEq(optimisticDelegations[0].numCheckpointsSnapshot, uint32(delegateCheckpoints));
         assertEq(optimisticDelegations[0].votingPower, uint16(votingPower));
         assertEq(optimisticDelegations[0].delegateId, uint16(delegateId));
 
@@ -484,7 +498,359 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
     //function test_pushProposalsRemoveRogueDelegators()
     //function test_proposalThresholdIncrease()
     //function test_disqualifiedDelegationIndices()
-    //function test_inspectCheckpoints
+
+    function test_inspectCheckpointsRedelegate(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numSupplementaryDisqualifications, uint8 numFullDisqualifications) public {
+        vm.assume(numSupplementaryDelegations > 0 || numFullDelegations > 0);
+        vm.assume(numSupplementaryDisqualifications < numSupplementaryDelegations);
+        vm.assume(numFullDisqualifications < numFullDelegations);
+
+        delete supplementaryDelegatorsTemp;
+        delete fullDelegatorsTemp;
+
+        bool eoa; // used to alternate simulating EOA users and smart contract wallet users
+        // make fuzzed supplementary delegations
+        for (uint256 i; i < numSupplementaryDelegations; ++i) {
+            address currentSupplementaryNounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
+
+            // mint `minRequiredVotes / 2` to new nounder and delegate
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 amt = minRequiredVotes / 2;
+            
+            // populate temporary storage arrays with delegator addresses and `tokenIds` to be minted
+            uint256[] memory tokenIds = new uint256[](amt);
+            for (uint256 x; x < amt; ++x) {
+                uint256 startId = NounsTokenHarness(address(nounsTokenHarness)).totalSupply();
+                tokenIds[x] = startId + x;
+            }
+
+            // mint the tokens
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
+
+            DelegatorInfo memory info = DelegatorInfo(currentSupplementaryNounder, tokenIds);
+            supplementaryDelegatorsTemp.push(info);
+
+            uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+            assertEq(returnedSupplementaryBalance, amt);
+            
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentSupplementaryNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            vm.stopPrank();
+
+            // simulate time passing
+            vm.roll(block.number + 200);
+            eoa = !eoa;
+        }
+
+        // perform fuzzed full delegations
+        for (uint256 j; j < numFullDelegations; ++j) {
+            // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
+            address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
+            uint256 amt = propLot.getCurrentMinRequiredVotes();
+            
+            // populate temporary storage arrays with delegator addresses and `tokenIds` to be minted
+            uint256[] memory tokenIds = new uint256[](amt);
+            for (uint256 x; x < amt; ++x) {
+                uint256 startId = NounsTokenHarness(address(nounsTokenHarness)).totalSupply();
+                tokenIds[x] = startId + x;
+            }
+
+            // mint the tokens
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
+
+            DelegatorInfo memory info = DelegatorInfo(currentFullNounder, tokenIds);
+            fullDelegatorsTemp.push(info);
+
+            uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
+            assertEq(returnedFullBalance, amt);
+
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentFullNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentFullNounder, delegateId);
+            vm.stopPrank();
+
+            // simulate time passing
+            vm.roll(block.number + 200);
+            eoa = !eoa;
+        }
+
+        IPropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
+        bool redelegateToPropLot; // conditionally have disqualifying users redelegate to protocol
+        // prank disqualifying activity
+        for (uint256 k; k < numSupplementaryDisqualifications; ++k) {
+            address currentDisqualified = supplementaryDelegatorsTemp[k].nounder;
+            // sanity check that a delegation exists
+            assertTrue(nounsTokenHarness.delegates(currentDisqualified) != currentDisqualified);
+            
+            vm.prank(currentDisqualified);
+            nounsTokenHarness.delegate(currentDisqualified);
+
+            // roll forward a block to update votes
+            vm.roll(block.number + 1);
+            
+            // fetch `inspectCheckpoints()` params
+            address originalDelegate;
+            uint256 beforeCheckPoints;
+            uint256 votingPower;
+            for (uint256 l; l < optimisticDelegations.length; ++l) {
+                if (optimisticDelegations[l].delegator == currentDisqualified) {
+                    uint256 originalId = optimisticDelegations[l].delegateId;
+                    originalDelegate = propLot.getDelegateAddress(originalId);
+                    beforeCheckPoints = optimisticDelegations[l].numCheckpointsSnapshot;
+                    votingPower = optimisticDelegations[l].votingPower;
+                }
+            }
+            assertTrue(originalDelegate != address(0x0)); // sanity check a match was found
+
+            // flip between rogue and accidental noncompliant behavior
+            if (redelegateToPropLot) {
+                vm.prank(currentDisqualified);
+                nounsTokenHarness.delegate(originalDelegate);
+
+                // roll forward a block to update votes
+                vm.roll(block.number + 1);
+            }
+
+            // assert checkpoint is incremented and disqualified
+            uint256 afterCheckpoints = nounsTokenHarness.numCheckpoints(originalDelegate);
+            uint256 checkpointDelta = redelegateToPropLot ? 2 : 1;
+            assertTrue(afterCheckpoints >= beforeCheckPoints + checkpointDelta);
+
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            bool disqualify = propLot.inspectCheckpoints(currentDisqualified, originalDelegate, afterCheckpoints, beforeCheckPoints, votingPower, minRequiredVotes);
+            assertTrue(disqualify);
+
+            redelegateToPropLot = !redelegateToPropLot;
+        }
+
+        for (uint256 m; m < numFullDisqualifications; ++m) {
+            address currentDisqualified = fullDelegatorsTemp[m].nounder;
+            // sanity check that a delegation exists
+            assertTrue(nounsTokenHarness.delegates(currentDisqualified) != currentDisqualified); 
+
+            vm.prank(currentDisqualified);
+            nounsTokenHarness.delegate(currentDisqualified);
+
+            // roll forward a block to update votes
+            vm.roll(block.number + 1);
+            
+            // fetch `inspectCheckpoints()` params
+            address originalDelegate;
+            uint256 beforeCheckPoints;
+            uint256 votingPower;
+            for (uint256 n; n < optimisticDelegations.length; ++n) {
+                if (optimisticDelegations[n].delegator == currentDisqualified) {
+                    uint256 originalId = optimisticDelegations[n].delegateId;
+                    originalDelegate = propLot.getDelegateAddress(originalId);
+                    beforeCheckPoints = optimisticDelegations[n].numCheckpointsSnapshot;
+                    votingPower = optimisticDelegations[n].votingPower;
+                }
+            }
+            assertTrue(originalDelegate != address(0x0));
+
+            // flip between rogue and accidental noncompliant behavior
+            if (redelegateToPropLot) {
+                vm.prank(currentDisqualified);
+                nounsTokenHarness.delegate(originalDelegate);
+                // roll forward a block to update votes
+                vm.roll(block.number + 1);
+            }
+
+            // assert checkpoint is incremented and disqualified
+            uint256 afterCheckpoints = nounsTokenHarness.numCheckpoints(originalDelegate);
+            uint256 checkpointDelta = redelegateToPropLot ? 2 : 1;
+            assertTrue(afterCheckpoints == beforeCheckPoints + checkpointDelta);
+            
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            bool disqualify = propLot.inspectCheckpoints(currentDisqualified, originalDelegate, afterCheckpoints, beforeCheckPoints, votingPower, minRequiredVotes);
+            assertTrue(disqualify);
+
+            redelegateToPropLot = !redelegateToPropLot;
+        }
+    }
+
+    function test_inspectCheckpointsTransfer(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numSupplementaryDisqualifications, uint8 numFullDisqualifications) public {
+        vm.assume(numSupplementaryDelegations > 0 || numFullDelegations > 0);
+        vm.assume(numSupplementaryDisqualifications < numSupplementaryDelegations);
+        vm.assume(numFullDisqualifications < numFullDelegations);
+
+        delete supplementaryDelegatorsTemp;
+        delete fullDelegatorsTemp;
+
+        bool eoa; // used to alternate simulating EOA users and smart contract wallet users
+        // make fuzzed supplementary delegations
+        for (uint256 i; i < numSupplementaryDelegations; ++i) {
+            address currentSupplementaryNounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
+
+            // mint `minRequiredVotes / 2` to new nounder and delegate
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 amt = minRequiredVotes / 2;
+
+            // populate temporary storage arrays with delegator addresses and `tokenIds` to be minted
+            uint256[] memory tokenIds = new uint256[](amt);
+            for (uint256 x; x < amt; ++x) {
+                uint256 startId = NounsTokenHarness(address(nounsTokenHarness)).totalSupply();
+                tokenIds[x] = startId + x;
+            }
+
+            // mint the tokens
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
+
+            DelegatorInfo memory info = DelegatorInfo(currentSupplementaryNounder, tokenIds);
+            supplementaryDelegatorsTemp.push(info);
+
+            uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+            assertEq(returnedSupplementaryBalance, amt);
+            
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentSupplementaryNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            vm.stopPrank();
+
+            // simulate time passing
+            vm.roll(block.number + 200);
+            eoa = !eoa;
+        }
+
+        // assert `supplementaryDelegatorsTemp` array was populated correctly
+        assertEq(supplementaryDelegatorsTemp.length, numSupplementaryDelegations);
+
+        // perform fuzzed full delegations
+        for (uint256 j; j < numFullDelegations; ++j) {
+            // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
+            address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
+            uint256 amt = propLot.getCurrentMinRequiredVotes();
+
+            // populate temporary storage arrays with delegator addresses and `tokenIds` to be minted
+            uint256[] memory tokenIds = new uint256[](amt);
+            for (uint256 x; x < amt; ++x) {
+                uint256 startId = NounsTokenHarness(address(nounsTokenHarness)).totalSupply();
+                tokenIds[x] = startId + x;
+            }
+
+            // mint the tokens
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
+
+            DelegatorInfo memory info = DelegatorInfo(currentFullNounder, tokenIds);
+            fullDelegatorsTemp.push(info);
+
+            uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
+            assertEq(returnedFullBalance, amt);
+
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentFullNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentFullNounder, delegateId);
+            vm.stopPrank();
+
+            // simulate time passing
+            vm.roll(block.number + 200);
+            eoa = !eoa;
+        }
+
+        // assert `fullDelegatorsTemp` array was populated correctly
+        assertEq(fullDelegatorsTemp.length, numFullDelegations);
+
+        IPropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
+        // prank disqualifying activity
+        for (uint256 k; k < numSupplementaryDisqualifications; ++k) {
+            address currentDisqualified = supplementaryDelegatorsTemp[k].nounder;
+            uint256 amt = supplementaryDelegatorsTemp[k].ownedTokenIds.length;
+            // sanity check that a delegation exists and that `ownedTokenIds` is populated
+            assertTrue(nounsTokenHarness.delegates(currentDisqualified) != currentDisqualified); 
+            assertTrue(amt != 0);
+
+            // roll forward a block to update votes
+            vm.roll(block.number + 1);
+
+            uint256 pseudoRandomTransferAmt = uint256(keccak256(abi.encode(k))) % amt + 1;
+            vm.startPrank(currentDisqualified);
+            for (uint256 x; x < pseudoRandomTransferAmt; ++x) {
+                uint256 tokenId = supplementaryDelegatorsTemp[k].ownedTokenIds[x];                
+                NounsTokenHarness(address(nounsTokenHarness)).transferFrom(currentDisqualified, address(this), tokenId);
+                
+                // roll forward a block to update votes (checkpoints update only once when transfers are within same block)
+                vm.roll(block.number + 1);
+            }
+            vm.stopPrank();
+            
+            // fetch `inspectCheckpoints()` params
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            address originalDelegate;
+            uint256 beforeCheckPoints;
+            uint256 votingPower;
+            for (uint256 l; l < optimisticDelegations.length; ++l) {
+                if (optimisticDelegations[l].delegator == currentDisqualified) {
+                    uint256 originalId = optimisticDelegations[l].delegateId;
+                    originalDelegate = propLot.getDelegateAddress(originalId);
+                    beforeCheckPoints = optimisticDelegations[l].numCheckpointsSnapshot;
+                    votingPower = optimisticDelegations[l].votingPower;
+                }
+            }
+            uint256 afterCheckpoints = nounsTokenHarness.numCheckpoints(originalDelegate);
+
+            assertTrue(originalDelegate != address(0x0)); // sanity check a match was found
+
+            bool disqualify = propLot.inspectCheckpoints(currentDisqualified, originalDelegate, afterCheckpoints, beforeCheckPoints, votingPower, minRequiredVotes);
+            assertTrue(disqualify);
+        }
+        return;
+
+        for (uint256 m; m < numFullDisqualifications; ++m) {
+            address currentDisqualified = fullDelegatorsTemp[m].nounder;
+            uint256 amt = fullDelegatorsTemp[m].ownedTokenIds.length;
+            // sanity check that a delegation exists and that `ownedTokenIds` is populated
+            assertTrue(nounsTokenHarness.delegates(currentDisqualified) != currentDisqualified); 
+            assertTrue(amt != 0);
+
+            // roll forward a block to update votes
+            vm.roll(block.number + 1);
+
+            uint256 pseudoRandomTransferAmt = uint256(keccak256(abi.encode(m))) % amt + 1;
+            vm.startPrank(currentDisqualified);
+            for (uint256 x; x < pseudoRandomTransferAmt; ++x) {
+                uint256 tokenId = fullDelegatorsTemp[m].ownedTokenIds[x];
+                NounsTokenHarness(address(nounsTokenHarness)).transferFrom(currentDisqualified, address(this), tokenId);
+
+                // roll forward a block to update votes (checkpoints update only once when transfers are within same block)
+                vm.roll(block.number + 1);
+            }
+            vm.stopPrank();
+            
+            // fetch `inspectCheckpoints()` params
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            address originalDelegate;
+            uint256 beforeCheckPoints;
+            uint256 votingPower;
+            for (uint256 n; n < optimisticDelegations.length; ++n) {
+                if (optimisticDelegations[n].delegator == currentDisqualified) {
+                    uint256 originalId = optimisticDelegations[n].delegateId;
+                    originalDelegate = propLot.getDelegateAddress(originalId);
+                    beforeCheckPoints = optimisticDelegations[n].numCheckpointsSnapshot;
+                    votingPower = optimisticDelegations[n].votingPower;
+                }
+            }
+            assertTrue(originalDelegate != address(0x0));
+
+            // assert checkpoint incremented and disqualified
+            uint256 afterCheckpoints = nounsTokenHarness.numCheckpoints(originalDelegate);
+            assertEq(afterCheckpoints, beforeCheckPoints + pseudoRandomTransferAmt);
+            
+            bool disqualify = propLot.inspectCheckpoints(currentDisqualified, originalDelegate, afterCheckpoints, beforeCheckPoints, votingPower, minRequiredVotes);
+            assertTrue(disqualify);
+        }
+    }
 
     function test_deleteDelegations(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numDeletions) public {
         vm.assume(numSupplementaryDelegations > 0 || numFullDelegations > 0);
@@ -587,7 +953,6 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
     function test_deleteDelegationsZeroMembers(uint8 numSupplementaryDelegations, uint8 numFullDelegations) public {
         vm.assume(numSupplementaryDelegations > 0 || numFullDelegations > 0);
-        uint256 totalDelegations = uint256(numSupplementaryDelegations) + uint256(numFullDelegations);
 
         bool eoa; // used to alternate simulating EOA users and smart contract wallet users
         // make fuzzed supplementary delegations
@@ -651,7 +1016,6 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertEq(arrayBeforeDeletion.length, arrayAfterDeletion.length);
     }
 
-    //function test_computeNounsDelegationDigest
     //function test_delegateBySig()
     //function test_findDelegateId
     // function test_findProposerDelegate
