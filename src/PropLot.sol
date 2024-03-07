@@ -61,10 +61,8 @@ contract PropLot is IPropLot {
     function pushProposals(IPropLot.Proposal[] calldata winningProposals) public payable returns (IPropLot.Delegation[] memory delegations, uint256[] memory nounsProposalIds) {
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
         
-        // to propose, votes must be greater than the proposal threshold
-        uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         // check for external Nouns transfers or rogue redelegations, update state
-        uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices(minRequiredVotes);
+        uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices();
         _deleteDelegations(disqualifiedIndices);
 
         // todo handle these assertions earlier in flow to establish them as invariants
@@ -111,7 +109,7 @@ contract PropLot is IPropLot {
         uint256 currentVotes = nounsToken.getCurrentVotes(delegate);
         if (currentVotes >= minRequiredVotes) revert DelegateSaturated(propLotSig.delegateId);
 
-        Delegation memory delegation = Delegation(propLotSig.signer, uint32(block.number), uint32(nounsToken.numCheckpoints(propLotSig.signer)), uint16(votingPower), uint16(propLotSig.delegateId));
+        Delegation memory delegation = Delegation(propLotSig.signer, uint32(block.number), uint32(nounsToken.numCheckpoints(delegate)), uint16(votingPower), uint16(propLotSig.delegateId));
         // emits `DelegationRegistered` event
         _setOptimisticDelegation(delegation);
 
@@ -144,7 +142,7 @@ contract PropLot is IPropLot {
         // votingPower above minimum required votes is not usable due to Nouns token implementation constraint
         if (votingPower > minRequiredVotes) votingPower = minRequiredVotes;        
 
-        uint32 numCheckpoints = nounsToken.numCheckpoints(nounder);
+        uint32 numCheckpoints = nounsToken.numCheckpoints(delegate);
         
         Delegation memory delegation = Delegation(nounder, uint32(block.number), numCheckpoints, uint16(votingPower), uint16(delegateId));
 
@@ -158,6 +156,7 @@ contract PropLot is IPropLot {
         // check that sender has not yet voted on given proposalId: require(nounsToken.proposals(proposalId).receipts(msg.sender).hasVoted == false)
         // store proposalId and new expected numCheckpoints (incremented) so they can later be validated
         // todo: how much time should be provided for the vote? 2 hours?
+        // each registration should allow 2 more checkpoints than originally recorded and the `checkpointB.fromBlock - checkpointA.fromBlock` must be less than 2hr
         // add logic at settlement time for verifying against nounsToken.proposals(proposalId).receipts(msg.sender)
     }
     */
@@ -358,7 +357,7 @@ contract PropLot is IPropLot {
     }
 
     /// @dev Returns an array of delegation IDs that violated the protocol rules and are ineligible for yield
-    function _disqualifiedDelegationIndices(uint256 _minRequiredVotes) internal returns (uint256[] memory) {
+    function _disqualifiedDelegationIndices() internal returns (uint256[] memory) {
         // cache _optimisticDelegations to memory to reduce SLOADs for potential event & gas optimization
         Delegation[] memory optimisticDelegations = _getOptimisticDelegations();
         bool[] memory disqualifyingIndices = new bool[](optimisticDelegations.length);
@@ -371,16 +370,12 @@ contract PropLot is IPropLot {
                 address nounder = optimisticDelegations[i].delegator;
                 address delegate = getDelegateAddress(optimisticDelegations[i].delegateId);
                 
-                bool disqualify;
-                uint256 currentCheckpoints = nounsToken.numCheckpoints(nounder);
-                if (currentCheckpoints != optimisticDelegations[i].numCheckpointsSnapshot) {
-                    //todo handle supplements so that legitimate supplementers are not penalized for pairing with violators
-                    disqualify = _inspectCheckpoints(nounder, delegate, currentCheckpoints, optimisticDelegations[i].numCheckpointsSnapshot, optimisticDelegations[i].votingPower, _minRequiredVotes);
+                uint256 currentCheckpoints = nounsToken.numCheckpoints(delegate);
+                bool disqualify = _inspectCheckpoints(nounder, delegate, currentCheckpoints, optimisticDelegations[i].numCheckpointsSnapshot, optimisticDelegations[i].votingPower);
                     
-                    if (disqualify == true) {
-                        disqualifyingIndices[i] = true;
-                        ++numDisqualifiedIndices;
-                    }
+                if (disqualify == true) {
+                    disqualifyingIndices[i] = true;
+                    ++numDisqualifiedIndices;
                 }
             }
 
@@ -405,19 +400,19 @@ contract PropLot is IPropLot {
         }
     }
 
-    //todo add return param to mark which supplement violated protocol rules and granularly disqualify
-    function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower, uint256 _minRequiredVotes) internal view returns (bool _disqualify) {
+    function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower) internal view returns (bool _disqualify) {
         // Nouns token contract uses safe Uint32 math, preventing underflow
         uint256 delta = _currentCheckpoints - _numCheckpointsSnapshot;
         unchecked {
             for (uint256 j; j < delta; ++j) {
-                // (uint32 fromBlock, uint96 votes)
-                IERC721Checkpointable.Checkpoint memory checkpoint = nounsToken.checkpoints(_nounder, uint32(_currentCheckpoints - j - 1));
+                IERC721Checkpointable.Checkpoint memory checkpoint = nounsToken.checkpoints(_delegate, uint32(_currentCheckpoints - j - 1));
                 
+                //todo add check for stored vote registrations, conditionally passing over below 
                 // disqualify redelegations and transfers/burns that dropped voting power below recorded value
-                uint256 checkpointVotes = nounsToken.getPriorVotes(_delegate, checkpoint.fromBlock);
-                //todo bug in disqualifications, test each delegator in supplement ie if (checkpointVotes < _minRequiredVotes)
-                if (checkpointVotes < _votingPower || checkpoint.votes < _votingPower) {
+                uint256 checkpointVotesBefore = nounsToken.getPriorVotes(_delegate, checkpoint.fromBlock - 1);
+                uint256 checkpointVotesAfter = nounsToken.getPriorVotes(_delegate, checkpoint.fromBlock);
+
+                if (checkpointVotesBefore - checkpointVotesAfter >= _votingPower || checkpoint.votes < _votingPower) {
                     _disqualify = true;
                     break;
                 }

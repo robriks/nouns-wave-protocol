@@ -13,6 +13,7 @@ import {INounsArt} from "nouns-monorepo/interfaces/INounsArt.sol";
 import {INounsDescriptorMinimal} from 'nouns-monorepo/interfaces/INounsDescriptorMinimal.sol';
 import {INounsSeeder} from 'nouns-monorepo/interfaces/INounsSeeder.sol';
 import {IProxyRegistry} from 'nouns-monorepo/external/opensea/IProxyRegistry.sol';
+import {ProxyRegistryMock} from "nouns-monorepo/../test/foundry/helpers/ProxyRegistryMock.sol";
 import {NounsDAOForkEscrow} from "nouns-monorepo/governance/fork/NounsDAOForkEscrow.sol";
 import {NounsDAOProxy} from "nouns-monorepo/governance/NounsDAOProxy.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
@@ -74,7 +75,7 @@ contract NounsEnvSetup is Test {
         vm.stopPrank();
 
         nounsSeeder_ = INounsSeeder(address(new NounsSeeder()));
-        nounsProxyRegistry_ = IProxyRegistry(0xa5409ec958C83C3f309868babACA7c86DCB077c1);
+        nounsProxyRegistry_ = IProxyRegistry(address(new ProxyRegistryMock()));
         nounsTokenHarness = IERC721Checkpointable(address(new NounsTokenHarness(nounsDAOSafe_, nounsAuctionHouserMinter_, nounsDescriptor_, nounsSeeder_, nounsProxyRegistry_)));
 
         // setup Nouns timelock executor

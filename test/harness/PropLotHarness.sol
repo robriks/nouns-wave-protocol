@@ -35,11 +35,11 @@ contract PropLotHarness is PropLot {
     function findProposerDelegate(uint256 _minRequiredVotes) public view returns (address proposerDelegate) {
         return _findProposerDelegate(_minRequiredVotes);
     }
-    function disqualifiedDelegationIndices(uint256 _minRequiredVotes) public returns (uint256[] memory) {
-        return _disqualifiedDelegationIndices(_minRequiredVotes);
+    function disqualifiedDelegationIndices() public returns (uint256[] memory) {
+        return _disqualifiedDelegationIndices();
     }
-    function inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower, uint256 _minRequiredVotes) public view returns (bool _disqualify) {
-        return _inspectCheckpoints(_nounder, _delegate, _currentCheckpoints, _numCheckpointsSnapshot, _votingPower, _minRequiredVotes);
+    function inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower) public view returns (bool _disqualify) {
+        return _inspectCheckpoints(_nounder, _delegate, _currentCheckpoints, _numCheckpointsSnapshot, _votingPower);
     }
     function deleteDelegations(uint256[] memory _indices) public {
         _deleteDelegations(_indices);
