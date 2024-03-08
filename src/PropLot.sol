@@ -403,6 +403,9 @@ contract PropLot is IPropLot {
         }
     }
 
+    //todo add _inspectCheckpointsSupplementary internal func?
+    // Supplementary: if (checkpoints changed on delegate) { inspect checkpoints on every delegator to see if drop below votingPower occured }
+    // Full: if (checkpoints changed on delegate) { inspect checkpoints on just delegate to see if drop below votingPower occurred}
     function _inspectCheckpoints(address _nounder, address _delegate, uint256 _currentCheckpoints, uint256 _numCheckpointsSnapshot, uint256 _votingPower, uint256 _minRequiredVotes) internal view returns (bool _disqualify) {
         // Nouns token contract uses safe Uint32 math, preventing underflow
         uint256 delta = _currentCheckpoints - _numCheckpointsSnapshot;

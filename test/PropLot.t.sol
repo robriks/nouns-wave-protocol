@@ -1016,6 +1016,42 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertEq(arrayBeforeDeletion.length, arrayAfterDeletion.length);
     }
 
+    function test_computeNounsDelegationDigest(uint8 numSigners, uint8 fuzzDelegateId, uint8 expiryOffset) public {
+        vm.assume(fuzzDelegateId != 0); // filter invalid delegate IDs
+
+        for (uint256 i; i < numSigners; ++i) {
+            address signer = _createNounderEOA(i);
+            uint256 privKey = i + 1; // under the hood, `_createNounderEOA` uses incremented value as private key
+
+            // signer does not hold Nouns tokens but in this case it does not matter
+            address delegate = propLot.getDelegateAddress(fuzzDelegateId);
+            bytes32 nounsDomainSeparator = keccak256(abi.encode(
+                nounsTokenHarness.DOMAIN_TYPEHASH(), 
+                keccak256(bytes(nounsTokenHarness.name())), 
+                block.chainid, 
+                address(nounsTokenHarness)
+            ));
+
+            uint256 nonce = nounsTokenHarness.nonces(signer);
+            uint256 expiry = block.timestamp + expiryOffset;
+            bytes32 structHash = keccak256(
+                abi.encode(nounsTokenHarness.DELEGATION_TYPEHASH(), delegate, nonce, expiry)
+            );
+            
+            // construct digest manually and check it against PropLot Core's returned value
+            bytes32 digest = keccak256(abi.encodePacked('\x19\x01', nounsDomainSeparator, structHash));
+            bytes32 returnedDigest = propLot.computeNounsDelegationDigest(signer, fuzzDelegateId, expiry);
+            assertEq(digest, returnedDigest);
+            
+            // perform call directly to Nouns token's `delegateBySig` func with signed digest to ensure it is usable
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, digest);
+            vm.prank(signer);
+            nounsTokenHarness.delegateBySig(delegate, nonce, expiry, v, r, s);
+            assertEq(nounsTokenHarness.delegates(signer), delegate);
+        }
+    }
+
+
     //function test_delegateBySig()
     //function test_findDelegateId
     // function test_findProposerDelegate
