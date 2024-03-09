@@ -635,7 +635,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             }
             assertTrue(originalDelegate != address(0x0));
 
-            // flip between rogue and accidental noncompliant behavior
+            // flip between compliant and noncompliant behavior
             if (redelegateToPropLot) {
                 vm.prank(currentDisqualified);
                 nounsTokenHarness.delegate(originalDelegate);
@@ -743,6 +743,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertEq(fullDelegatorsTemp.length, numFullDelegations);
 
         IPropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
+        bool transferBackToPropLot; // conditionally have disqualifying users transfer back to protocol
         // prank disqualifying activity
         for (uint256 k; k < numSupplementaryDisqualifications; ++k) {
             address currentDisqualified = supplementaryDelegatorsTemp[k].nounder;
@@ -778,8 +779,26 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             assertTrue(originalDelegate != address(0x0)); // sanity check a match was found
 
+            // flip between compliant and noncompliant behavior
+            if (transferBackToPropLot) {
+                for (uint256 x; x < pseudoRandomTransferAmt; ++x) {
+                uint256 tokenId = supplementaryDelegatorsTemp[k].ownedTokenIds[x];                
+                NounsTokenHarness(address(nounsTokenHarness)).transferFrom(address(this), currentDisqualified, tokenId);
+                
+                // roll forward a block to update votes (checkpoints update only once when transfers are within same block)
+                vm.roll(block.number + 1);
+                }
+            }
+
             bool disqualify = propLot.isDisqualified(currentDisqualified, originalDelegate, votingPower);
-            assertTrue(disqualify);
+            // redelegations are allowed only if Nounder returns registered amount of voting power to registered delegate
+            if (transferBackToPropLot) {
+                assertFalse(disqualify);
+            } else {
+                assertTrue(disqualify);
+            }
+
+            transferBackToPropLot = !transferBackToPropLot;
         }
 
         for (uint256 m; m < numFullDisqualifications; ++m) {
@@ -815,8 +834,26 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             }
             assertTrue(originalDelegate != address(0x0));
          
+            // flip between compliant and noncompliant behavior
+            if (transferBackToPropLot) {
+                for (uint256 x; x < pseudoRandomTransferAmt; ++x) {
+                uint256 tokenId = fullDelegatorsTemp[m].ownedTokenIds[x];                
+                NounsTokenHarness(address(nounsTokenHarness)).transferFrom(address(this), currentDisqualified, tokenId);
+                
+                // roll forward a block to update votes (checkpoints update only once when transfers are within same block)
+                vm.roll(block.number + 1);
+                }
+            }
+
             bool disqualify = propLot.isDisqualified(currentDisqualified, originalDelegate, votingPower);
-            assertTrue(disqualify);
+            // redelegations are allowed only if Nounder returns registered amount of voting power to registered delegate
+            if (transferBackToPropLot) {
+                assertFalse(disqualify);
+            } else {
+                assertTrue(disqualify);
+            }
+
+            transferBackToPropLot = !transferBackToPropLot;
         }
     }
 
@@ -1025,5 +1062,4 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
     //function test_findProposerDelegate
     //function test_pushProposalsRemoveRogueDelegators()
     //function test_proposalThresholdIncrease()
-    //function test_disqualifiedDelegationIndices()
 }
