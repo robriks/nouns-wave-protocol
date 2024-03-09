@@ -205,7 +205,6 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         address delegated = nounsTokenHarness.delegates(nounderSupplement);
         assertEq(delegated, delegate);
 
-        uint256 delegateCheckpoints = nounsTokenHarness.numCheckpoints(delegate);
         uint256 nextCheckpoints = nounsTokenHarness.numCheckpoints(nounderSupplement);
         assertEq(nextCheckpoints, startCheckpoints + 1);
         uint256 nextDelegateId = propLot.getNextDelegateId();
@@ -213,14 +212,13 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         IPropLot.Delegation memory delegation = IPropLot.Delegation(
             nounderSupplement, 
             uint32(block.number),
-            uint32(nextCheckpoints),
             uint16(votingPower),
             uint16(delegateId)
         );
         vm.expectEmit(true, false, false, false);
         emit DelegationRegistered(delegation);
         vm.prank(nounderSupplement);
-        propLot.registerDelegation(nounderSupplement, delegateId);
+        propLot.registerDelegation(nounderSupplement, delegateId, votingPower);
 
         // assert no new delegate was created
         assertEq(nextDelegateId, propLot.getNextDelegateId());
@@ -229,7 +227,6 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertEq(optimisticDelegations.length, 1);
         assertEq(optimisticDelegations[0].delegator, nounderSupplement);
         assertEq(optimisticDelegations[0].blockDelegated, uint32(block.number));
-        assertEq(optimisticDelegations[0].numCheckpointsSnapshot, uint32(delegateCheckpoints));
         assertEq(optimisticDelegations[0].votingPower, uint16(votingPower));
         assertEq(optimisticDelegations[0].delegateId, uint16(delegateId));
 
@@ -281,7 +278,6 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         address delegated = nounsTokenHarness.delegates(nounderSolo);
         assertEq(delegated, delegate);
 
-        uint256 delegateCheckpoints = nounsTokenHarness.numCheckpoints(delegate);
         uint256 nextCheckpoints = nounsTokenHarness.numCheckpoints(nounderSolo);
         assertEq(nextCheckpoints, startCheckpoints + 1);
         uint256 nextDelegateId = propLot.getNextDelegateId();
@@ -290,14 +286,13 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         IPropLot.Delegation memory delegation = IPropLot.Delegation(
             nounderSolo, 
             uint32(block.number),
-            uint32(nextCheckpoints),
             uint16(votingPower),
             uint16(delegateId)
         );
         vm.expectEmit(true, false, false, false);
         emit DelegationRegistered(delegation);
         vm.prank(nounderSolo);
-        propLot.registerDelegation(nounderSolo, delegateId);
+        propLot.registerDelegation(nounderSolo, delegateId, votingPower);
 
         // assert no new delegate was created
         assertEq(nextDelegateId, propLot.getNextDelegateId());
@@ -306,7 +301,6 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertEq(optimisticDelegations.length, 1);
         assertEq(optimisticDelegations[0].delegator, nounderSolo);
         assertEq(optimisticDelegations[0].blockDelegated, uint32(block.number));
-        assertEq(optimisticDelegations[0].numCheckpointsSnapshot, uint32(delegateCheckpoints));
         assertEq(optimisticDelegations[0].votingPower, uint16(votingPower));
         assertEq(optimisticDelegations[0].delegateId, uint16(delegateId));
 
@@ -363,7 +357,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId, notMinRequiredVotes);
             vm.stopPrank();
         }
 
@@ -383,7 +377,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId);
+            propLot.registerDelegation(currentFullNounder, delegateId, returnedFullBalance);
             vm.stopPrank();
         }
 
@@ -424,7 +418,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
                 
                 vm.startPrank(currentSupplementaryNounder);
                 nounsTokenHarness.delegate(delegate);
-                propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+                propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
                 vm.stopPrank();
 
                 ++supplementaryCounter;
@@ -443,7 +437,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
                 
                 vm.startPrank(currentFullNounder);
                 nounsTokenHarness.delegate(delegate);
-                propLot.registerDelegation(currentFullNounder, delegateId);
+                propLot.registerDelegation(currentFullNounder, delegateId, amt);
                 vm.stopPrank();
             }
 
@@ -490,16 +484,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             assertEq(fullVotes, 0);
         }
     }
-    
 
-    //todo try calling `setOptimisticDelegation()` and then immediately redelegate back to self in same block
-    // to test internal state and make sure the falsified Delegation is cleared upon settlement
-    //function test_registerDelegationRedelegateSameBlock()
-    //function test_pushProposalsRemoveRogueDelegators()
-    //function test_proposalThresholdIncrease()
-    //function test_disqualifiedDelegationIndices()
-
-    function test_inspectCheckpointsRedelegate(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numSupplementaryDisqualifications, uint8 numFullDisqualifications) public {
+    function test_isDisqualifiedRedelegate(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numSupplementaryDisqualifications, uint8 numFullDisqualifications) public {
         vm.assume(numSupplementaryDelegations > 0 || numFullDelegations > 0);
         vm.assume(numSupplementaryDisqualifications < numSupplementaryDelegations);
         vm.assume(numFullDisqualifications < numFullDelegations);
@@ -537,7 +523,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
             vm.stopPrank();
 
             // simulate time passing
@@ -572,7 +558,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId);
+            propLot.registerDelegation(currentFullNounder, delegateId, amt);
             vm.stopPrank();
 
             // simulate time passing
@@ -594,21 +580,19 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             // roll forward a block to update votes
             vm.roll(block.number + 1);
             
-            // fetch `inspectCheckpoints()` params
+            // fetch `isDisqualified()` params
             address originalDelegate;
-            uint256 beforeCheckPoints;
             uint256 votingPower;
             for (uint256 l; l < optimisticDelegations.length; ++l) {
                 if (optimisticDelegations[l].delegator == currentDisqualified) {
                     uint256 originalId = optimisticDelegations[l].delegateId;
                     originalDelegate = propLot.getDelegateAddress(originalId);
-                    beforeCheckPoints = optimisticDelegations[l].numCheckpointsSnapshot;
                     votingPower = optimisticDelegations[l].votingPower;
                 }
             }
             assertTrue(originalDelegate != address(0x0)); // sanity check a match was found
 
-            // flip between rogue and accidental noncompliant behavior
+            // flip between compliant and noncompliant behavior
             if (redelegateToPropLot) {
                 vm.prank(currentDisqualified);
                 nounsTokenHarness.delegate(originalDelegate);
@@ -617,14 +601,13 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
                 vm.roll(block.number + 1);
             }
 
-            // assert checkpoint is incremented and disqualified
-            uint256 afterCheckpoints = nounsTokenHarness.numCheckpoints(originalDelegate);
-            uint256 checkpointDelta = redelegateToPropLot ? 2 : 1;
-            assertTrue(afterCheckpoints >= beforeCheckPoints + checkpointDelta);
-
-            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
-            bool disqualify = propLot.inspectCheckpoints(currentDisqualified, originalDelegate, afterCheckpoints, beforeCheckPoints, votingPower, minRequiredVotes);
-            assertTrue(disqualify);
+            bool disqualify = propLot.isDisqualified(currentDisqualified, originalDelegate, votingPower);
+            // redelegations are allowed only if Nounder returns registered amount of voting power to registered delegate
+            if (redelegateToPropLot) {
+                assertFalse(disqualify);
+            } else {
+                assertTrue(disqualify);
+            }
 
             redelegateToPropLot = !redelegateToPropLot;
         }
@@ -640,15 +623,13 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             // roll forward a block to update votes
             vm.roll(block.number + 1);
             
-            // fetch `inspectCheckpoints()` params
+            // fetch `isDisqualified()` params
             address originalDelegate;
-            uint256 beforeCheckPoints;
             uint256 votingPower;
             for (uint256 n; n < optimisticDelegations.length; ++n) {
                 if (optimisticDelegations[n].delegator == currentDisqualified) {
                     uint256 originalId = optimisticDelegations[n].delegateId;
                     originalDelegate = propLot.getDelegateAddress(originalId);
-                    beforeCheckPoints = optimisticDelegations[n].numCheckpointsSnapshot;
                     votingPower = optimisticDelegations[n].votingPower;
                 }
             }
@@ -661,21 +642,20 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
                 // roll forward a block to update votes
                 vm.roll(block.number + 1);
             }
-
-            // assert checkpoint is incremented and disqualified
-            uint256 afterCheckpoints = nounsTokenHarness.numCheckpoints(originalDelegate);
-            uint256 checkpointDelta = redelegateToPropLot ? 2 : 1;
-            assertTrue(afterCheckpoints == beforeCheckPoints + checkpointDelta);
             
-            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
-            bool disqualify = propLot.inspectCheckpoints(currentDisqualified, originalDelegate, afterCheckpoints, beforeCheckPoints, votingPower, minRequiredVotes);
-            assertTrue(disqualify);
+            bool disqualify = propLot.isDisqualified(currentDisqualified, originalDelegate, votingPower);
+            // redelegations are allowed only if Nounder returns registered amount of voting power to registered delegate
+            if (redelegateToPropLot) {
+                assertFalse(disqualify);
+            } else {
+                assertTrue(disqualify);
+            }
 
             redelegateToPropLot = !redelegateToPropLot;
         }
     }
 
-    function test_inspectCheckpointsTransfer(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numSupplementaryDisqualifications, uint8 numFullDisqualifications) public {
+    function test_isDisqualifiedTransfer(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numSupplementaryDisqualifications, uint8 numFullDisqualifications) public {
         vm.assume(numSupplementaryDelegations > 0 || numFullDelegations > 0);
         vm.assume(numSupplementaryDisqualifications < numSupplementaryDelegations);
         vm.assume(numFullDisqualifications < numFullDelegations);
@@ -713,7 +693,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
             vm.stopPrank();
 
             // simulate time passing
@@ -751,7 +731,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId);
+            propLot.registerDelegation(currentFullNounder, delegateId, amt);
             vm.stopPrank();
 
             // simulate time passing
@@ -785,27 +765,22 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             }
             vm.stopPrank();
             
-            // fetch `inspectCheckpoints()` params
-            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            // fetch `isDisqualified()` params
             address originalDelegate;
-            uint256 beforeCheckPoints;
             uint256 votingPower;
             for (uint256 l; l < optimisticDelegations.length; ++l) {
                 if (optimisticDelegations[l].delegator == currentDisqualified) {
                     uint256 originalId = optimisticDelegations[l].delegateId;
                     originalDelegate = propLot.getDelegateAddress(originalId);
-                    beforeCheckPoints = optimisticDelegations[l].numCheckpointsSnapshot;
                     votingPower = optimisticDelegations[l].votingPower;
                 }
             }
-            uint256 afterCheckpoints = nounsTokenHarness.numCheckpoints(originalDelegate);
 
             assertTrue(originalDelegate != address(0x0)); // sanity check a match was found
 
-            bool disqualify = propLot.inspectCheckpoints(currentDisqualified, originalDelegate, afterCheckpoints, beforeCheckPoints, votingPower, minRequiredVotes);
+            bool disqualify = propLot.isDisqualified(currentDisqualified, originalDelegate, votingPower);
             assertTrue(disqualify);
         }
-        return;
 
         for (uint256 m; m < numFullDisqualifications; ++m) {
             address currentDisqualified = fullDelegatorsTemp[m].nounder;
@@ -828,26 +803,19 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             }
             vm.stopPrank();
             
-            // fetch `inspectCheckpoints()` params
-            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            // fetch `isDisqualified()` params
             address originalDelegate;
-            uint256 beforeCheckPoints;
             uint256 votingPower;
             for (uint256 n; n < optimisticDelegations.length; ++n) {
                 if (optimisticDelegations[n].delegator == currentDisqualified) {
                     uint256 originalId = optimisticDelegations[n].delegateId;
                     originalDelegate = propLot.getDelegateAddress(originalId);
-                    beforeCheckPoints = optimisticDelegations[n].numCheckpointsSnapshot;
                     votingPower = optimisticDelegations[n].votingPower;
                 }
             }
             assertTrue(originalDelegate != address(0x0));
-
-            // assert checkpoint incremented and disqualified
-            uint256 afterCheckpoints = nounsTokenHarness.numCheckpoints(originalDelegate);
-            assertEq(afterCheckpoints, beforeCheckPoints + pseudoRandomTransferAmt);
-            
-            bool disqualify = propLot.inspectCheckpoints(currentDisqualified, originalDelegate, afterCheckpoints, beforeCheckPoints, votingPower, minRequiredVotes);
+         
+            bool disqualify = propLot.isDisqualified(currentDisqualified, originalDelegate, votingPower);
             assertTrue(disqualify);
         }
     }
@@ -874,7 +842,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
             vm.stopPrank();
 
             // simulate time passing
@@ -897,7 +865,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId);
+            propLot.registerDelegation(currentFullNounder, delegateId, amt);
             vm.stopPrank();
 
             // simulate time passing
@@ -971,7 +939,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
             vm.stopPrank();
 
             // simulate time passing
@@ -994,7 +962,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId);
+            propLot.registerDelegation(currentFullNounder, delegateId, amt);
             vm.stopPrank();
 
             // simulate time passing
@@ -1054,5 +1022,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
     //function test_delegateBySig()
     //function test_findDelegateId
-    // function test_findProposerDelegate
+    //function test_findProposerDelegate
+    //function test_pushProposalsRemoveRogueDelegators()
+    //function test_proposalThresholdIncrease()
+    //function test_disqualifiedDelegationIndices()
 }

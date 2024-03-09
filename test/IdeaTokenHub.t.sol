@@ -270,7 +270,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
             vm.stopPrank();
 
             // simulate time passing
@@ -294,7 +294,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId);
+            propLot.registerDelegation(currentFullNounder, delegateId, amt);
             vm.stopPrank();
 
             // simulate time passing
@@ -439,7 +439,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
             vm.stopPrank();
 
             eoa = !eoa;
@@ -460,7 +460,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId);
+            propLot.registerDelegation(currentFullNounder, delegateId, amt);
             vm.stopPrank();
 
             eoa = !eoa;

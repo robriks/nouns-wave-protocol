@@ -19,7 +19,6 @@ interface IPropLot {
     struct Delegation {
         address delegator;
         uint32 blockDelegated;
-        uint32 numCheckpointsSnapshot;
         uint16 votingPower;
         uint16 delegateId;
     }
@@ -27,6 +26,7 @@ interface IPropLot {
     struct PropLotSignature {
         address signer;
         uint256 delegateId;
+        uint256 numNouns;
         uint256 nonce;
         uint256 expiry;
         bytes signature;
@@ -44,7 +44,7 @@ interface IPropLot {
     error OnlyIdeaContract();
     error InsufficientDelegations();
     error NotDelegated(address nounder, address delegate);
-    error ZeroVotesToDelegate(address nounder);
+    error InsufficientVotingPower(address nounder);
     error DelegateSaturated(uint256 delegateId);
     error InvalidDelegateId(uint256 delegateId);
     error InvalidSignature();
@@ -78,7 +78,7 @@ interface IPropLot {
     /// @dev Serves as an alternative to `delegateByDelegatecall()` for smart contract wallets
     /// @notice Delegation to must have been performed via a call to the Nouns token contract using either the
     /// `delegate()` or `delegateBySig()` function, having provided the correct Delegate address for the given ID
-    function registerDelegation(address nounder, uint256 delegateId) external;
+    function registerDelegation(address nounder, uint256 delegateId, uint256 numNouns) external;
 
     //todo
     // function registerPermittedVote(uint256 delegateId, uint256 proposalId) external;
