@@ -92,9 +92,9 @@ interface IPropLot {
 
     /// @dev Returns either an existing delegate ID if one meets the given parameters, otherwise returns the next delegate ID
     /// @param isSupplementary Whether or not to search for a Delegate that doesn't meet the current proposal threshold
+    /// @param minRequiredVotes Minimum votes to make a proposal. Must be more than current proposal threshold which is based on Nouns token supply 
     /// @return delegateId The ID of a delegate that matches the given criteria 
-    /// @return minRequiredVotes Minimum votes to make a proposal. Must be more than current proposal threshold which is based on Nouns token supply 
-    function getDelegateIdByType(bool isSupplementary) external view returns (uint256 delegateId, uint256 minRequiredVotes);
+    function getDelegateIdByType(uint256 minRequiredVotes, bool isSupplementary) external view returns (uint256 delegateId);
 
     /// @dev Typecasts and returns the next delegate ID as a `uint256`
     function getNextDelegateId() external view returns (uint256 nextDelegateId);

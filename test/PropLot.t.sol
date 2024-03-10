@@ -115,8 +115,9 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertEq(nextDelegateId, 2);
 
         uint256 minRequiredVotesExpected = nounsGovernorProxy.proposalThreshold() + 1;
-        (uint256 incompleteDelegateId, uint256 minRequiredVotes) = propLot.getDelegateIdByType(true);
-        assertEq(minRequiredVotesExpected, minRequiredVotes);
+        uint256 minRequiredVotesReturned = propLot.getCurrentMinRequiredVotes();
+        assertEq(minRequiredVotesExpected, minRequiredVotesReturned);
+        uint256 incompleteDelegateId = propLot.getDelegateIdByType(minRequiredVotesReturned, true);
         assertEq(incompleteDelegateId, 1);
 
         uint256 numCheckpoints = nounsTokenHarness.numCheckpoints(nounderSupplement);
@@ -191,7 +192,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         uint256 votingPower = nounsTokenHarness.votesToDelegate(nounderSupplement);
         assertEq(votingPower, 1);
 
-        (uint256 delegateId, uint256 minRequiredVotes) = propLot.getDelegateIdByType(true);
+        uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+        uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
         assertEq(delegateId, 1);
         assertEq(minRequiredVotes, 2);
 
@@ -231,10 +233,10 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertEq(optimisticDelegations[0].votingPower, uint16(votingPower));
         assertEq(optimisticDelegations[0].delegateId, uint16(delegateId));
 
-        (uint256 existingSupplementId, ) = propLot.getDelegateIdByType(true);
+        uint256 existingSupplementId = propLot.getDelegateIdByType(minRequiredVotes, true);
         assertEq(existingSupplementId, delegateId);
 
-        (uint256 expectNewDelegateId, ) = propLot.getDelegateIdByType(false);
+        uint256 expectNewDelegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
         assertEq(expectNewDelegateId, nextDelegateId);
 
         // the delegation should not register as an eligible proposer
@@ -266,7 +268,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         uint256 minRequiredVotes = nounsGovernorProxy.proposalThreshold() + 1;
         assertEq(votingPower, minRequiredVotes);
 
-        (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+        uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
         assertEq(delegateId, 1);
         address delegate = propLot.getDelegateAddress(delegateId);
         (address suitableDelegate, ) = propLot.getSuitableDelegateFor(nounderSolo);
@@ -306,9 +308,9 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         assertEq(optimisticDelegations[0].delegateId, uint16(delegateId));
 
         // delegateId 1 is saturated so getDelegateIdByType should always return nextDelegateId
-        (, uint256 returnedSoloId) = propLot.getDelegateIdByType(true);
+        uint256 returnedSoloId = propLot.getDelegateIdByType(minRequiredVotes, true);
         assertEq(returnedSoloId, nextDelegateId);
-        (, uint256 returnedSupplementDelegateId) = propLot.getDelegateIdByType(false);
+        uint256 returnedSupplementDelegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
         assertEq(returnedSupplementDelegateId, nextDelegateId);
 
         // the delegation should register as an eligible proposer
@@ -353,7 +355,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedSupplementaryBalance = NounsTokenLike(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, notMinRequiredVotes);
             
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentSupplementaryNounder);
@@ -373,7 +375,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedFullBalance = NounsTokenLike(address(nounsTokenHarness)).balanceOf(currentFullNounder);
             assertEq(returnedFullBalance, minRequiredVotes);
 
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentFullNounder);
@@ -396,6 +398,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
     function test_getDelegateIdByType(uint8 numSupplementaryDelegates, uint8 numFullDelegates) public {
         vm.assume(numSupplementaryDelegates != 0 && numFullDelegates != 0);
+        
+        uint256 minRequiredVotes;
         uint256 totalDels = uint256(numSupplementaryDelegates) + uint256(numFullDelegates);
         uint256 delCounter;
         while (delCounter < totalDels) {
@@ -406,7 +410,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             if (supplementaryIter && supplementaryCounter < numSupplementaryDelegates) {
                 // perform supplementary delegation
                 address currentSupplementaryNounder = _createNounderEOA(delCounter);
-                uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+                minRequiredVotes = propLot.getCurrentMinRequiredVotes();
                 uint256 amt = minRequiredVotes / 2;
                 
                 // mint `amt < minRequiredVotes` to new nounder EOA and delegate
@@ -414,7 +418,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
                 uint256 returnedSupplementaryBalance = NounsTokenLike(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
                 assertEq(returnedSupplementaryBalance, amt);
                 
-                (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+                uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
                 address delegate = propLot.getDelegateAddress(delegateId);
                 
                 vm.startPrank(currentSupplementaryNounder);
@@ -433,7 +437,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
                 uint256 returnedFullBalance = NounsTokenLike(address(nounsTokenHarness)).balanceOf(currentFullNounder);
                 assertEq(returnedFullBalance, amt);
                 
-                (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+                minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+                uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
                 address delegate = propLot.getDelegateAddress(delegateId);
                 
                 vm.startPrank(currentFullNounder);
@@ -446,8 +451,9 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         }
 
         // assert that delegate returned by getDelegateIdByType has votingPower < or > minRequiredVotes
-        (uint256 supplementId, uint256 newMinRequiredVotes) = propLot.getDelegateIdByType(true);
-        (uint256 fullId, ) = propLot.getDelegateIdByType(false);
+        minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+        uint256 supplementId = propLot.getDelegateIdByType(minRequiredVotes, true);
+        uint256 fullId = propLot.getDelegateIdByType(minRequiredVotes, false);
         
         IPropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
         bool supplementMatchFound;
@@ -470,7 +476,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         // if the `supplementId` returned by `getDelegateIdByType()` is the next delegate id, that Delegate address
         // will have 0 votes, thus the `votingPower` assert is only necessary if a partially saturated Delegate ID was returned
         if (supplementId != nextDelegateId) {
-            assertTrue(supplementVotes < newMinRequiredVotes);
+            assertTrue(supplementVotes < minRequiredVotes);
         } else {
             assertEq(supplementVotes, 0);
         }
@@ -480,7 +486,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         // if the `fullId` returned by `getDelegateIdByType()` is the next delegate id, that Delegate address
         // will have 0 votes, thus the `votingPower` assert is only necessary if a totally unsaturated Delegate ID was returned
         if (fullId != nextDelegateId) {
-            assertTrue(fullVotes >= newMinRequiredVotes);
+            assertTrue(fullVotes >= minRequiredVotes);
         } else {
             assertEq(fullVotes, 0);
         }
@@ -519,7 +525,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
             
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentSupplementaryNounder);
@@ -554,7 +560,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
             assertEq(returnedFullBalance, amt);
 
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentFullNounder);
@@ -689,7 +696,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
             
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentSupplementaryNounder);
@@ -727,7 +734,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
             assertEq(returnedFullBalance, amt);
 
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentFullNounder);
@@ -891,7 +899,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
             
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentSupplementaryNounder);
@@ -929,7 +937,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
             assertEq(returnedFullBalance, amt);
 
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentFullNounder);
@@ -965,7 +974,6 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             
             // perform disqualifications
             address currentDelegator = optimisticDelegations[unTruncatedIndiciesToDisqualify[m]].delegator;
-            console2.logAddress(currentDelegator); return;
             vm.startPrank(currentDelegator);
             if (delegateOrTransfer) {
                 // disqualify via delegation
@@ -1017,7 +1025,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
             
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentSupplementaryNounder);
@@ -1040,7 +1048,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
             assertEq(returnedFullBalance, amt);
 
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentFullNounder);
@@ -1114,7 +1123,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
             
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentSupplementaryNounder);
@@ -1137,7 +1146,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
             assertEq(returnedFullBalance, amt);
 
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentFullNounder);
@@ -1205,4 +1215,5 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
     //function test_findProposerDelegate
     //function test_pushProposalsRemoveRogueDelegators()
     //function test_proposalThresholdIncrease()
+    //function test_checkForActiveProposal
 }

@@ -265,7 +265,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
             
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentSupplementaryNounder);
@@ -283,13 +283,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
             address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
 
-            uint256 amt = propLot.getCurrentMinRequiredVotes();
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 amt = minRequiredVotes; // amount to mint
 
             NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
             uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
             assertEq(returnedFullBalance, amt);
 
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentFullNounder);
@@ -434,7 +435,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
             
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentSupplementaryNounder);
@@ -449,13 +450,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         for (uint256 j; j < numFullDelegations; ++j) {
             // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
             address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
-            uint256 amt = propLot.getCurrentMinRequiredVotes(); // == `minRequiredVotes`
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 amt = minRequiredVotes; // amount to mint
 
             NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
             uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
             assertEq(returnedFullBalance, amt);
 
-            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
             address delegate = propLot.getDelegateAddress(delegateId);
             
             vm.startPrank(currentFullNounder);
