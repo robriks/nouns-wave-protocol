@@ -35,6 +35,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
     IPropLot.Proposal[] proposals;
     DelegatorInfo[] supplementaryDelegatorsTemp;
     DelegatorInfo[] fullDelegatorsTemp;
+    DelegatorInfo[] agnosticDelegatorsTemp;
 
     uint256 nounderSupplementPK;
     uint256 nounderSupplement2PK;
@@ -854,6 +855,148 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
             }
 
             transferBackToPropLot = !transferBackToPropLot;
+        }
+    }
+
+    function test_disqualifiedDelegationIndices(uint8 numSupplementaryDelegations, uint8 numFullDelegations) public {
+        vm.assume(numSupplementaryDelegations > 0 || numFullDelegations > 0);
+        delete supplementaryDelegatorsTemp;
+        delete fullDelegatorsTemp;
+
+        // disqualify half of total delegations
+        uint256 numDisqualifications = uint256(numSupplementaryDelegations) + uint256(numFullDelegations) / 2;
+
+        bool eoa; // used to alternate simulating EOA users and smart contract wallet users
+        // make fuzzed supplementary delegations
+        for (uint256 i; i < numSupplementaryDelegations; ++i) {
+            address currentSupplementaryNounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
+
+            // mint `minRequiredVotes / 2` to new nounder and delegate
+            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 amt = minRequiredVotes / 2;
+
+            // populate temporary storage arrays with delegator addresses and `tokenIds` to be minted
+            uint256[] memory tokenIds = new uint256[](amt);
+            for (uint256 x; x < amt; ++x) {
+                uint256 startId = NounsTokenHarness(address(nounsTokenHarness)).totalSupply();
+                tokenIds[x] = startId + x;
+            }
+
+            // mint the tokens
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
+
+            DelegatorInfo memory info = DelegatorInfo(currentSupplementaryNounder, tokenIds);
+            agnosticDelegatorsTemp.push(info);
+
+            uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+            assertEq(returnedSupplementaryBalance, amt);
+            
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(true);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentSupplementaryNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
+            vm.stopPrank();
+
+            // simulate time passing
+            vm.roll(block.number + 200);
+            eoa = !eoa;
+        }
+
+        // assert `agnosticDelegatorsTemp` array was populated correctly
+        assertEq(agnosticDelegatorsTemp.length, numSupplementaryDelegations);
+
+        // perform fuzzed full delegations
+        for (uint256 j; j < numFullDelegations; ++j) {
+            // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
+            address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
+            uint256 amt = propLot.getCurrentMinRequiredVotes();
+
+            // populate temporary storage arrays with delegator addresses and `tokenIds` to be minted
+            uint256[] memory tokenIds = new uint256[](amt);
+            for (uint256 x; x < amt; ++x) {
+                uint256 startId = NounsTokenHarness(address(nounsTokenHarness)).totalSupply();
+                tokenIds[x] = startId + x;
+            }
+
+            // mint the tokens
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
+
+            DelegatorInfo memory info = DelegatorInfo(currentFullNounder, tokenIds);
+            agnosticDelegatorsTemp.push(info);
+
+            uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
+            assertEq(returnedFullBalance, amt);
+
+            (uint256 delegateId, ) = propLot.getDelegateIdByType(false);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            
+            vm.startPrank(currentFullNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentFullNounder, delegateId, amt);
+            vm.stopPrank();
+
+            // simulate time passing
+            vm.roll(block.number + 200);
+            eoa = !eoa;
+        }
+
+        // assert `fullDelegatorsTemp` array was populated correctly
+        assertEq(agnosticDelegatorsTemp.length, uint256(numSupplementaryDelegations) + uint256(numFullDelegations));
+
+        // construct `indiciesToDisqualify` array
+        bool delegateOrTransfer;
+        IPropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
+        uint256[] memory unTruncatedIndiciesToDisqualify = new uint256[](optimisticDelegations.length);
+        // perform Fisher-Yates shuffle on `optimisticDelegations` indices to create a random permutation
+        for (uint256 k; k < optimisticDelegations.length - 1; k++) {
+            uint256 remaining = optimisticDelegations.length - k;
+            uint256 l = uint256(keccak256(abi.encode(k))) % remaining + k;
+            // swap unTruncatedIndiciesToDisqualify[k] and unTruncatedIndiciesToDisqualify[l]
+            (unTruncatedIndiciesToDisqualify[k], unTruncatedIndiciesToDisqualify[l]) = (unTruncatedIndiciesToDisqualify[l], unTruncatedIndiciesToDisqualify[k]);
+        }
+
+        uint256[] memory indiciesToDisqualify = new uint256[](numDisqualifications);
+        // then truncate resulting shuffled array to obtain randomized array of indices to delete
+        for (uint256 m; m < numDisqualifications; ++m) {
+            // populate expected return array
+            indiciesToDisqualify[m] = unTruncatedIndiciesToDisqualify[m];
+            
+            // perform disqualifications
+            address currentDelegator = optimisticDelegations[unTruncatedIndiciesToDisqualify[m]].delegator;
+            console2.logAddress(currentDelegator); return;
+            vm.startPrank(currentDelegator);
+            if (delegateOrTransfer) {
+                // disqualify via delegation
+                nounsTokenHarness.delegate(address(0x69));
+            } else { // disqualify via transfer
+                uint256 index;
+                // find delegator index in `agnosticDelegatorsTemp`
+                for (uint256 n; n < agnosticDelegatorsTemp.length; ++n) {
+                    if (agnosticDelegatorsTemp[n].nounder == currentDelegator) index = n;
+                }
+                DelegatorInfo memory info = agnosticDelegatorsTemp[index];
+
+                uint256 someTokenIndex = uint256(keccak256(abi.encode(m))) % info.ownedTokenIds.length; 
+                uint256 tokenId = info.ownedTokenIds[someTokenIndex];
+                
+                NounsTokenHarness(address(nounsTokenHarness)).transferFrom(currentDelegator, address(0x69), tokenId);
+            }
+            vm.stopPrank();
+        }
+
+        uint256[] memory returnedDisqualifiedIndices = propLot.disqualifiedDelegationIndices();
+        assertEq(returnedDisqualifiedIndices.length, indiciesToDisqualify.length);
+
+        // assert all members of `indiciesToDisqualify` are present in `returnedDisqualifiedIndices`
+        for (uint256 o; o < indiciesToDisqualify.length; ++o) {
+            bool matchFound;
+            for (uint256 p; p < returnedDisqualifiedIndices.length; ++p) {
+                if (returnedDisqualifiedIndices[p] == indiciesToDisqualify[0]) matchFound = true;
+            }
+            
+            assertTrue(matchFound);
         }
     }
 
