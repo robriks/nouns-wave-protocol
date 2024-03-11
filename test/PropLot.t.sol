@@ -957,9 +957,13 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         // construct `indiciesToDisqualify` array
         bool delegateOrTransfer;
         IPropLot.Delegation[] memory optimisticDelegations = propLot.getOptimisticDelegations();
+
         uint256[] memory unTruncatedIndiciesToDisqualify = new uint256[](optimisticDelegations.length);
+        // populate array with indices
+        for (uint256 z; z < unTruncatedIndiciesToDisqualify.length; ++z) unTruncatedIndiciesToDisqualify[z] = z;
+        
         // perform Fisher-Yates shuffle on `optimisticDelegations` indices to create a random permutation
-        for (uint256 k; k < optimisticDelegations.length - 1; k++) {
+        for (uint256 k; k < optimisticDelegations.length; k++) {
             uint256 remaining = optimisticDelegations.length - k;
             uint256 l = uint256(keccak256(abi.encode(k))) % remaining + k;
             // swap unTruncatedIndiciesToDisqualify[k] and unTruncatedIndiciesToDisqualify[l]
@@ -984,14 +988,19 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
                 for (uint256 n; n < agnosticDelegatorsTemp.length; ++n) {
                     if (agnosticDelegatorsTemp[n].nounder == currentDelegator) index = n;
                 }
-                DelegatorInfo memory info = agnosticDelegatorsTemp[index];
 
-                uint256 someTokenIndex = uint256(keccak256(abi.encode(m))) % info.ownedTokenIds.length; 
-                uint256 tokenId = info.ownedTokenIds[someTokenIndex];
-                
-                NounsTokenHarness(address(nounsTokenHarness)).transferFrom(currentDelegator, address(0x69), tokenId);
+                DelegatorInfo storage info = agnosticDelegatorsTemp[index];
+                assertEq(info.nounder, currentDelegator); // sanity check
+
+                uint256 numTransfers = uint256(keccak256(abi.encode(m))) % info.ownedTokenIds.length + 1; 
+                for (uint256 o; o < numTransfers; ++o) {
+                    uint256 tokenId = info.ownedTokenIds[o];
+                    NounsTokenHarness(address(nounsTokenHarness)).transferFrom(currentDelegator, address(0x69), tokenId);
+                }
             }
             vm.stopPrank();
+
+            delegateOrTransfer = !delegateOrTransfer;
         }
 
         uint256[] memory returnedDisqualifiedIndices = propLot.disqualifiedDelegationIndices();
@@ -1001,7 +1010,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         for (uint256 o; o < indiciesToDisqualify.length; ++o) {
             bool matchFound;
             for (uint256 p; p < returnedDisqualifiedIndices.length; ++p) {
-                if (returnedDisqualifiedIndices[p] == indiciesToDisqualify[0]) matchFound = true;
+                if (returnedDisqualifiedIndices[p] == indiciesToDisqualify[o]) matchFound = true;
             }
             
             assertTrue(matchFound);
