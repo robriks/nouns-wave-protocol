@@ -1430,8 +1430,37 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         }
     }
 
-    // function test_findDelegateId(uint8 )
+    function test_findDelegateId(uint8 numDelegations, uint8 fuzzedMinRequiredVotes) public {
+        vm.assume(numDelegations > 1); // at least one supplementary and one full
+        vm.assume(fuzzedMinRequiredVotes >= 2); // current minimum is 2
+
+        // scope test to find delegate only
+        bool isSupplementary;
+        for (uint256 i; i < numDelegations; ++i) {
+            uint256 delegateId = propLot.getDelegateIdByType(fuzzedMinRequiredVotes, isSupplementary);
+            address delegate = propLot.getDelegateAddress(delegateId);
+            uint256 amt = isSupplementary ? fuzzedMinRequiredVotes / 2 : fuzzedMinRequiredVotes;
+            address currentNounder = _createNounderEOA(i);
+            NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentNounder, amt);
+
+            vm.startPrank(currentNounder);
+            nounsTokenHarness.delegate(delegate);
+            propLot.registerDelegation(currentNounder, delegateId, amt);
+
+            isSupplementary = !isSupplementary;
+        }
+
+        uint256 returnedSupplementaryId =  propLot.findDelegateId(fuzzedMinRequiredVotes, true);
+        address returnedSupplementaryDelegate = propLot.getDelegateAddress(returnedSupplementaryId);
+        assertTrue(nounsTokenHarness.getCurrentVotes(returnedSupplementaryDelegate) < fuzzedMinRequiredVotes);
+
+        // expected full ID should be an uncreated one
+        uint256 expectedFullId = propLot.getNextDelegateId();
+        uint256 returnedFullId = propLot.findDelegateId(fuzzedMinRequiredVotes, false);
+        assertEq(expectedFullId, returnedFullId);
+        address returnedFullDelegate = propLot.getDelegateAddress(returnedFullId);
+        assertEq(nounsTokenHarness.getCurrentVotes(returnedFullDelegate), 0);
+    }
     //function test_findProposerDelegate
-    //function test_proposalThresholdIncrease()
     //function test_checkForActiveProposal
 }
