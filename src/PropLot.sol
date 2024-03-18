@@ -172,8 +172,7 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function getDelegateIdByType(bool isSupplementary) public view returns (uint256 delegateId, uint256 minRequiredVotes) {
-        minRequiredVotes = getCurrentMinRequiredVotes();
+    function getDelegateIdByType(uint256 minRequiredVotes, bool isSupplementary) public view returns (uint256 delegateId) {
         delegateId = _findDelegateId(minRequiredVotes, isSupplementary);
     }
 
@@ -186,10 +185,9 @@ contract PropLot is IPropLot {
     function getSuitableDelegateFor(address nounder) external view returns (address delegate, uint256 minRequiredVotes) {
         minRequiredVotes = getCurrentMinRequiredVotes();
         uint256 votingPower = nounsToken.votesToDelegate(nounder);
-        bool isSupplementary;
-        if (votingPower < minRequiredVotes) isSupplementary = true;
+        bool isSupplementary = votingPower < minRequiredVotes ? true : false;
 
-        (uint256 delegateId, ) = getDelegateIdByType(isSupplementary);
+        uint256 delegateId = getDelegateIdByType(minRequiredVotes, isSupplementary);
         delegate = getDelegateAddress(delegateId);
     }
 
