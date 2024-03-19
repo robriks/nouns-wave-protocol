@@ -2,11 +2,9 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/utils/Strings.sol";
-
-// import "@uniswap/v3-core/contracts/libraries/BitMath.sol";
-// import "base64-sol/base64.sol";
-
+import "@openzeppelin/contracts/utils/Base64.sol";
 import { IIdeaTokenHub } from '../interfaces/IIdeaTokenHub.sol';
+
 
 /// @title Renderer
 /// @notice Provides a function for generating an SVG associated with a PropLot idea
@@ -33,7 +31,14 @@ contract Renderer {
         tokenAddress = _tokenAddress;
     }
 
-    function generateSVG(SVGParams memory params) external view returns (string memory svg) {
+    function tokenURI(SVGParams memory params) external view returns (string memory) {
+        string memory output = generateSVG(params);
+        string memory json = Base64.encode(bytes(string(abi.encodePacked('{"name": "Nouns Prop Lot Idea #', params.tokenId.toString(), '", "description": "An NFT recieved for supporting an idea in Nouns Prop Lot.", "image": "data:image/svg+xml;base64,', Base64.encode(bytes(output)), '"}'))));
+        output = string(abi.encodePacked('data:application/json;base64,', json));
+        return output;
+    }
+
+    function generateSVG(SVGParams memory params) internal view returns (string memory svg) {
         return
             string(
                 abi.encodePacked(

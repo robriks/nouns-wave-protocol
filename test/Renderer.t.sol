@@ -12,7 +12,7 @@ contract RendererTest is Test {
     function test_generateSVG() public {
         console2.log(address(renderer));
         Renderer.SVGParams memory params = Renderer.SVGParams(1, "00442a");
-        string memory svg = renderer.generateSVG(params);
-        console2.log(svg);
+        string memory b64 = renderer.tokenURI(params);
+        console2.log(b64);
     }
 }
