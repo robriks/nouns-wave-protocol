@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/utils/Strings.sol";
-import "@openzeppelin/contracts/utils/Base64.sol";
 import { IIdeaTokenHub } from '../interfaces/IIdeaTokenHub.sol';
-
+import "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
+import "lib/openzeppelin-contracts/contracts/utils/Base64.sol";
 
 /// @title Renderer
 /// @notice Provides a function for generating an SVG associated with a PropLot idea
