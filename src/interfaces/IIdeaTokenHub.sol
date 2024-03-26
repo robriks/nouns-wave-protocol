@@ -36,6 +36,7 @@ interface IIdeaTokenHub {
     error AlreadyProposed(uint256 ideaId);
     error RoundIncomplete();
     error ClaimFailure();
+    error Soulbound();
 
     event IdeaCreated(IPropLot.Proposal idea, address creator, uint96 ideaId, SponsorshipParams params);
     event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params);
@@ -72,6 +73,10 @@ interface IIdeaTokenHub {
     /// @param optLimiter An optional limiter used to define the number of desired `ideaIds`, for example the number of 
     /// eligible proposers or winning ids. If provided, it will be used to define the length of the returned array
     function getOrderedEligibleIdeaIds(uint256 optLimiter) external view returns (uint96[] memory orderedEligibleIds);
+
+    /// @dev Returns IDs of ideas which have already won rounds and been proposed to Nouns governance
+    /// @notice Intended for external use for improved devX
+    function getOrderedProposedIdeaIds() external view returns (uint96[] memory orderedProposedIds);
     
     /// @dev Returns the IdeaInfo struct associated with a given `ideaId`
     function getIdeaInfo(uint256 ideaId) external view returns (IdeaInfo memory);

@@ -26,10 +26,10 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     */
 
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
-    uint256 public constant minSponsorshipAmount = 0.001 ether;
+    uint256 public constant minSponsorshipAmount = 0.0001 ether;
     uint256 public constant decimals = 18;
     /// @dev The length of time for a round in blocks, marking the block number where winning ideas are chosen 
-    uint256 public immutable roundLength = 1209600;//todo change
+    uint256 public immutable roundLength = 1209600;
 
     IPropLot private immutable __propLotCore;
     INounsDAOLogicV3 private immutable __nounsGovernor;
@@ -146,7 +146,8 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     /// @inheritdoc IIdeaTokenHub
     function claim() external returns (uint256 claimAmt) {
         claimAmt = claimableYield[msg.sender];
-        claimableYield[msg.sender] = 0;
+        delete claimableYield[msg.sender];
+
         (bool r,) = msg.sender.call{value: claimAmt}('');
         if (!r) revert ClaimFailure();
     }
@@ -154,8 +155,6 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     /*
       Views
     */
-
-    // todo: can this array eventually run into memory allocation issues (DOS) when enough `ideaIds` have been minted?
 
     /// @inheritdoc IIdeaTokenHub
     /// @notice The returned array treats ineligible IDs (ie already proposed) as 0 values at the array end.
@@ -195,7 +194,32 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         }
     }
 
-    //todo external function to return all previously proposed ideas
+    /// @inheritdoc IIdeaTokenHub
+    function getOrderedProposedIdeaIds() public view returns (uint96[] memory orderedProposedIds) {
+        // cache in memory to reduce SLOADs
+        uint256 nextIdeaId = getNextIdeaId();
+        uint256 len;
+
+        // get length of proposed ideas array
+        for (uint96 i = 1; i < nextIdeaId; ++i) {
+            IdeaInfo storage currentIdeaInfo = ideaInfos[i];
+            // skip previous winners
+            if (currentIdeaInfo.isProposed) {
+                len++;
+            }
+        }
+
+        // populate array
+        uint256 index;
+        orderedProposedIds = new uint96[](len);
+        for (uint96 j = 1; j < nextIdeaId; ++j) {
+            IdeaInfo storage currentIdeaInfo = ideaInfos[j];
+            if (currentIdeaInfo.isProposed) {
+                orderedProposedIds[index] = j;
+                index++;
+            }
+        }
+    }
 
     function getIdeaInfo(uint256 ideaId) external view returns (IdeaInfo memory) {
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
@@ -211,7 +235,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         return claimableYield[nounder];
     }
     
-    function getNextIdeaId() public view override returns (uint256) {
+    function getNextIdeaId() public view returns (uint256) {
         return uint256(_nextIdeaId);
     }
 
@@ -235,5 +259,8 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         if (keccak256(bytes(_description)) == keccak256('')) revert InvalidDescription();
     }
 
-    //todo override transfer & burn functions to make soulbound
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal virtual override {
+        if (from != address(0x0) && to != address (0x0)) revert Soulbound();
+        super._update(from, to, ids, values);
+    }
 }
