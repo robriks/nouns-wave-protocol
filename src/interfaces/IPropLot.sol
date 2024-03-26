@@ -61,7 +61,7 @@ interface IPropLot {
 
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
     /// Checks for changes in delegation state on `nounsToken` contract and updates PropLot recordkeeping accordingly
-    /// @notice May only be called by the PropLot's ERC1155 Idea token hub at the conclusion of each 2-week round
+    /// @notice May only be called by the PropLot's ERC1155 Idea token hub at the conclusion of each 2-week wave
     function pushProposals(Proposal[] calldata winningProposals) external payable 
       returns (
         Delegation[] memory delegations, 

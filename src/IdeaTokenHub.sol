@@ -28,8 +28,8 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
     uint256 public constant minSponsorshipAmount = 0.0001 ether;
     uint256 public constant decimals = 18;
-    /// @dev The length of time for a round in blocks, marking the block number where winning ideas are chosen 
-    uint256 public immutable roundLength = 1209600;
+    /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen 
+    uint256 public immutable waveLength = 1209600;
 
     IPropLot private immutable __propLotCore;
     INounsDAOLogicV3 private immutable __nounsGovernor;
@@ -38,7 +38,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
       Storage
     */
 
-    RoundInfo public currentRoundInfo;
+    WaveInfo public currentWaveInfo;
     uint96 private _nextIdeaId;
 
     /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
@@ -54,8 +54,8 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         __propLotCore = IPropLot(msg.sender);
         __nounsGovernor = nounsGovernor_;
         
-        ++currentRoundInfo.currentRound;
-        currentRoundInfo.startBlock = uint32(block.number);
+        ++currentWaveInfo.currentWave;
+        currentWaveInfo.startBlock = uint32(block.number);
         ++_nextIdeaId;
     }
 
@@ -83,8 +83,8 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     function sponsorIdea(uint256 ideaId) public payable {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
-        // revert if a new round should be started
-        if (block.number - roundLength >= currentRoundInfo.startBlock) revert RoundIncomplete();
+        // revert if a new wave should be started
+        if (block.number - waveLength >= currentWaveInfo.startBlock) revert WaveIncomplete();
         
         // typecast values can contain all Ether in existence && quintillions of ideas per human on earth
         uint216 value = uint216(msg.value);
@@ -103,11 +103,11 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     }
 
     /// @inheritdoc IIdeaTokenHub
-    function finalizeRound() external returns (IPropLot.Delegation[] memory delegations, uint96[] memory winningIds, uint256[] memory nounsProposalIds) {
-        // check that roundLength has passed
-        if (block.number - roundLength < currentRoundInfo.startBlock) revert RoundIncomplete();
-        ++currentRoundInfo.currentRound;
-        currentRoundInfo.startBlock = uint32(block.number);
+    function finalizeWave() external returns (IPropLot.Delegation[] memory delegations, uint96[] memory winningIds, uint256[] memory nounsProposalIds) {
+        // check that waveLength has passed
+        if (block.number - waveLength < currentWaveInfo.startBlock) revert WaveIncomplete();
+        ++currentWaveInfo.currentWave;
+        currentWaveInfo.startBlock = uint32(block.number);
 
         // identify number of proposals to push for current voting threshold
         (uint256 minRequiredVotes, uint256 numEligibleProposers) = __propLotCore.numEligibleProposerDelegates();
@@ -158,7 +158,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
 
     /// @inheritdoc IIdeaTokenHub
     /// @notice The returned array treats ineligible IDs (ie already proposed) as 0 values at the array end.
-    /// Since 0 is an invalid `ideaId` value, these are simply filtered out when invoked within `finalizeRound()`
+    /// Since 0 is an invalid `ideaId` value, these are simply filtered out when invoked within `finalizeWave()`
     function getOrderedEligibleIdeaIds(uint256 optLimiter) public view returns (uint96[] memory orderedEligibleIds) {
         // cache in memory to reduce SLOADs
         uint256 nextIdeaId = getNextIdeaId();

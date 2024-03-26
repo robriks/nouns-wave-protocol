@@ -11,8 +11,8 @@ interface IIdeaTokenHub {
       Structs
     */
 
-    struct RoundInfo {
-        uint32 currentRound;
+    struct WaveInfo {
+        uint32 currentWave;
         uint32 startBlock;
     }
 
@@ -34,7 +34,7 @@ interface IIdeaTokenHub {
     error InvalidDescription();
     error NonexistentIdeaId(uint256 ideaId);
     error AlreadyProposed(uint256 ideaId);
-    error RoundIncomplete();
+    error WaveIncomplete();
     error ClaimFailure();
     error Soulbound();
 
@@ -44,8 +44,8 @@ interface IIdeaTokenHub {
 
     function minSponsorshipAmount() external view returns (uint256);
     function decimals() external view returns (uint256);
-    function roundLength() external view returns (uint256);
-    function currentRoundInfo() external view returns (uint32 currentRound, uint32 startBlock);
+    function waveLength() external view returns (uint256);
+    function currentWaveInfo() external view returns (uint32 currentWave, uint32 startBlock);
     
     /// @dev Creates a new ERC1155 token referred to by its token ID, ie its `ideaId` identifier
     /// @notice To combat spam and low-quality proposals, idea token creation requires a small minimum payment
@@ -54,18 +54,18 @@ interface IIdeaTokenHub {
     
     /// @dev Sponsors the existing ERC1155 tokenized idea specified by its ID. The Ether amount paid
     /// to create the idea will be reflected in the creator's ERC1155 balance in a 1:1 ratio
-    /// @notice To incentivize smooth protocol transitions and continued rollover of auction rounds,
-    /// sponsorship attempts are reverted if the round period has passed and `finalizeRound()` has not been executed
+    /// @notice To incentivize smooth protocol transitions and continued rollover of auction waves,
+    /// sponsorship attempts are reverted if the wave period has passed and `finalizeWave()` has not been executed
     function sponsorIdea(uint256 ideaId) external payable;
 
-    /// @dev Finalizes a PropLot round, marking the end of an auction round. Winning ideas are selected by the highest 
+    /// @dev Finalizes a PropLot wave, marking the end of an auction wave. Winning ideas are selected by the highest 
     /// sponsored balances and officially proposed to the Nouns governance contracts. The number of winners varies
     /// depending on the available 'liquidity' of lent Nouns NFTs and their proposal power. Yield distributions are
     /// tallied by calling the PropLot Core and recording valid delegations in the `claimableYield` mapping where they
     /// can then be claimed at any time by a Nouns holder who has delegated to PropLot
-    function finalizeRound() external returns (IPropLot.Delegation[] memory delegations, uint96[] memory winningIds, uint256[] memory nounsProposalIds);
+    function finalizeWave() external returns (IPropLot.Delegation[] memory delegations, uint96[] memory winningIds, uint256[] memory nounsProposalIds);
     
-    /// @dev Provides a way to collect the yield earned by Nounders who have delegated to PropLot for a full round
+    /// @dev Provides a way to collect the yield earned by Nounders who have delegated to PropLot for a full wave
     /// @notice Reentrance prevented via CEI
     function claim() external returns (uint256 claimAmt);
 
@@ -74,7 +74,7 @@ interface IIdeaTokenHub {
     /// eligible proposers or winning ids. If provided, it will be used to define the length of the returned array
     function getOrderedEligibleIdeaIds(uint256 optLimiter) external view returns (uint96[] memory orderedEligibleIds);
 
-    /// @dev Returns IDs of ideas which have already won rounds and been proposed to Nouns governance
+    /// @dev Returns IDs of ideas which have already won waves and been proposed to Nouns governance
     /// @notice Intended for external use for improved devX
     function getOrderedProposedIdeaIds() external view returns (uint96[] memory orderedProposedIds);
     

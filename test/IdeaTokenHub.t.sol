@@ -21,7 +21,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     PropLotHarness propLot;
     IdeaTokenHub ideaTokenHub;
 
-    uint256 roundLength;
+    uint256 waveLength;
     uint256 minSponsorshipAmount;
     uint256 decimals;
     string uri;
@@ -29,19 +29,19 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     string description;
     // singular proposal stored for easier referencing against `IdeaInfo` struct member
     IPropLot.Proposal proposal;
-    IdeaTokenHub.RoundInfo firstRoundInfo; // only used for sanity checks
+    IdeaTokenHub.WaveInfo firstWaveInfo; // only used for sanity checks
     
     function setUp() public {
         // establish clone of onchain Nouns governance environment
         super.setUpNounsGovernance();
 
         // setup PropLot contracts
-        roundLength = 1209600;//todo
+        waveLength = 1209600;//todo
         minSponsorshipAmount = 0.0001 ether;
         decimals = 18;
         uri = 'someURI';
-        // roll to block number of at least `roundLength` to prevent underflow within `currentRoundInfo.startBlock`
-        vm.roll(roundLength);
+        // roll to block number of at least `waveLength` to prevent underflow within `currentWaveInfo.startBlock`
+        vm.roll(waveLength);
         propLot = new PropLotHarness(INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri);
         ideaTokenHub = IdeaTokenHub(propLot.ideaTokenHub());
 
@@ -63,23 +63,23 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
 
         // continue with IdeaTokenHub configuration
-        firstRoundInfo.currentRound = 1;
-        firstRoundInfo.startBlock = uint32(block.number);
+        firstWaveInfo.currentWave = 1;
+        firstWaveInfo.startBlock = uint32(block.number);
         proposal = IPropLot.Proposal(txs, description);
     }
 
     function test_setUp() public {
         // sanity checks
-        assertEq(ideaTokenHub.roundLength(), roundLength);
+        assertEq(ideaTokenHub.waveLength(), waveLength);
         assertEq(ideaTokenHub.minSponsorshipAmount(), minSponsorshipAmount);
         assertEq(ideaTokenHub.decimals(), decimals);
 
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
         assertEq(startId, 1);
-        (uint32 currentRound, uint32 startBlock) = ideaTokenHub.currentRoundInfo();
-        assertEq(currentRound, firstRoundInfo.currentRound);
-        assertEq(startBlock, firstRoundInfo.startBlock);
+        (uint32 currentWave, uint32 startBlock) = ideaTokenHub.currentWaveInfo();
+        assertEq(currentWave, firstWaveInfo.currentWave);
+        assertEq(startBlock, firstWaveInfo.startBlock);
 
         bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.NonexistentIdeaId.selector, startId);
         vm.expectRevert(err);
@@ -381,14 +381,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         }
 
         // get values for assertions
-        (uint32 prevCurrentRound, uint32 prevStartBlock) = ideaTokenHub.currentRoundInfo();
+        (uint32 prevCurrentWave, uint32 prevStartBlock) = ideaTokenHub.currentWaveInfo();
         
-        // fast forward to round completion block and finalize
-        vm.roll(block.number + roundLength);
-        (IPropLot.Delegation[] memory delegations, uint96[] memory winningIdeaIds, uint256[] memory nounsProposalIds) = ideaTokenHub.finalizeRound();
+        // fast forward to wave completion block and finalize
+        vm.roll(block.number + waveLength);
+        (IPropLot.Delegation[] memory delegations, uint96[] memory winningIdeaIds, uint256[] memory nounsProposalIds) = ideaTokenHub.finalizeWave();
         
-        (uint32 postCurrentRound, uint32 postStartBlock) = ideaTokenHub.currentRoundInfo();
-        assertEq(postCurrentRound, prevCurrentRound + 1);
+        (uint32 postCurrentWave, uint32 postStartBlock) = ideaTokenHub.currentWaveInfo();
+        assertEq(postCurrentWave, prevCurrentWave + 1);
         assertTrue(postStartBlock > prevStartBlock);
 
         uint256 endMinRequiredVotes = propLot.getCurrentMinRequiredVotes();
@@ -418,7 +418,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
     // function test_finalizeAuctionNoEligibleProposers()
     
-    function test_revertFinalizeAuctionIncompleteRound(uint8 numCreators, uint8 numSponsors, uint8 numSupplementaryDelegations, uint8 numFullDelegations) public {
+    function test_revertFinalizeAuctionIncompleteWave(uint8 numCreators, uint8 numSponsors, uint8 numSupplementaryDelegations, uint8 numFullDelegations) public {
         vm.assume(numSponsors != 0);
         vm.assume(numCreators != 0);
         vm.assume(numFullDelegations != 0 || numSupplementaryDelegations > 1);
@@ -545,10 +545,10 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             eoa = !eoa;
         }
 
-        // ensure round cannot be finalized until `roundLength` has passed
-        bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.RoundIncomplete.selector);
+        // ensure wave cannot be finalized until `waveLength` has passed
+        bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.WaveIncomplete.selector);
         vm.expectRevert(err);
-        ideaTokenHub.finalizeRound();
+        ideaTokenHub.finalizeWave();
     }
 
 
@@ -564,7 +564,5 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     //             }
     // }
     // function test_claim()
-    // function test_revertTransfer()
-    // function test_revertBurn()
     // function test_uri
 }
