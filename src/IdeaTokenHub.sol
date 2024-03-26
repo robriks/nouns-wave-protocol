@@ -272,12 +272,15 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         if (keccak256(bytes(_description)) == keccak256("")) revert InvalidDescription();
     }
 
-    function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
-        internal
-        virtual
-        override
-    {
+    function _beforeTokenTransfer(
+        address operator,
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) internal virtual override {
         if (from != address(0x0) && to != address(0x0)) revert Soulbound();
-        super._update(from, to, ids, values);
+        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
     }
 }
