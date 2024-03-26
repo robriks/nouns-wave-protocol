@@ -10,9 +10,9 @@ import {NounsSeeder} from "nouns-monorepo/NounsSeeder.sol";
 import {IInflator} from "nouns-monorepo/interfaces/IInflator.sol";
 import {ISVGRenderer} from "nouns-monorepo/interfaces/ISVGRenderer.sol";
 import {INounsArt} from "nouns-monorepo/interfaces/INounsArt.sol";
-import {INounsDescriptorMinimal} from 'nouns-monorepo/interfaces/INounsDescriptorMinimal.sol';
-import {INounsSeeder} from 'nouns-monorepo/interfaces/INounsSeeder.sol';
-import {IProxyRegistry} from 'nouns-monorepo/external/opensea/IProxyRegistry.sol';
+import {INounsDescriptorMinimal} from "nouns-monorepo/interfaces/INounsDescriptorMinimal.sol";
+import {INounsSeeder} from "nouns-monorepo/interfaces/INounsSeeder.sol";
+import {IProxyRegistry} from "nouns-monorepo/external/opensea/IProxyRegistry.sol";
 import {ProxyRegistryMock} from "nouns-monorepo/../test/foundry/helpers/ProxyRegistryMock.sol";
 import {NounsDAOForkEscrow} from "nouns-monorepo/governance/fork/NounsDAOForkEscrow.sol";
 import {NounsDAOProxy} from "nouns-monorepo/governance/NounsDAOProxy.sol";
@@ -29,7 +29,6 @@ import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 /// @notice Fuzz iteration params can be increased to larger types to match implementation
 /// They are temporarily set to smaller types for speed only
 contract NounsEnvSetup is Test {
-
     NounsDAOLogicV1Harness nounsGovernorV1Impl;
     NounsDAOLogicV3Harness nounsGovernorV3Impl;
     NounsDAOLogicV3Harness nounsGovernorProxy;
@@ -58,29 +57,36 @@ contract NounsEnvSetup is Test {
         // setup Nouns token (harness)
         nounsDAOSafe_ = 0x2573C60a6D127755aA2DC85e342F7da2378a0Cc5;
         nounsAuctionHouserMinter_ = 0x830BD73E4184ceF73443C15111a1DF14e495C706;
-        
+
         inflator_ = IInflator(address(new Inflator()));
         // rather than simulate create2, set temporary descriptor address then change to correct one after deployment
         nounsArt_ = INounsArt(address(new NounsArt(vm.addr(0xd00d00), inflator_)));
-        nounsRenderer_ = ISVGRenderer(address (new SVGRenderer()));
+        nounsRenderer_ = ISVGRenderer(address(new SVGRenderer()));
         nounsDescriptor_ = INounsDescriptorMinimal(address(new NounsDescriptorV2(nounsArt_, nounsRenderer_)));
         // add dummy art and change descriptor to correct address after deployment
         vm.startPrank(vm.addr(0xd00d00));
-        nounsArt_.addBackground('');
-        nounsArt_.addBodies('0x0', uint80(1), uint16(1));
-        nounsArt_.addAccessories('0x0', uint80(1), uint16(1));
-        nounsArt_.addHeads('0x0', uint80(1), uint16(1));
-        nounsArt_.addGlasses('0x0', uint80(1), uint16(1));
+        nounsArt_.addBackground("");
+        nounsArt_.addBodies("0x0", uint80(1), uint16(1));
+        nounsArt_.addAccessories("0x0", uint80(1), uint16(1));
+        nounsArt_.addHeads("0x0", uint80(1), uint16(1));
+        nounsArt_.addGlasses("0x0", uint80(1), uint16(1));
         nounsArt_.setDescriptor(address(nounsDescriptor_));
         vm.stopPrank();
 
         nounsSeeder_ = INounsSeeder(address(new NounsSeeder()));
         nounsProxyRegistry_ = IProxyRegistry(address(new ProxyRegistryMock()));
-        nounsTokenHarness = IERC721Checkpointable(address(new NounsTokenHarness(nounsDAOSafe_, nounsAuctionHouserMinter_, nounsDescriptor_, nounsSeeder_, nounsProxyRegistry_)));
+        nounsTokenHarness = IERC721Checkpointable(
+            address(
+                new NounsTokenHarness(
+                    nounsDAOSafe_, nounsAuctionHouserMinter_, nounsDescriptor_, nounsSeeder_, nounsProxyRegistry_
+                )
+            )
+        );
 
         // setup Nouns timelock executor
         nounsTimelockImpl = new NounsDAOExecutorV2();
-        nounsTimelockProxy = NounsDAOExecutorV2(payable(address(new NounsDAOExecutorProxy(address(nounsTimelockImpl),''))));
+        nounsTimelockProxy =
+            NounsDAOExecutorV2(payable(address(new NounsDAOExecutorProxy(address(nounsTimelockImpl), ""))));
         nounsTimelockAdmin_ = 0x6f3E6272A167e8AcCb32072d08E0957F9c79223d;
         nounsTimelockDelay_ = 172800;
         nounsTimelockProxy.initialize(nounsTimelockAdmin_, nounsTimelockDelay_);
@@ -92,9 +98,9 @@ contract NounsEnvSetup is Test {
         proposalThresholdBPS_ = 25;
         quorumVotesBPS_ = 1000;
         nounsGovernorV1Impl = new NounsDAOLogicV1Harness(); // will be upgraded to v3
-        nounsGovernorProxy = 
-            NounsDAOLogicV3Harness(
-                payable(address(
+        nounsGovernorProxy = NounsDAOLogicV3Harness(
+            payable(
+                address(
                     new NounsDAOProxy(
                         address(nounsTimelockProxy),
                         address(nounsTokenHarness),
@@ -106,15 +112,16 @@ contract NounsEnvSetup is Test {
                         proposalThresholdBPS_,
                         quorumVotesBPS_
                     )
-                ))
-            );
+                )
+            )
+        );
         nounsGovernorV3Impl = new NounsDAOLogicV3Harness();
-        
+
         nounsForkEscrow_ = new NounsDAOForkEscrow(nounsDAOSafe_, address(nounsTokenHarness));
         // upgrade to NounsDAOLogicV3Harness and set nounsForkEscrow
         vm.startPrank(address(nounsTimelockProxy));
         NounsDAOProxy(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
-        nounsGovernorProxy._setForkEscrow(address(nounsForkEscrow_));        
+        nounsGovernorProxy._setForkEscrow(address(nounsForkEscrow_));
         vm.stopPrank();
     }
 }

@@ -14,22 +14,21 @@ import {console2} from "forge-std/console2.sol"; //todo delete
 /// @notice The PropLot Protocol Idea Token Hub extends the Nouns governance ecosystem by tokenizing and crowdfunding ideas
 /// for Nouns governance proposals. Nouns NFT holders earn yield in exchange for lending their tokens' proposal power to PropLot,
 /// which democratizes access and lowers the barrier of entry for anyone with a worthy idea, represented as an ERC1155 tokenId.
-/// Use of ERC1155 enables permissionless onchain minting with competition introduced by a crowdfunding auction. 
+/// Use of ERC1155 enables permissionless onchain minting with competition introduced by a crowdfunding auction.
 /// Each `tokenId` represents a proposal idea which can be individually funded via permissionless mint. At the conclusion
 /// of each auction, the winning tokenized ideas (with the most funding) are officially proposed into the Nouns governance system
 /// via the use of lent Nouns proposal power, provided by token holders who have delegated to the protocol.
 
 contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
-
     /*
       Constants
     */
 
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
-    uint256 public constant minSponsorshipAmount = 0.001 ether;
+    uint256 public constant minSponsorshipAmount = 0.0001 ether;
     uint256 public constant decimals = 18;
-    /// @dev The length of time for a round in blocks, marking the block number where winning ideas are chosen 
-    uint256 public immutable roundLength = 1209600;//todo change
+    /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
+    uint256 public immutable waveLength = 1209600;
 
     IPropLot private immutable __propLotCore;
     INounsDAOLogicV3 private immutable __nounsGovernor;
@@ -38,29 +37,33 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
       Storage
     */
 
-    RoundInfo public currentRoundInfo;
+    WaveInfo public currentWaveInfo;
     uint96 private _nextIdeaId;
 
     /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
-    mapping (uint96 => IdeaInfo) internal ideaInfos;
-    mapping (address => mapping (uint96 => SponsorshipParams)) internal sponsorships;
-    mapping (address => uint256) internal claimableYield;
+    mapping(uint96 => IdeaInfo) internal ideaInfos;
+    mapping(address => mapping(uint96 => SponsorshipParams)) internal sponsorships;
+    mapping(address => uint256) internal claimableYield;
 
     /*
       IdeaTokenHub
     */
-    
+
     constructor(INounsDAOLogicV3 nounsGovernor_, string memory uri_) ERC1155(uri_) {
         __propLotCore = IPropLot(msg.sender);
         __nounsGovernor = nounsGovernor_;
-        
-        ++currentRoundInfo.currentRound;
-        currentRoundInfo.startBlock = uint32(block.number);
+
+        ++currentWaveInfo.currentWave;
+        currentWaveInfo.startBlock = uint32(block.number);
         ++_nextIdeaId;
     }
 
     /// @inheritdoc IIdeaTokenHub
-    function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description) public payable returns (uint96 newIdeaId) {
+    function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description)
+        public
+        payable
+        returns (uint96 newIdeaId)
+    {
         _validateIdeaCreation(ideaTxs, description);
 
         // cache in memory to save on SLOADs
@@ -74,7 +77,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         sponsorships[msg.sender][newIdeaId].contributedBalance = value;
         sponsorships[msg.sender][newIdeaId].isCreator = true;
 
-        _mint(msg.sender, newIdeaId, msg.value, '');
+        _mint(msg.sender, newIdeaId, msg.value, "");
 
         emit IdeaCreated(IPropLot.Proposal(ideaTxs, description), msg.sender, newIdeaId, SponsorshipParams(value, true));
     }
@@ -83,9 +86,9 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     function sponsorIdea(uint256 ideaId) public payable {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
-        // revert if a new round should be started
-        if (block.number - roundLength >= currentRoundInfo.startBlock) revert RoundIncomplete();
-        
+        // revert if a new wave should be started
+        if (block.number - waveLength >= currentWaveInfo.startBlock) revert WaveIncomplete();
+
         // typecast values can contain all Ether in existence && quintillions of ideas per human on earth
         uint216 value = uint216(msg.value);
         uint96 id = uint96(ideaId);
@@ -96,18 +99,25 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         sponsorships[msg.sender][id].contributedBalance += value;
 
         SponsorshipParams storage params = sponsorships[msg.sender][id];
-        
-        _mint(msg.sender, ideaId, msg.value, '');
+
+        _mint(msg.sender, ideaId, msg.value, "");
 
         emit Sponsorship(msg.sender, id, params);
     }
 
     /// @inheritdoc IIdeaTokenHub
-    function finalizeRound() external returns (IPropLot.Delegation[] memory delegations, uint96[] memory winningIds, uint256[] memory nounsProposalIds) {
-        // check that roundLength has passed
-        if (block.number - roundLength < currentRoundInfo.startBlock) revert RoundIncomplete();
-        ++currentRoundInfo.currentRound;
-        currentRoundInfo.startBlock = uint32(block.number);
+    function finalizeWave()
+        external
+        returns (
+            IPropLot.Delegation[] memory delegations,
+            uint96[] memory winningIds,
+            uint256[] memory nounsProposalIds
+        )
+    {
+        // check that waveLength has passed
+        if (block.number - waveLength < currentWaveInfo.startBlock) revert WaveIncomplete();
+        ++currentWaveInfo.currentWave;
+        currentWaveInfo.startBlock = uint32(block.number);
 
         // identify number of proposals to push for current voting threshold
         (uint256 minRequiredVotes, uint256 numEligibleProposers) = __propLotCore.numEligibleProposerDelegates();
@@ -136,7 +146,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         for (uint256 m; m < delegations.length; ++m) {
             uint256 denominator = 10_000 * minRequiredVotes / delegations[m].votingPower;
             uint256 yield = (winningProposalsTotalFunding / delegations.length) / denominator / 10_000;
-            
+
             // enable claiming of yield calculated as total revenue split between all delegations, proportional to delegated voting power
             address currentDelegator = delegations[m].delegator;
             claimableYield[currentDelegator] += yield;
@@ -146,8 +156,9 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     /// @inheritdoc IIdeaTokenHub
     function claim() external returns (uint256 claimAmt) {
         claimAmt = claimableYield[msg.sender];
-        claimableYield[msg.sender] = 0;
-        (bool r,) = msg.sender.call{value: claimAmt}('');
+        delete claimableYield[msg.sender];
+
+        (bool r,) = msg.sender.call{value: claimAmt}("");
         if (!r) revert ClaimFailure();
     }
 
@@ -155,11 +166,9 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
       Views
     */
 
-    // todo: can this array eventually run into memory allocation issues (DOS) when enough `ideaIds` have been minted?
-
     /// @inheritdoc IIdeaTokenHub
     /// @notice The returned array treats ineligible IDs (ie already proposed) as 0 values at the array end.
-    /// Since 0 is an invalid `ideaId` value, these are simply filtered out when invoked within `finalizeRound()`
+    /// Since 0 is an invalid `ideaId` value, these are simply filtered out when invoked within `finalizeWave()`
     function getOrderedEligibleIdeaIds(uint256 optLimiter) public view returns (uint96[] memory orderedEligibleIds) {
         // cache in memory to reduce SLOADs
         uint256 nextIdeaId = getNextIdeaId();
@@ -195,7 +204,32 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         }
     }
 
-    //todo external function to return all previously proposed ideas
+    /// @inheritdoc IIdeaTokenHub
+    function getOrderedProposedIdeaIds() public view returns (uint96[] memory orderedProposedIds) {
+        // cache in memory to reduce SLOADs
+        uint256 nextIdeaId = getNextIdeaId();
+        uint256 len;
+
+        // get length of proposed ideas array
+        for (uint96 i = 1; i < nextIdeaId; ++i) {
+            IdeaInfo storage currentIdeaInfo = ideaInfos[i];
+            // skip previous winners
+            if (currentIdeaInfo.isProposed) {
+                len++;
+            }
+        }
+
+        // populate array
+        uint256 index;
+        orderedProposedIds = new uint96[](len);
+        for (uint96 j = 1; j < nextIdeaId; ++j) {
+            IdeaInfo storage currentIdeaInfo = ideaInfos[j];
+            if (currentIdeaInfo.isProposed) {
+                orderedProposedIds[index] = j;
+                index++;
+            }
+        }
+    }
 
     function getIdeaInfo(uint256 ideaId) external view returns (IdeaInfo memory) {
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
@@ -210,8 +244,8 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     function getClaimableYield(address nounder) external view returns (uint256) {
         return claimableYield[nounder];
     }
-    
-    function getNextIdeaId() public view override returns (uint256) {
+
+    function getNextIdeaId() public view returns (uint256) {
         return uint256(_nextIdeaId);
     }
 
@@ -219,21 +253,34 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
       Internals
     */
 
-    function _validateIdeaCreation(NounsDAOV3Proposals.ProposalTxs calldata _ideaTxs, string calldata _description) internal {
+    function _validateIdeaCreation(NounsDAOV3Proposals.ProposalTxs calldata _ideaTxs, string calldata _description)
+        internal
+    {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
-        
+
         // To account for Nouns governor contract upgradeability, `PROPOSAL_MAX_OPERATIONS` must be read dynamically
         uint256 maxOperations = __nounsGovernor.proposalMaxOperations();
-        if (_ideaTxs.targets.length == 0 || _ideaTxs.targets.length > maxOperations) revert InvalidActionsCount(_ideaTxs.targets.length);
-        
+        if (_ideaTxs.targets.length == 0 || _ideaTxs.targets.length > maxOperations) {
+            revert InvalidActionsCount(_ideaTxs.targets.length);
+        }
+
         if (
-            _ideaTxs.targets.length != _ideaTxs.values.length ||
-            _ideaTxs.targets.length != _ideaTxs.signatures.length ||
-            _ideaTxs.targets.length != _ideaTxs.calldatas.length
+            _ideaTxs.targets.length != _ideaTxs.values.length || _ideaTxs.targets.length != _ideaTxs.signatures.length
+                || _ideaTxs.targets.length != _ideaTxs.calldatas.length
         ) revert ProposalInfoArityMismatch();
-        
-        if (keccak256(bytes(_description)) == keccak256('')) revert InvalidDescription();
+
+        if (keccak256(bytes(_description)) == keccak256("")) revert InvalidDescription();
     }
 
-    //todo override transfer & burn functions to make soulbound
+    function _beforeTokenTransfer(
+        address operator,
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) internal virtual override {
+        if (from != address(0x0) && to != address(0x0)) revert Soulbound();
+        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
+    }
 }

@@ -9,18 +9,17 @@ import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
 import {IPropLot} from "./interfaces/IPropLot.sol";
 import {Delegate} from "./Delegate.sol";
 import {IdeaTokenHub} from "./IdeaTokenHub.sol";
-import {console2} from "forge-std/console2.sol";//todo
+import {console2} from "forge-std/console2.sol"; //todo
 
 /// @title PropLot Protocol Core
 /// @author 📯📯📯.eth
 /// @notice The PropLot Protocol Core contract manages a set of deterministic Delegate contracts whose sole purpose
-/// is to noncustodially receive delegation from Noun token holders who wish to earn yield in exchange for granting 
+/// is to noncustodially receive delegation from Noun token holders who wish to earn yield in exchange for granting
 /// PropLot the ability to push onchain proposals to the Nouns governance ecosystem. Winning proposals are chosen
 /// via a permissionless ERC115 mint managed by the PropLot IdeaHub contract.
-/// @notice Since Nouns voting power delegation is all-or-nothing on an address basis, Nounders can only delegate 
+/// @notice Since Nouns voting power delegation is all-or-nothing on an address basis, Nounders can only delegate
 /// (and earn yield) on Nouns token balances up to the proposal threshold per wallet address.
 contract PropLot is IPropLot {
-    
     /*
       Constants
     */
@@ -50,17 +49,22 @@ contract PropLot is IPropLot {
         ideaTokenHub = address(new IdeaTokenHub(nounsGovernor_, uri));
         nounsGovernor = nounsGovernor_;
         nounsToken = nounsToken_;
-        __creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(address(this))))));
-        
-        // increment `_nextDelegateId` and deploy initial Delegate contract 
+        __creationCodeHash =
+            keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(address(this))))));
+
+        // increment `_nextDelegateId` and deploy initial Delegate contract
         _nextDelegateId++;
         createDelegate();
     }
 
     /// @inheritdoc IPropLot
-    function pushProposals(IPropLot.Proposal[] calldata winningProposals) public payable returns (IPropLot.Delegation[] memory delegations, uint256[] memory nounsProposalIds) {
+    function pushProposals(IPropLot.Proposal[] calldata winningProposals)
+        public
+        payable
+        returns (IPropLot.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
+    {
         if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
-        
+
         // check for external Nouns transfers or rogue redelegations, update state
         uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices();
         _deleteDelegations(disqualifiedIndices);
@@ -80,7 +84,9 @@ contract PropLot is IPropLot {
                 address currentProposer = getDelegateAddress(currentProposerId);
 
                 // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
-                nounsProposalIds[i] = Delegate(currentProposer).pushProposal(nounsGovernor, winningProposals[i].ideaTxs, winningProposals[i].description);
+                nounsProposalIds[i] = Delegate(currentProposer).pushProposal(
+                    nounsGovernor, winningProposals[i].ideaTxs, winningProposals[i].description
+                );
             }
         }
 
@@ -96,14 +102,15 @@ contract PropLot is IPropLot {
         uint256 votesToDelegate = nounsToken.votesToDelegate(propLotSig.signer);
         uint256 votingPower = propLotSig.numNouns;
         if (votesToDelegate < votingPower || votesToDelegate == 0) revert InsufficientVotingPower(propLotSig.signer);
-        
+
         uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         if (votingPower > minRequiredVotes) votingPower = minRequiredVotes;
 
-        Delegation memory delegation = Delegation(propLotSig.signer, uint32(block.number), uint16(votingPower), uint16(propLotSig.delegateId));
+        Delegation memory delegation =
+            Delegation(propLotSig.signer, uint32(block.number), uint16(votingPower), uint16(propLotSig.delegateId));
         // emits `DelegationRegistered` event
         _setOptimisticDelegation(delegation);
-        
+
         address delegate;
         if (propLotSig.delegateId == _nextDelegateId) {
             delegate = createDelegate();
@@ -115,9 +122,9 @@ contract PropLot is IPropLot {
         if (nounsToken.getCurrentVotes(delegate) >= minRequiredVotes) revert DelegateSaturated(propLotSig.delegateId);
 
         nounsToken.delegateBySig(
-            delegate, 
-            propLotSig.nonce, 
-            propLotSig.expiry, 
+            delegate,
+            propLotSig.nonce,
+            propLotSig.expiry,
             uint8(bytes1(propLotSig.signature[64])),
             bytes32(propLotSig.signature[0:32]),
             bytes32(propLotSig.signature[32:64])
@@ -132,19 +139,20 @@ contract PropLot is IPropLot {
         } else {
             delegate = getDelegateAddress(delegateId);
         }
-        
+
         address externalDelegate = nounsToken.delegates(nounder);
         if (externalDelegate != delegate) revert NotDelegated(nounder, delegate);
-        
+
         uint256 votesToDelegate = nounsToken.votesToDelegate(nounder);
         if (votesToDelegate < numNouns || votesToDelegate == 0) revert InsufficientVotingPower(nounder);
         uint256 votingPower = numNouns;
 
         uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         // votingPower above minimum required votes is not usable due to Nouns token implementation constraint
-        if (votingPower > minRequiredVotes) votingPower = minRequiredVotes;        
-        
-        Delegation memory delegation = Delegation(nounder, uint32(block.number), uint16(votingPower), uint16(delegateId));
+        if (votingPower > minRequiredVotes) votingPower = minRequiredVotes;
+
+        Delegation memory delegation =
+            Delegation(nounder, uint32(block.number), uint16(votingPower), uint16(delegateId));
 
         // emits `DelegationRegistered` event
         _setOptimisticDelegation(delegation);
@@ -155,9 +163,9 @@ contract PropLot is IPropLot {
         uint256 nextDelegateId = uint256(_nextDelegateId);
         delegate = address(new Delegate{salt: bytes32(nextDelegateId)}(address(this)));
 
-        if (delegate == address(0x0)) revert Create2Failure();        
+        if (delegate == address(0x0)) revert Create2Failure();
         _nextDelegateId++;
-    
+
         emit DelegateCreated(delegate, nextDelegateId);
     }
 
@@ -172,7 +180,11 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function getDelegateIdByType(uint256 minRequiredVotes, bool isSupplementary) public view returns (uint256 delegateId) {
+    function getDelegateIdByType(uint256 minRequiredVotes, bool isSupplementary)
+        public
+        view
+        returns (uint256 delegateId)
+    {
         delegateId = _findDelegateId(minRequiredVotes, isSupplementary);
     }
 
@@ -182,7 +194,11 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function getSuitableDelegateFor(address nounder) external view returns (address delegate, uint256 minRequiredVotes) {
+    function getSuitableDelegateFor(address nounder)
+        external
+        view
+        returns (address delegate, uint256 minRequiredVotes)
+    {
         minRequiredVotes = getCurrentMinRequiredVotes();
         uint256 votingPower = nounsToken.votesToDelegate(nounder);
         bool isSupplementary = votingPower < minRequiredVotes ? true : false;
@@ -197,7 +213,11 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function getAllPartialDelegates() external view returns (uint256 minRequiredVotes, address[] memory partialDelegates) {
+    function getAllPartialDelegates()
+        external
+        view
+        returns (uint256 minRequiredVotes, address[] memory partialDelegates)
+    {
         minRequiredVotes = getCurrentMinRequiredVotes();
         uint256 numPartialDelegates;
         uint256 nextDelegateId = _nextDelegateId;
@@ -226,7 +246,11 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function numEligibleProposerDelegates() public view returns (uint256 minRequiredVotes, uint256 numEligibleProposers) {
+    function numEligibleProposerDelegates()
+        public
+        view
+        returns (uint256 minRequiredVotes, uint256 numEligibleProposers)
+    {
         minRequiredVotes = getCurrentMinRequiredVotes();
         uint256 nextDelegateId = _nextDelegateId;
         // determine size of memory array
@@ -242,7 +266,11 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function getAllEligibleProposerDelegates() public view returns (uint256 minRequiredVotes, uint256[] memory eligibleProposerIds) {
+    function getAllEligibleProposerDelegates()
+        public
+        view
+        returns (uint256 minRequiredVotes, uint256[] memory eligibleProposerIds)
+    {
         uint256 numEligibleProposers;
         (minRequiredVotes, numEligibleProposers) = numEligibleProposerDelegates();
 
@@ -263,29 +291,20 @@ contract PropLot is IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function computeNounsDelegationDigest(address signer, uint256 delegateId, uint256 expiry) public view returns (bytes32 digest) {
+    function computeNounsDelegationDigest(address signer, uint256 delegateId, uint256 expiry)
+        public
+        view
+        returns (bytes32 digest)
+    {
         bytes32 nounsDomainTypehash = nounsToken.DOMAIN_TYPEHASH();
         string memory nounsName = nounsToken.name();
-        bytes32 nounsDomainSeparator = keccak256(
-            abi.encode(
-                nounsDomainTypehash,
-                keccak256(bytes(nounsName)),
-                block.chainid,
-                nounsToken
-            )
-        );
+        bytes32 nounsDomainSeparator =
+            keccak256(abi.encode(nounsDomainTypehash, keccak256(bytes(nounsName)), block.chainid, nounsToken));
 
         address delegate = getDelegateAddress(delegateId);
         uint256 signerNonce = nounsToken.nonces(signer);
         bytes32 nounsDelegationTypehash = nounsToken.DELEGATION_TYPEHASH();
-        bytes32 structHash = keccak256(
-            abi.encode(
-                nounsDelegationTypehash, 
-                delegate, 
-                signerNonce, 
-                expiry
-            )
-        );
+        bytes32 structHash = keccak256(abi.encode(nounsDelegationTypehash, delegate, signerNonce, expiry));
 
         digest = ECDSA.toTypedDataHash(nounsDomainSeparator, structHash);
     }
@@ -298,10 +317,14 @@ contract PropLot is IPropLot {
     /// To save gas by minimizing costly SLOADs, terminates as soon as a delegate meeting the critera is found
     /// @param _minRequiredVotes The votes needed to make a proposal, dynamic based on Nouns token supply
     /// @param _isSupplementary Whether or not the returned Delegate should accept fewer than required votes
-    function _findDelegateId(uint256 _minRequiredVotes, bool _isSupplementary) internal view returns (uint256 delegateId) {
+    function _findDelegateId(uint256 _minRequiredVotes, bool _isSupplementary)
+        internal
+        view
+        returns (uint256 delegateId)
+    {
         // cache in memory to reduce SLOADs
         uint256 nextDelegateId = _nextDelegateId;
-        // bounded by (Nouns token supply / proposal threshold)        
+        // bounded by (Nouns token supply / proposal threshold)
         unchecked {
             for (uint256 i = 1; i < nextDelegateId; ++i) {
                 address delegateAddress = getDelegateAddress(i);
@@ -327,10 +350,10 @@ contract PropLot is IPropLot {
             // delegate IDs start at 1
             for (uint256 i = 1; i < nextDelegateId; ++i) {
                 address currentDelegate = getDelegateAddress(i);
-                
+
                 // check for active proposals
                 bool noActiveProp = _checkForActiveProposal(currentDelegate);
-                
+
                 // Delegations with active proposals are unable to make additional proposals
                 if (noActiveProp == false) continue;
 
@@ -349,16 +372,16 @@ contract PropLot is IPropLot {
         Delegation[] memory optimisticDelegations = _getOptimisticDelegations();
         bool[] memory disqualifyingIndices = new bool[](optimisticDelegations.length);
         uint256 numDisqualifiedIndices;
-        
+
         // array length is bounded by Nouns token supply and will not overflow for eons
         unchecked {
             // search for number of disqualifications
             for (uint256 i; i < optimisticDelegations.length; ++i) {
                 address nounder = optimisticDelegations[i].delegator;
                 address delegate = getDelegateAddress(optimisticDelegations[i].delegateId);
-                
+
                 bool disqualify = _isDisqualified(nounder, delegate, optimisticDelegations[i].votingPower);
-                    
+
                 if (disqualify == true) {
                     disqualifyingIndices[i] = true;
                     ++numDisqualifiedIndices;
@@ -381,13 +404,17 @@ contract PropLot is IPropLot {
 
                 return disqualifiedIndices;
             } else {
-                return new uint[](0);
+                return new uint256[](0);
             }
         }
     }
 
-    /// @dev Returns true for delegations that violated their optimistically registered parameters 
-    function _isDisqualified(address _nounder, address _delegate, uint256 _votingPower) internal view returns (bool _disqualify) {
+    /// @dev Returns true for delegations that violated their optimistically registered parameters
+    function _isDisqualified(address _nounder, address _delegate, uint256 _votingPower)
+        internal
+        view
+        returns (bool _disqualify)
+    {
         address currentDelegate = nounsToken.delegates(_nounder);
         if (currentDelegate != _delegate) return true;
         uint256 currentBalance = nounsToken.votesToDelegate(_nounder);
@@ -411,7 +438,7 @@ contract PropLot is IPropLot {
                     _optimisticDelegations[indexToDelete] = _optimisticDelegations[lastIndex];
                 }
                 _optimisticDelegations.pop();
-        
+
                 emit DelegationDeleted(currentDelegation);
             }
         }
@@ -447,7 +474,7 @@ contract PropLot is IPropLot {
     function _checkForActiveProposal(address delegate) internal view returns (bool _noActiveProp) {
         uint256 delegatesLatestProposal = nounsGovernor.latestProposalIds(delegate);
         if (delegatesLatestProposal != 0) {
-            _noActiveProp =_isEligibleProposalState(delegatesLatestProposal);
+            _noActiveProp = _isEligibleProposalState(delegatesLatestProposal);
         } else {
             _noActiveProp = true;
         }
@@ -457,17 +484,21 @@ contract PropLot is IPropLot {
     function _isEligibleProposalState(uint256 _latestProposal) internal view returns (bool) {
         NounsDAOStorageV3.ProposalState delegatesLatestProposalState = nounsGovernor.state(_latestProposal);
         if (
-            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod ||
-            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Active ||
-            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Pending ||
-            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Updatable
+            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod
+                || delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Active
+                || delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Pending
+                || delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Updatable
         ) return false;
 
         return true;
     }
 
     /// @dev Computes a counterfactual Delegate address via `create2` using its creation code and `delegateId` as salt
-    function _simulateCreate2(bytes32 _salt, bytes32 _creationCodeHash) internal view returns (address simulatedDeployment) {
+    function _simulateCreate2(bytes32 _salt, bytes32 _creationCodeHash)
+        internal
+        view
+        returns (address simulatedDeployment)
+    {
         address factory = address(this);
         assembly {
             let ptr := mload(0x40) // instantiate free mem pointer

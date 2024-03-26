@@ -43,7 +43,7 @@ contract PropLotForkTest is Test {
         nounsToken = IERC721Checkpointable(0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03);
 
         propLot = new PropLot(INounsDAOLogicV3(nounsGovernor), nounsToken, uri);
-        
+
         nounsGovernorProxy = NounsDAOLogicV3(payable(address(propLot.nounsGovernor())));
         assertEq(address(nounsToken), address(nounsGovernorProxy.nouns()));
         assertEq(address(nounsGovernorProxy), nounsGovernor);
@@ -62,9 +62,9 @@ contract PropLotForkTest is Test {
         // placeholder proposal values
         targets.push(address(0x0));
         values.push(1);
-        funcSigs.push('');
-        calldatas.push('');
-        description = 'test';
+        funcSigs.push("");
+        calldatas.push("");
+        description = "test";
 
         vm.deal(address(this), 1 ether);
     }
@@ -81,9 +81,9 @@ contract PropLotForkTest is Test {
 
     //     address delegate = propLot.getDelegateAddress(signer);
     //     bytes32 nounsDomainSeparator = keccak256(abi.encode(
-    //         ERC721Checkpointable(address(nounsToken)).DOMAIN_TYPEHASH(), 
-    //         keccak256(bytes(ERC721Checkpointable(address(nounsToken)).name())), 
-    //         block.chainid, 
+    //         ERC721Checkpointable(address(nounsToken)).DOMAIN_TYPEHASH(),
+    //         keccak256(bytes(ERC721Checkpointable(address(nounsToken)).name())),
+    //         block.chainid,
     //         address(nounsToken)
     //     ));
     //     uint256 nonce = ERC721Checkpointable(address(nounsToken)).nonces(signer);
@@ -97,12 +97,12 @@ contract PropLotForkTest is Test {
     //     vm.prank(signer);
     //     propLot.delegateBySig(nonce, expiry, abi.encodePacked(r, s, v));
     //     assertEq(
-    //         ERC721Checkpointable(address(nounsToken)).delegates(signer), 
+    //         ERC721Checkpointable(address(nounsToken)).delegates(signer),
     //         propLot.getDelegateAddress(signer)
     //     );
     // }
 
-    // function test_delegateByDelegatecall() public {        
+    // function test_delegateByDelegatecall() public {
     //     // construct signature for Safe approvedHash
     //     bytes memory sig = abi.encodePacked(bytes32(uint256(uint160(ownersOfOldSafe[0]))), bytes32(0), uint8(1));
     //     // get current nonce
@@ -124,7 +124,7 @@ contract PropLotForkTest is Test {
     //     (, bytes memory result) = someReallyOldGnosisSafe.call(getTransactionHashCall);
     //     bytes32 hashToApprove = abi.decode(result, (bytes32));
     //     bytes memory hashToApproveCall = abi.encodeWithSignature("approveHash(bytes32)", hashToApprove);
-        
+
     //     // owner threshold for this old safe is 4
     //     for (uint256 i; i < ownersOfOldSafe.length; ++i) {
     //         vm.prank(ownersOfOldSafe[i]);
@@ -164,11 +164,11 @@ contract PropLotForkTest is Test {
     //     vm.startPrank(someNounHolder);
     //     ERC721Checkpointable(address(nounsToken)).delegate(address(propLot));
     //     vm.stopPrank();
-                
-    //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
+
+    //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check
     //     vm.roll(block.number + 1);
 
-    //     propLot.pushProposals(targets, values, funcSigs, calldatas, description); 
+    //     propLot.pushProposals(targets, values, funcSigs, calldatas, description);
     // }
 
     // function test_NounsProposeViaTransfer() public {
@@ -179,10 +179,10 @@ contract PropLotForkTest is Test {
 
     //     vm.prank(address(propLot));
     //     ERC721Checkpointable(address(nounsToken)).delegate(address(type(uint160).max));
-        
-    //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check 
+
+    //     // mine a block by rolling forward +1 to satisfy `getPriorVotes()` check
     //     vm.roll(block.number + 1);
 
-    //     propLot.pushProposals(targets, values, funcSigs, calldatas, description); 
+    //     propLot.pushProposals(targets, values, funcSigs, calldatas, description);
     // }
 }

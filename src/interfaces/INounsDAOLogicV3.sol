@@ -4,16 +4,15 @@
 pragma solidity ^0.8.24;
 
 import {
-    NounsDAOStorageV3, 
-    NounsDAOStorageV2, 
-    INounsDAOExecutor, 
+    NounsDAOStorageV3,
+    NounsDAOStorageV2,
+    INounsDAOExecutor,
     NounsTokenLike,
     INounsDAOForkEscrow,
     IForkDAODeployer
 } from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 
 interface INounsDAOLogicV3 {
-
     /// @notice The minimum setable proposal threshold
     function MIN_PROPOSAL_THRESHOLD_BPS() external pure returns (uint256);
     /// @notice The maximum setable proposal threshold
@@ -87,11 +86,8 @@ interface INounsDAOLogicV3 {
     ) external;
 
     /// @notice Updates the proposal's description. Only the proposer can update it, and only during the updateable period.
-    function updateProposalDescription(
-        uint256 proposalId,
-        string calldata description,
-        string calldata updateMessage
-    ) external;
+    function updateProposalDescription(uint256 proposalId, string calldata description, string calldata updateMessage)
+        external;
 
     /// @notice Updates the proposal's transactions. Only the proposer can update it, and only during the updateable period.
     function updateProposalTransactions(
@@ -127,7 +123,7 @@ interface INounsDAOLogicV3 {
     /// @notice Gets the state of a proposal
     function state(uint256 proposalId) external view returns (NounsDAOStorageV3.ProposalState);
     /// @notice Gets actions of a proposal
-    
+
     function getActions(uint256 proposalId)
         external
         view
@@ -146,13 +142,10 @@ interface INounsDAOLogicV3 {
     function proposalsV3(uint256 proposalId) external view returns (NounsDAOStorageV3.ProposalCondensed memory);
     /// @notice Current proposal threshold using Noun Total Supply
     function proposalThreshold() external view returns (uint256);
-    
+
     /// @notice Escrow Nouns to contribute to the fork threshold
-    function escrowToFork(
-        uint256[] calldata tokenIds,
-        uint256[] calldata proposalIds,
-        string calldata reason
-    ) external;
+    function escrowToFork(uint256[] calldata tokenIds, uint256[] calldata proposalIds, string calldata reason)
+        external;
 
     /// @notice Withdraw Nouns from the fork escrow. Only possible if the fork has not been executed.
     function withdrawFromForkEscrow(uint256[] calldata tokenIds) external;
@@ -160,11 +153,7 @@ interface INounsDAOLogicV3 {
     function executeFork() external returns (address forkTreasury, address forkToken);
 
     /// @notice Joins a fork while a fork is active
-    function joinFork(
-        uint256[] calldata tokenIds,
-        uint256[] calldata proposalIds,
-        string calldata reason
-    ) external;
+    function joinFork(uint256[] calldata tokenIds, uint256[] calldata proposalIds, string calldata reason) external;
 
     /// @notice Withdraws nouns from the fork escrow to the treasury after the fork has been executed
     function withdrawDAONounsFromEscrowToTreasury(uint256[] calldata tokenIds) external;
@@ -183,29 +172,15 @@ interface INounsDAOLogicV3 {
     function castVote(uint256 proposalId, uint8 support) external;
     /// @notice Cast a vote for a proposal, asking the DAO to refund gas costs.
     function castRefundableVote(uint256 proposalId, uint8 support) external;
-    
+
     /// @notice Cast a vote for a proposal, asking the DAO to refund gas costs.
-    function castRefundableVoteWithReason(
-        uint256 proposalId,
-        uint8 support,
-        string calldata reason
-    ) external;
-    
+    function castRefundableVoteWithReason(uint256 proposalId, uint8 support, string calldata reason) external;
+
     /// @notice Cast a vote for a proposal with a reason
-    function castVoteWithReason(
-        uint256 proposalId,
-        uint8 support,
-        string calldata reason
-    ) external;
+    function castVoteWithReason(uint256 proposalId, uint8 support, string calldata reason) external;
 
     /// @notice Cast a vote for a proposal by signature
-    function castVoteBySig(
-        uint256 proposalId,
-        uint8 support,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
+    function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s) external;
 
     /// @notice Admin function for setting the voting delay. Best to set voting delay to at least a few days, to give
     /// voters time to make sense of proposals, e.g. 21,600 blocks which should be at least 3 days.
@@ -271,11 +246,7 @@ interface INounsDAOLogicV3 {
     ) external;
 
     /// @notice Admin function for setting the timelocks and admin
-    function _setTimelocksAndAdmin(
-        address newTimelock,
-        address newTimelockV1,
-        address newAdmin
-    ) external;
+    function _setTimelocksAndAdmin(address newTimelock, address newTimelockV1, address newAdmin) external;
 
     /// @notice Quorum votes required for a specific proposal to succeed
     function quorumVotes(uint256 proposalId) external view returns (uint256);
@@ -288,15 +259,24 @@ interface INounsDAOLogicV3 {
     ) external pure returns (uint256);
 
     /// @notice returns the dynamic quorum parameters values at a certain block number
-    function getDynamicQuorumParamsAt(uint256 blockNumber_) external view returns (NounsDAOStorageV3.DynamicQuorumParams memory);
+    function getDynamicQuorumParamsAt(uint256 blockNumber_)
+        external
+        view
+        returns (NounsDAOStorageV3.DynamicQuorumParams memory);
     /// @notice Current min quorum votes using Nouns adjusted total supply
     function minQuorumVotes() external view returns (uint256);
     /// @notice Current max quorum votes using Nouns adjusted total supply
     function maxQuorumVotes() external view returns (uint256);
     /// @notice Get all quorum params checkpoints
-    function quorumParamsCheckpoints() external view returns (NounsDAOStorageV3.DynamicQuorumParamsCheckpoint[] memory);
+    function quorumParamsCheckpoints()
+        external
+        view
+        returns (NounsDAOStorageV3.DynamicQuorumParamsCheckpoint[] memory);
     /// @notice Get a quorum params checkpoint by its index
-    function quorumParamsCheckpoints(uint256 index) external view returns (NounsDAOStorageV3.DynamicQuorumParamsCheckpoint memory);
+    function quorumParamsCheckpoints(uint256 index)
+        external
+        view
+        returns (NounsDAOStorageV3.DynamicQuorumParamsCheckpoint memory);
     function vetoer() external view returns (address);
     function pendingVetoer() external view returns (address);
     function votingDelay() external view returns (uint256);

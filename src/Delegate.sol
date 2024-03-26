@@ -18,14 +18,15 @@ contract Delegate {
     constructor(address propLot_) {
         propLot = propLot_;
     }
-    
+
     function pushProposal(
         INounsDAOLogicV3 governor,
-        NounsDAOV3Proposals.ProposalTxs calldata txs, 
+        NounsDAOV3Proposals.ProposalTxs calldata txs,
         string calldata description
     ) external returns (uint256 nounsProposalId) {
         if (msg.sender != propLot) revert NotPropLotCore(msg.sender);
-        
-        nounsProposalId = INounsDAOLogicV3(governor).propose(txs.targets, txs.values, txs.signatures, txs.calldatas, description);
+
+        nounsProposalId =
+            INounsDAOLogicV3(governor).propose(txs.targets, txs.values, txs.signatures, txs.calldatas, description);
     }
 }

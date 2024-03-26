@@ -30,14 +30,7 @@ interface IERC721Checkpointable {
     /// @notice Delegate votes from `msg.sender` to `delegatee`
     function delegate(address delegatee) external;
     /// @notice Delegates votes from signatory to `delegatee`
-    function delegateBySig(
-        address delegatee,
-        uint256 nonce,
-        uint256 expiry,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
+    function delegateBySig(address delegatee, uint256 nonce, uint256 expiry, uint8 v, bytes32 r, bytes32 s) external;
     /// @notice Gets the current votes balance for `account`
     function getCurrentVotes(address account) external view returns (uint96);
     /// @notice Determine the prior number of votes for an account as of a block number
