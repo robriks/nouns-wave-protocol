@@ -4,10 +4,9 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {MockERC1155Holder} from "./MockERC1155Holder.sol";
 
-/// @dev Test utility contract providing functionality for common testing tasks 
+/// @dev Test utility contract providing functionality for common testing tasks
 /// such as creating traditional EOA and smart wallet addresses
 abstract contract TestUtils is Test {
-
     /*
       Internals
     */

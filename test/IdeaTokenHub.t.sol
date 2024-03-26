@@ -17,7 +17,6 @@ import {TestUtils} from "test/helpers/TestUtils.sol";
 
 /// @dev This IdeaTokenHub test suite inherits from the Nouns governance setup contract to mimic the onchain environment
 contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
-
     PropLotHarness propLot;
     IdeaTokenHub ideaTokenHub;
 
@@ -30,27 +29,29 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     // singular proposal stored for easier referencing against `IdeaInfo` struct member
     IPropLot.Proposal proposal;
     IdeaTokenHub.WaveInfo firstWaveInfo; // only used for sanity checks
-    
+
     function setUp() public {
         // establish clone of onchain Nouns governance environment
         super.setUpNounsGovernance();
 
         // setup PropLot contracts
-        waveLength = 1209600;//todo
+        waveLength = 1209600; //todo
         minSponsorshipAmount = 0.0001 ether;
         decimals = 18;
-        uri = 'someURI';
+        uri = "someURI";
         // roll to block number of at least `waveLength` to prevent underflow within `currentWaveInfo.startBlock`
         vm.roll(waveLength);
-        propLot = new PropLotHarness(INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri);
+        propLot = new PropLotHarness(
+            INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri
+        );
         ideaTokenHub = IdeaTokenHub(propLot.ideaTokenHub());
 
         // setup mock proposal
         txs.targets.push(address(0x0));
         txs.values.push(1);
-        txs.signatures.push('');
-        txs.calldatas.push('');
-        description = 'test';
+        txs.signatures.push("");
+        txs.calldatas.push("");
+        description = "test";
 
         // provide funds for `txs` value
         vm.deal(address(this), 1 ether);
@@ -89,11 +90,11 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     function test_createIdeaEOA(uint64 ideaValue, uint8 numCreators) public {
         vm.assume(numCreators != 0);
         ideaValue = uint64(bound(ideaValue, 0.0001 ether, type(uint64).max));
-        
+
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
         assertEq(startId, 1);
-        
+
         bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.NonexistentIdeaId.selector, startId);
         vm.expectRevert(err);
         ideaTokenHub.getIdeaInfo(startId);
@@ -104,8 +105,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             uint256 currentIdeaId = startId + i;
             vm.expectEmit(true, true, true, false);
-            emit IIdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IIdeaTokenHub.SponsorshipParams(ideaValue, true));
-            
+            emit IIdeaTokenHub.IdeaCreated(
+                IPropLot.Proposal(txs, description),
+                nounder,
+                uint96(currentIdeaId),
+                IIdeaTokenHub.SponsorshipParams(ideaValue, true)
+            );
+
             vm.prank(nounder);
             ideaTokenHub.createIdea{value: ideaValue}(txs, description);
 
@@ -126,11 +132,11 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     function test_createIdeaSmartAccount(uint64 ideaValue, uint8 numCreators) public {
         vm.assume(numCreators != 0);
         ideaValue = uint64(bound(ideaValue, 0.0001 ether, type(uint64).max));
-        
+
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
         assertEq(startId, 1);
-        
+
         bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.NonexistentIdeaId.selector, startId);
         vm.expectRevert(err);
         ideaTokenHub.getIdeaInfo(startId);
@@ -143,8 +149,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             vm.deal(nounder, ideaValue);
 
             vm.expectEmit(true, true, true, false);
-            emit IIdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IIdeaTokenHub.SponsorshipParams(ideaValue, true));
-            
+            emit IIdeaTokenHub.IdeaCreated(
+                IPropLot.Proposal(txs, description),
+                nounder,
+                uint96(currentIdeaId),
+                IIdeaTokenHub.SponsorshipParams(ideaValue, true)
+            );
+
             vm.prank(nounder);
             ideaTokenHub.createIdea{value: ideaValue}(txs, description);
 
@@ -165,11 +176,11 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     function test_sponsorIdea(uint8 numCreators, uint8 numSponsors) public {
         vm.assume(numSponsors != 0);
         vm.assume(numCreators != 0);
-        
+
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
         assertEq(startId, 1);
-        
+
         bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.NonexistentIdeaId.selector, startId);
         vm.expectRevert(err);
         ideaTokenHub.getIdeaInfo(startId);
@@ -186,8 +197,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             vm.deal(nounder, pseudoRandomIdeaValue);
 
             vm.expectEmit(true, true, true, false);
-            emit IIdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
-            
+            emit IIdeaTokenHub.IdeaCreated(
+                IPropLot.Proposal(txs, description),
+                nounder,
+                uint96(currentIdeaId),
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true)
+            );
+
             vm.prank(nounder);
             ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
 
@@ -222,8 +238,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
 
             vm.expectEmit(true, true, true, false);
-            emit IIdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
-            
+            emit IIdeaTokenHub.Sponsorship(
+                sponsor,
+                uint96(pseudoRandomIdeaId),
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false)
+            );
+
             vm.prank(sponsor);
             ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
 
@@ -245,7 +265,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         }
     }
 
-    function test_finalizeAuction(uint8 numSupplementaryDelegations, uint8 numFullDelegations, uint8 numCreators, uint8 numSponsors) public {
+    function test_finalizeAuction(
+        uint8 numSupplementaryDelegations,
+        uint8 numFullDelegations,
+        uint8 numCreators,
+        uint8 numSponsors
+    ) public {
         vm.assume(numSponsors != 0);
         vm.assume(numCreators != 0);
         vm.assume(numFullDelegations != 0 || numSupplementaryDelegations > 1);
@@ -262,12 +287,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 amt = minRequiredVotes / 2;
             NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
 
-            uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+            uint256 returnedSupplementaryBalance =
+                NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
-            
+
             uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
             address delegate = propLot.getDelegateAddress(delegateId);
-            
+
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
             propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
@@ -292,7 +318,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
             address delegate = propLot.getDelegateAddress(delegateId);
-            
+
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
             propLot.registerDelegation(currentFullNounder, delegateId, amt);
@@ -306,7 +332,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
         assertEq(startId, 1);
-        
+
         // create ideas
         for (uint256 k; k < numCreators; ++k) {
             uint256 currentIdeaId = startId + k;
@@ -320,8 +346,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             vm.deal(nounder, pseudoRandomIdeaValue);
 
             vm.expectEmit(true, true, true, false);
-            emit IIdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
-            
+            emit IIdeaTokenHub.IdeaCreated(
+                IPropLot.Proposal(txs, description),
+                nounder,
+                uint96(currentIdeaId),
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true)
+            );
+
             vm.prank(nounder);
             ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
 
@@ -358,8 +389,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
 
             vm.expectEmit(true, true, true, false);
-            emit IIdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
-            
+            emit IIdeaTokenHub.Sponsorship(
+                sponsor,
+                uint96(pseudoRandomIdeaId),
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false)
+            );
+
             vm.prank(sponsor);
             ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
 
@@ -382,11 +417,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
         // get values for assertions
         (uint32 prevCurrentWave, uint32 prevStartBlock) = ideaTokenHub.currentWaveInfo();
-        
+
         // fast forward to wave completion block and finalize
         vm.roll(block.number + waveLength);
-        (IPropLot.Delegation[] memory delegations, uint96[] memory winningIdeaIds, uint256[] memory nounsProposalIds) = ideaTokenHub.finalizeWave();
-        
+        (IPropLot.Delegation[] memory delegations, uint96[] memory winningIdeaIds, uint256[] memory nounsProposalIds) =
+            ideaTokenHub.finalizeWave();
+
         (uint32 postCurrentWave, uint32 postStartBlock) = ideaTokenHub.currentWaveInfo();
         assertEq(postCurrentWave, prevCurrentWave + 1);
         assertTrue(postStartBlock > prevStartBlock);
@@ -408,7 +444,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 address currentDelegator = delegations[o].delegator;
                 uint256 returnedYield = ideaTokenHub.getClaimableYield(currentDelegator);
                 assertTrue(returnedYield != 0);
-                
+
                 uint256 denominator = 10_000 * endMinRequiredVotes / delegations[o].votingPower;
                 uint256 currentYield = winnersTotalFunding / delegations.length / denominator / 10_000;
                 assertEq(returnedYield, currentYield);
@@ -417,8 +453,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     }
 
     // function test_finalizeAuctionNoEligibleProposers()
-    
-    function test_revertFinalizeAuctionIncompleteWave(uint8 numCreators, uint8 numSponsors, uint8 numSupplementaryDelegations, uint8 numFullDelegations) public {
+
+    function test_revertFinalizeAuctionIncompleteWave(
+        uint8 numCreators,
+        uint8 numSponsors,
+        uint8 numSupplementaryDelegations,
+        uint8 numFullDelegations
+    ) public {
         vm.assume(numSponsors != 0);
         vm.assume(numCreators != 0);
         vm.assume(numFullDelegations != 0 || numSupplementaryDelegations > 1);
@@ -432,12 +473,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 amt = minRequiredVotes / 2;
             NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
 
-            uint256 returnedSupplementaryBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
+            uint256 returnedSupplementaryBalance =
+                NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
-            
+
             uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
             address delegate = propLot.getDelegateAddress(delegateId);
-            
+
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
             propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
@@ -459,7 +501,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
             address delegate = propLot.getDelegateAddress(delegateId);
-            
+
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
             propLot.registerDelegation(currentFullNounder, delegateId, amt);
@@ -471,7 +513,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
         assertEq(startId, 1);
-        
+
         // create ideas
         for (uint256 k; k < numCreators; ++k) {
             uint256 currentIdeaId = startId + k;
@@ -485,8 +527,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             vm.deal(nounder, pseudoRandomIdeaValue);
 
             vm.expectEmit(true, true, true, false);
-            emit IIdeaTokenHub.IdeaCreated(IPropLot.Proposal(txs, description), nounder, uint96(currentIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true));
-            
+            emit IIdeaTokenHub.IdeaCreated(
+                IPropLot.Proposal(txs, description),
+                nounder,
+                uint96(currentIdeaId),
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true)
+            );
+
             vm.prank(nounder);
             ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
 
@@ -523,8 +570,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
 
             vm.expectEmit(true, true, true, false);
-            emit IIdeaTokenHub.Sponsorship(sponsor, uint96(pseudoRandomIdeaId), IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false));
-            
+            emit IIdeaTokenHub.Sponsorship(
+                sponsor,
+                uint96(pseudoRandomIdeaId),
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false)
+            );
+
             vm.prank(sponsor);
             ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
 
@@ -551,7 +602,6 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         ideaTokenHub.finalizeWave();
     }
 
-
     // function test_invariantGetOrderedEligibleIdeaIds() {
     //             //todo move this assertion loop into an invariant test as it only asserts the invariant that `winningIds` is indeed ordered properly
     //             uint256 prevBal;
@@ -559,7 +609,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     //                 uint256 index = z - 1;
     //                 uint96 currentWinningId = winningIds[index];
     //                 assert(ideaInfos[currentWinningId].totalFunding >= prevBal);
-        
+
     //                 prevBal = ideaInfos[currentWinningId].totalFunding;
     //             }
     // }

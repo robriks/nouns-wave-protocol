@@ -14,13 +14,12 @@ import {console2} from "forge-std/console2.sol"; //todo delete
 /// @notice The PropLot Protocol Idea Token Hub extends the Nouns governance ecosystem by tokenizing and crowdfunding ideas
 /// for Nouns governance proposals. Nouns NFT holders earn yield in exchange for lending their tokens' proposal power to PropLot,
 /// which democratizes access and lowers the barrier of entry for anyone with a worthy idea, represented as an ERC1155 tokenId.
-/// Use of ERC1155 enables permissionless onchain minting with competition introduced by a crowdfunding auction. 
+/// Use of ERC1155 enables permissionless onchain minting with competition introduced by a crowdfunding auction.
 /// Each `tokenId` represents a proposal idea which can be individually funded via permissionless mint. At the conclusion
 /// of each auction, the winning tokenized ideas (with the most funding) are officially proposed into the Nouns governance system
 /// via the use of lent Nouns proposal power, provided by token holders who have delegated to the protocol.
 
 contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
-
     /*
       Constants
     */
@@ -28,7 +27,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
     uint256 public constant minSponsorshipAmount = 0.0001 ether;
     uint256 public constant decimals = 18;
-    /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen 
+    /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
     uint256 public immutable waveLength = 1209600;
 
     IPropLot private immutable __propLotCore;
@@ -42,25 +41,29 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     uint96 private _nextIdeaId;
 
     /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
-    mapping (uint96 => IdeaInfo) internal ideaInfos;
-    mapping (address => mapping (uint96 => SponsorshipParams)) internal sponsorships;
-    mapping (address => uint256) internal claimableYield;
+    mapping(uint96 => IdeaInfo) internal ideaInfos;
+    mapping(address => mapping(uint96 => SponsorshipParams)) internal sponsorships;
+    mapping(address => uint256) internal claimableYield;
 
     /*
       IdeaTokenHub
     */
-    
+
     constructor(INounsDAOLogicV3 nounsGovernor_, string memory uri_) ERC1155(uri_) {
         __propLotCore = IPropLot(msg.sender);
         __nounsGovernor = nounsGovernor_;
-        
+
         ++currentWaveInfo.currentWave;
         currentWaveInfo.startBlock = uint32(block.number);
         ++_nextIdeaId;
     }
 
     /// @inheritdoc IIdeaTokenHub
-    function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description) public payable returns (uint96 newIdeaId) {
+    function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description)
+        public
+        payable
+        returns (uint96 newIdeaId)
+    {
         _validateIdeaCreation(ideaTxs, description);
 
         // cache in memory to save on SLOADs
@@ -74,7 +77,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         sponsorships[msg.sender][newIdeaId].contributedBalance = value;
         sponsorships[msg.sender][newIdeaId].isCreator = true;
 
-        _mint(msg.sender, newIdeaId, msg.value, '');
+        _mint(msg.sender, newIdeaId, msg.value, "");
 
         emit IdeaCreated(IPropLot.Proposal(ideaTxs, description), msg.sender, newIdeaId, SponsorshipParams(value, true));
     }
@@ -85,7 +88,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
         // revert if a new wave should be started
         if (block.number - waveLength >= currentWaveInfo.startBlock) revert WaveIncomplete();
-        
+
         // typecast values can contain all Ether in existence && quintillions of ideas per human on earth
         uint216 value = uint216(msg.value);
         uint96 id = uint96(ideaId);
@@ -96,14 +99,21 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         sponsorships[msg.sender][id].contributedBalance += value;
 
         SponsorshipParams storage params = sponsorships[msg.sender][id];
-        
-        _mint(msg.sender, ideaId, msg.value, '');
+
+        _mint(msg.sender, ideaId, msg.value, "");
 
         emit Sponsorship(msg.sender, id, params);
     }
 
     /// @inheritdoc IIdeaTokenHub
-    function finalizeWave() external returns (IPropLot.Delegation[] memory delegations, uint96[] memory winningIds, uint256[] memory nounsProposalIds) {
+    function finalizeWave()
+        external
+        returns (
+            IPropLot.Delegation[] memory delegations,
+            uint96[] memory winningIds,
+            uint256[] memory nounsProposalIds
+        )
+    {
         // check that waveLength has passed
         if (block.number - waveLength < currentWaveInfo.startBlock) revert WaveIncomplete();
         ++currentWaveInfo.currentWave;
@@ -136,7 +146,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         for (uint256 m; m < delegations.length; ++m) {
             uint256 denominator = 10_000 * minRequiredVotes / delegations[m].votingPower;
             uint256 yield = (winningProposalsTotalFunding / delegations.length) / denominator / 10_000;
-            
+
             // enable claiming of yield calculated as total revenue split between all delegations, proportional to delegated voting power
             address currentDelegator = delegations[m].delegator;
             claimableYield[currentDelegator] += yield;
@@ -148,7 +158,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         claimAmt = claimableYield[msg.sender];
         delete claimableYield[msg.sender];
 
-        (bool r,) = msg.sender.call{value: claimAmt}('');
+        (bool r,) = msg.sender.call{value: claimAmt}("");
         if (!r) revert ClaimFailure();
     }
 
@@ -234,7 +244,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     function getClaimableYield(address nounder) external view returns (uint256) {
         return claimableYield[nounder];
     }
-    
+
     function getNextIdeaId() public view returns (uint256) {
         return uint256(_nextIdeaId);
     }
@@ -243,24 +253,31 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
       Internals
     */
 
-    function _validateIdeaCreation(NounsDAOV3Proposals.ProposalTxs calldata _ideaTxs, string calldata _description) internal {
+    function _validateIdeaCreation(NounsDAOV3Proposals.ProposalTxs calldata _ideaTxs, string calldata _description)
+        internal
+    {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
-        
+
         // To account for Nouns governor contract upgradeability, `PROPOSAL_MAX_OPERATIONS` must be read dynamically
         uint256 maxOperations = __nounsGovernor.proposalMaxOperations();
-        if (_ideaTxs.targets.length == 0 || _ideaTxs.targets.length > maxOperations) revert InvalidActionsCount(_ideaTxs.targets.length);
-        
+        if (_ideaTxs.targets.length == 0 || _ideaTxs.targets.length > maxOperations) {
+            revert InvalidActionsCount(_ideaTxs.targets.length);
+        }
+
         if (
-            _ideaTxs.targets.length != _ideaTxs.values.length ||
-            _ideaTxs.targets.length != _ideaTxs.signatures.length ||
-            _ideaTxs.targets.length != _ideaTxs.calldatas.length
+            _ideaTxs.targets.length != _ideaTxs.values.length || _ideaTxs.targets.length != _ideaTxs.signatures.length
+                || _ideaTxs.targets.length != _ideaTxs.calldatas.length
         ) revert ProposalInfoArityMismatch();
-        
-        if (keccak256(bytes(_description)) == keccak256('')) revert InvalidDescription();
+
+        if (keccak256(bytes(_description)) == keccak256("")) revert InvalidDescription();
     }
 
-    function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal virtual override {
-        if (from != address(0x0) && to != address (0x0)) revert Soulbound();
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
+        internal
+        virtual
+        override
+    {
+        if (from != address(0x0) && to != address(0x0)) revert Soulbound();
         super._update(from, to, ids, values);
     }
 }
