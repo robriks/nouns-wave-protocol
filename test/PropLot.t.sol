@@ -603,6 +603,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         delete proposals;
 
         bytes memory err = abi.encodeWithSelector(IPropLot.InsufficientDelegations.selector);
+        vm.prank(address(ideaTokenHub));
         vm.expectRevert(err);
         propLot.pushProposals(proposals);
     }

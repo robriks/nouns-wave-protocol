@@ -37,7 +37,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
         // setup PropLot contracts
         roundLength = 1209600;//todo
-        minSponsorshipAmount = 0.001 ether;
+        minSponsorshipAmount = 0.0001 ether;
         decimals = 18;
         uri = 'someURI';
         // roll to block number of at least `roundLength` to prevent underflow within `currentRoundInfo.startBlock`
@@ -88,7 +88,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
     function test_createIdeaEOA(uint64 ideaValue, uint8 numCreators) public {
         vm.assume(numCreators != 0);
-        ideaValue = uint64(bound(ideaValue, 0.001 ether, type(uint64).max));
+        ideaValue = uint64(bound(ideaValue, 0.0001 ether, type(uint64).max));
         
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
@@ -125,7 +125,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
     function test_createIdeaSmartAccount(uint64 ideaValue, uint8 numCreators) public {
         vm.assume(numCreators != 0);
-        ideaValue = uint64(bound(ideaValue, 0.001 ether, type(uint64).max));
+        ideaValue = uint64(bound(ideaValue, 0.0001 ether, type(uint64).max));
         
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
