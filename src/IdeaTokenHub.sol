@@ -25,7 +25,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     */
 
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
-    uint256 public constant minSponsorshipAmount = 0.0001 ether;
+    uint256 public constant minSponsorshipAmount = 0.0001 ether; //todo
     uint256 public constant decimals = 18;
     /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
     uint256 public immutable waveLength = 1209600;
@@ -69,8 +69,7 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         // cache in memory to save on SLOADs
         newIdeaId = _nextIdeaId;
         uint216 value = uint216(msg.value);
-        IPropLot.Proposal memory proposal = IPropLot.Proposal(ideaTxs, description);
-        IdeaInfo memory ideaInfo = IdeaInfo(value, uint32(block.number), false, proposal);
+        IdeaInfo memory ideaInfo = IdeaInfo(value, uint32(block.number), false, ideaTxs);
         ideaInfos[newIdeaId] = ideaInfo;
         ++_nextIdeaId;
 
@@ -106,11 +105,11 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     }
 
     /// @inheritdoc IIdeaTokenHub
-    function finalizeWave()
+    /// @notice To save gas on `description` string SSTOREs, descriptions are stored offchain and their winning IDs must be re-validated in memory
+    function finalizeWave(uint96[] calldata offchainWinningIds, string[] calldata offchainDescriptions)
         external
         returns (
             IPropLot.Delegation[] memory delegations,
-            uint96[] memory winningIds,
             uint256[] memory nounsProposalIds
         )
     {
@@ -119,36 +118,45 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
         ++currentWaveInfo.currentWave;
         currentWaveInfo.startBlock = uint32(block.number);
 
-        // identify number of proposals to push for current voting threshold
-        (uint256 minRequiredVotes, uint256 numEligibleProposers) = __propLotCore.numEligibleProposerDelegates();
-        // terminate early when there is not enough liquidity for proposals to be made
-        if (numEligibleProposers == 0) return (new IPropLot.Delegation[](0), new uint96[](0), new uint256[](0));
         // determine winners from ordered list if there are any
-        winningIds = getOrderedEligibleIdeaIds(numEligibleProposers);
+        uint256 minRequiredVotes;
+        uint256 numEligibleProposers;
+        uint96[] memory winningIds;
+        (minRequiredVotes, numEligibleProposers, winningIds) = getWinningIdeaIds();
+        // terminate early when there is not enough liquidity for proposals to be made
+        if (numEligibleProposers == 0) return (new IPropLot.Delegation[](0), new uint256[](0));
+
+        // re-validate the provided offchain parameter lengths against returned canonical onchain state
+        uint256 descriptionsLen = offchainDescriptions.length;
+        if (
+            numEligibleProposers < descriptionsLen 
+            || winningIds.length != descriptionsLen 
+            || winningIds.length != offchainWinningIds.length
+        ) revert InvalidOffchainDataProvided();
 
         // populate array with winning txs & description and aggregate total payout amount
         uint256 winningProposalsTotalFunding;
         IPropLot.Proposal[] memory winningProposals = new IPropLot.Proposal[](winningIds.length);
-        for (uint256 l; l < winningIds.length; ++l) {
-            uint96 currentWinnerId = winningIds[l];
-            // if there are more eligible proposers than ideas, rightmost `winningIds` will be 0 which is an invalid `ideaId` value
-            if (currentWinnerId == 0) break;
+        for (uint256 i; i < winningIds.length; ++i) {
+            uint96 currentWinnerId = winningIds[i];
+            // re-validate canonical winnerId values against provided ones
+            if (offchainWinningIds[i] != currentWinnerId) revert InvalidOffchainDataProvided();
 
             IdeaInfo storage winner = ideaInfos[currentWinnerId];
             winner.isProposed = true;
             winningProposalsTotalFunding += winner.totalFunding;
-            winningProposals[l] = winner.proposal;
+            winningProposals[i] = IPropLot.Proposal(winner.proposalTxs, offchainDescriptions[i]);
         }
 
         (delegations, nounsProposalIds) = __propLotCore.pushProposals(winningProposals);
 
         // calculate yield for returned valid delegations
-        for (uint256 m; m < delegations.length; ++m) {
-            uint256 denominator = 10_000 * minRequiredVotes / delegations[m].votingPower;
+        for (uint256 j; j < delegations.length; ++j) {
+            uint256 denominator = 10_000 * minRequiredVotes / delegations[j].votingPower;
             uint256 yield = (winningProposalsTotalFunding / delegations.length) / denominator / 10_000;
 
             // enable claiming of yield calculated as total revenue split between all delegations, proportional to delegated voting power
-            address currentDelegator = delegations[m].delegator;
+            address currentDelegator = delegations[j].delegator;
             claimableYield[currentDelegator] += yield;
         }
     }
@@ -167,8 +175,42 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     */
 
     /// @inheritdoc IIdeaTokenHub
+    /// @notice Intended for offchain usage to aid in fetching offchain `description` string data before calling `finalizeWave()`
+    /// If a full list of eligible IdeaIds ordered by current funding is desired, use `getOrderedEligibleIdeaIds(0)` instead
+    function getWinningIdeaIds() public view returns (uint256 minRequiredVotes, uint256 numEligibleProposers, uint96[] memory winningIds) {
+        // identify number of proposals to push for current voting threshold
+        (minRequiredVotes, numEligibleProposers) = __propLotCore.numEligibleProposerDelegates();
+        // terminate early when there is not enough liquidity for proposals to be made; avoids issues with `getOrderedEligibleIdeaIds()`
+        if (numEligibleProposers == 0) return (minRequiredVotes, 0, new uint96[](0));
+
+        // determine winners from ordered list if there are any
+        uint96[] memory unfilteredWinningIds = getOrderedEligibleIdeaIds(numEligibleProposers);
+
+        uint256 actualLen = unfilteredWinningIds.length;
+        // filter returned array accounting for case when `numEligibleProposers` is greater than eligible ideas
+        for (uint256 i; i < actualLen; ++i) {
+            // proposed or nonexistent `winningIds` on right end of array will be 0 which is an invalid `ideaId` value
+            if (unfilteredWinningIds[i] == 0) {
+                if (i == 0) {
+                    actualLen = 0;
+                    break;
+                } else {
+                    actualLen = i + 1;
+                    break;
+                }
+            }
+        }
+
+        // populate final filtered array
+        winningIds = new uint96[](actualLen);
+        for (uint256 j; j < actualLen; ++j) {
+            winningIds[j] = unfilteredWinningIds[j];
+        }
+    }
+    
+    /// @inheritdoc IIdeaTokenHub
     /// @notice The returned array treats ineligible IDs (ie already proposed) as 0 values at the array end.
-    /// Since 0 is an invalid `ideaId` value, these are simply filtered out when invoked within `finalizeWave()`
+    /// Since 0 is an invalid `ideaId`, these are filtered out when invoked by `finalizeWave()` and `getWinningIdeaIds()`
     function getOrderedEligibleIdeaIds(uint256 optLimiter) public view returns (uint96[] memory orderedEligibleIds) {
         // cache in memory to reduce SLOADs
         uint256 nextIdeaId = getNextIdeaId();

@@ -69,11 +69,14 @@ contract PropLot is IPropLot {
         uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices();
         _deleteDelegations(disqualifiedIndices);
 
-        // todo handle these assertions earlier in flow to establish them as invariants
+        // instantiate `delegations` array
         uint256 len = _optimisticDelegations.length;
         if (len == 0) revert InsufficientDelegations();
         delegations = new Delegation[](len);
+        
+        // get eligible delegates
         (, uint256[] memory eligibleProposerIds) = getAllEligibleProposerDelegates();
+        // should be impossible to violate, but assert invariant in case of future changes
         assert(eligibleProposerIds.length >= winningProposals.length);
 
         nounsProposalIds = new uint256[](winningProposals.length);

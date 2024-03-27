@@ -19,7 +19,7 @@ interface IIdeaTokenHub {
         uint216 totalFunding;
         uint32 blockCreated;
         bool isProposed;
-        IPropLot.Proposal proposal;
+        NounsDAOV3Proposals.ProposalTxs proposalTxs;
     }
 
     struct SponsorshipParams {
@@ -30,6 +30,7 @@ interface IIdeaTokenHub {
     error BelowMinimumSponsorshipAmount(uint256 value);
     error InvalidActionsCount(uint256 count);
     error ProposalInfoArityMismatch();
+    error InvalidOffchainDataProvided();
     error InvalidDescription();
     error NonexistentIdeaId(uint256 ideaId);
     error AlreadyProposed(uint256 ideaId);
@@ -65,17 +66,20 @@ interface IIdeaTokenHub {
     /// depending on the available 'liquidity' of lent Nouns NFTs and their proposal power. Yield distributions are
     /// tallied by calling the PropLot Core and recording valid delegations in the `claimableYield` mapping where they
     /// can then be claimed at any time by a Nouns holder who has delegated to PropLot
-    function finalizeWave()
+    function finalizeWave(uint96[] calldata offchainWinningIds, string[] calldata offchainDescriptions)
         external
         returns (
             IPropLot.Delegation[] memory delegations,
-            uint96[] memory winningIds,
             uint256[] memory nounsProposalIds
         );
 
     /// @dev Provides a way to collect the yield earned by Nounders who have delegated to PropLot for a full wave
     /// @notice Reentrance prevented via CEI
     function claim() external returns (uint256 claimAmt);
+
+    /// @dev Returns an array of the current wave's leading IdeaIds where the array length is determined 
+    /// by the protocol's number of available proposer delegates, fetched from the PropLotCore contract
+    function getWinningIdeaIds() external view returns (uint256 minRequiredVotes, uint256 numEligibleProposers, uint96[] memory winningIds);
 
     /// @dev Fetches an array of `ideaIds` eligible for proposal, ordered by total funding
     /// @param optLimiter An optional limiter used to define the number of desired `ideaIds`, for example the number of
