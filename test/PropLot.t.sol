@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {console2} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
@@ -19,7 +20,9 @@ import {TestUtils} from "test/helpers/TestUtils.sol";
 /// They are temporarily set to smaller types for speed only
 /// @dev This IdeaTokenHub test suite inherits from the Nouns governance setup contract to mimic the onchain environment
 contract PropLotTest is NounsEnvSetup, TestUtils {
+    PropLotHarness propLotImpl;
     PropLotHarness propLot;
+    IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
 
     struct DelegatorInfo {
@@ -54,10 +57,11 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
         // setup PropLot contracts
         uri = "someURI";
-        propLot = new PropLotHarness(
-            INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri
-        );
-        ideaTokenHub = IdeaTokenHub(propLot.ideaTokenHub());
+        ideaTokenHubImpl = new IdeaTokenHub();
+        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
+        propLotImpl = new PropLotHarness();
+        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), uri);
+        propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
 
         // setup mock proposal
         txs.targets.push(address(0x0));
@@ -596,7 +600,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
     }
 
     function test_revertPushProposalsNotIdeaTokenHub() public {
-        bytes memory err = abi.encodeWithSelector(IPropLot.OnlyIdeaContract.selector);
+        bytes memory err = abi.encodeWithSelector(IPropLot.Unauthorized.selector);
         vm.expectRevert(err);
         propLot.pushProposals(proposals);
     }

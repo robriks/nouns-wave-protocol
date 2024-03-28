@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {console2} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
@@ -17,7 +18,9 @@ import {TestUtils} from "test/helpers/TestUtils.sol";
 
 /// @dev This IdeaTokenHub test suite inherits from the Nouns governance setup contract to mimic the onchain environment
 contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
+    PropLotHarness propLotImpl;
     PropLotHarness propLot;
+    IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
 
     uint256 waveLength;
@@ -41,10 +44,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         uri = "someURI";
         // roll to block number of at least `waveLength` to prevent underflow within `currentWaveInfo.startBlock`
         vm.roll(waveLength);
-        propLot = new PropLotHarness(
-            INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri
-        );
-        ideaTokenHub = IdeaTokenHub(propLot.ideaTokenHub());
+
+        ideaTokenHubImpl = new IdeaTokenHub();
+        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
+        propLotImpl = new PropLotHarness();
+        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), uri);
+        propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
 
         // setup mock proposal
         txs.targets.push(address(0x0));
@@ -122,11 +127,10 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         assertEq(newInfo.totalFunding, ideaValue);
         assertEq(newInfo.blockCreated, uint32(block.number));
         assertFalse(newInfo.isProposed);
-        assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
-        assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
-        assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
-        assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
-        assertEq(newInfo.proposal.description, description);
+        assertEq(newInfo.proposalTxs.targets.length, txs.targets.length);
+        assertEq(newInfo.proposalTxs.values.length, txs.values.length);
+        assertEq(newInfo.proposalTxs.signatures.length, txs.signatures.length);
+        assertEq(newInfo.proposalTxs.calldatas.length, txs.calldatas.length);
     }
 
     function test_createIdeaSmartAccount(uint64 ideaValue, uint8 numCreators) public {
@@ -165,11 +169,10 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             assertEq(newInfo.totalFunding, ideaValue);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
-            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
-            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
-            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
-            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
-            assertEq(newInfo.proposal.description, description);
+            assertEq(newInfo.proposalTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposalTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposalTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposalTxs.calldatas.length, txs.calldatas.length);
         }
     }
 
@@ -213,11 +216,10 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             assertEq(newInfo.totalFunding, pseudoRandomIdeaValue);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
-            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
-            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
-            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
-            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
-            assertEq(newInfo.proposal.description, description);
+            assertEq(newInfo.proposalTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposalTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposalTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposalTxs.calldatas.length, txs.calldatas.length);
 
             eoa = !eoa;
         }
@@ -255,17 +257,16 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             assertEq(newInfo.totalFunding, currentIdTotalFunding);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
-            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
-            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
-            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
-            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
-            assertEq(newInfo.proposal.description, description);
+            assertEq(newInfo.proposalTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposalTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposalTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposalTxs.calldatas.length, txs.calldatas.length);
 
             eoa = !eoa;
         }
     }
 
-    function test_finalizeAuction(
+    function test_finalizeWave(
         uint8 numSupplementaryDelegations,
         uint8 numFullDelegations,
         uint8 numCreators,
@@ -362,11 +363,10 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             assertEq(newInfo.totalFunding, pseudoRandomIdeaValue);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
-            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
-            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
-            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
-            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
-            assertEq(newInfo.proposal.description, description);
+            assertEq(newInfo.proposalTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposalTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposalTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposalTxs.calldatas.length, txs.calldatas.length);
 
             eoa = !eoa;
         }
@@ -406,11 +406,10 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             assertEq(newInfo.totalFunding, currentIdTotalFunding);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
-            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
-            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
-            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
-            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
-            assertEq(newInfo.proposal.description, description);
+            assertEq(newInfo.proposalTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposalTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposalTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposalTxs.calldatas.length, txs.calldatas.length);
 
             eoa = !eoa;
         }
@@ -420,8 +419,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
         // fast forward to wave completion block and finalize
         vm.roll(block.number + waveLength);
-        (IPropLot.Delegation[] memory delegations, uint96[] memory winningIdeaIds, uint256[] memory nounsProposalIds) =
-            ideaTokenHub.finalizeWave();
+        uint96[] memory winningIds;
+        (,, winningIds) = ideaTokenHub.getWinningIdeaIds();
+        string[] memory descriptions = new string[](winningIds.length);
+        for (uint256 m; m < winningIds.length; ++m) {
+            descriptions[m] = description;
+        }
+        (IPropLot.Delegation[] memory delegations, uint256[] memory nounsProposalIds) =
+            ideaTokenHub.finalizeWave(winningIds, descriptions);
 
         (uint32 postCurrentWave, uint32 postStartBlock) = ideaTokenHub.currentWaveInfo();
         assertEq(postCurrentWave, prevCurrentWave + 1);
@@ -435,8 +440,8 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         } else {
             // assert yield ledger was written properly
             uint256 winnersTotalFunding;
-            for (uint256 n; n < winningIdeaIds.length; ++n) {
-                uint256 currentWinnerTotalFunding = ideaTokenHub.getIdeaInfo(winningIdeaIds[n]).totalFunding;
+            for (uint256 n; n < winningIds.length; ++n) {
+                uint256 currentWinnerTotalFunding = ideaTokenHub.getIdeaInfo(winningIds[n]).totalFunding;
                 winnersTotalFunding += currentWinnerTotalFunding;
             }
 
@@ -448,13 +453,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 uint256 denominator = 10_000 * endMinRequiredVotes / delegations[o].votingPower;
                 uint256 currentYield = winnersTotalFunding / delegations.length / denominator / 10_000;
                 assertEq(returnedYield, currentYield);
+
+                vm.prank(currentDelegator);
+                ideaTokenHub.claim();
             }
         }
     }
 
-    // function test_finalizeAuctionNoEligibleProposers()
-
-    function test_revertFinalizeAuctionIncompleteWave(
+    function test_revertfinalizeWaveIncompleteWave(
         uint8 numCreators,
         uint8 numSponsors,
         uint8 numSupplementaryDelegations,
@@ -543,11 +549,10 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             assertEq(newInfo.totalFunding, pseudoRandomIdeaValue);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
-            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
-            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
-            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
-            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
-            assertEq(newInfo.proposal.description, description);
+            assertEq(newInfo.proposalTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposalTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposalTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposalTxs.calldatas.length, txs.calldatas.length);
 
             eoa = !eoa;
         }
@@ -587,32 +592,25 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             assertEq(newInfo.totalFunding, currentIdTotalFunding);
             assertEq(newInfo.blockCreated, uint32(block.number));
             assertFalse(newInfo.isProposed);
-            assertEq(newInfo.proposal.ideaTxs.targets.length, txs.targets.length);
-            assertEq(newInfo.proposal.ideaTxs.values.length, txs.values.length);
-            assertEq(newInfo.proposal.ideaTxs.signatures.length, txs.signatures.length);
-            assertEq(newInfo.proposal.ideaTxs.calldatas.length, txs.calldatas.length);
-            assertEq(newInfo.proposal.description, description);
+            assertEq(newInfo.proposalTxs.targets.length, txs.targets.length);
+            assertEq(newInfo.proposalTxs.values.length, txs.values.length);
+            assertEq(newInfo.proposalTxs.signatures.length, txs.signatures.length);
+            assertEq(newInfo.proposalTxs.calldatas.length, txs.calldatas.length);
 
             eoa = !eoa;
         }
 
+        uint96[] memory winningIds;
+        (,, winningIds) = ideaTokenHub.getWinningIdeaIds();
+        string[] memory descriptions = new string[](winningIds.length);
+        for (uint256 m; m < winningIds.length; ++m) {
+            descriptions[m] = description;
+        }
         // ensure wave cannot be finalized until `waveLength` has passed
         bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.WaveIncomplete.selector);
         vm.expectRevert(err);
-        ideaTokenHub.finalizeWave();
+        ideaTokenHub.finalizeWave(winningIds, descriptions);
     }
 
-    // function test_invariantGetOrderedEligibleIdeaIds() {
-    //             //todo move this assertion loop into an invariant test as it only asserts the invariant that `winningIds` is indeed ordered properly
-    //             uint256 prevBal;
-    //             for (uint256 z = winningIds.length; z > 0; --z) {
-    //                 uint256 index = z - 1;
-    //                 uint96 currentWinningId = winningIds[index];
-    //                 assert(ideaInfos[currentWinningId].totalFunding >= prevBal);
-
-    //                 prevBal = ideaInfos[currentWinningId].totalFunding;
-    //             }
-    // }
-    // function test_claim()
     // function test_uri
 }

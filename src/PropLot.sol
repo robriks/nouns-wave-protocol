@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ECDSA} from "nouns-monorepo/external/openzeppelin/ECDSA.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
 import {IPropLot} from "./interfaces/IPropLot.sol";
+import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
 import {Delegate} from "./Delegate.sol";
-import {IdeaTokenHub} from "./IdeaTokenHub.sol";
-import {console2} from "forge-std/console2.sol"; //todo
 
 /// @title PropLot Protocol Core
 /// @author 📯📯📯.eth
@@ -19,19 +20,20 @@ import {console2} from "forge-std/console2.sol"; //todo
 /// via a permissionless ERC115 mint managed by the PropLot IdeaHub contract.
 /// @notice Since Nouns voting power delegation is all-or-nothing on an address basis, Nounders can only delegate
 /// (and earn yield) on Nouns token balances up to the proposal threshold per wallet address.
-contract PropLot is IPropLot {
+contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
     /*
       Constants
     */
 
-    INounsDAOLogicV3 public immutable nounsGovernor;
-    IERC721Checkpointable public immutable nounsToken;
-    address public immutable ideaTokenHub;
-    bytes32 private immutable __creationCodeHash;
+    INounsDAOLogicV3 public nounsGovernor;
+    IERC721Checkpointable public nounsToken;
+    bytes32 private __creationCodeHash;
 
     /*
       Storage
     */
+
+    IIdeaTokenHub public ideaTokenHub;
 
     /// @notice Since delegations can be revoked directly on the Nouns token contract, active delegations are handled optimistically
     Delegation[] private _optimisticDelegations;
@@ -45,10 +47,17 @@ contract PropLot is IPropLot {
       PropLot
     */
 
-    constructor(INounsDAOLogicV3 nounsGovernor_, IERC721Checkpointable nounsToken_, string memory uri) {
-        ideaTokenHub = address(new IdeaTokenHub(nounsGovernor_, uri));
-        nounsGovernor = nounsGovernor_;
-        nounsToken = nounsToken_;
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, string memory uri) public virtual initializer {
+        _transferOwnership(msg.sender);
+
+        ideaTokenHub = IIdeaTokenHub(ideaTokenHub_);
+        ideaTokenHub.initialize(msg.sender, nounsGovernor_, uri);
+        nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
+        nounsToken = IERC721Checkpointable(nounsToken_);
         __creationCodeHash =
             keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(address(this))))));
 
@@ -63,31 +72,32 @@ contract PropLot is IPropLot {
         payable
         returns (IPropLot.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
     {
-        if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
+        if (msg.sender != address(ideaTokenHub)) revert Unauthorized();
 
         // check for external Nouns transfers or rogue redelegations, update state
         uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices();
         _deleteDelegations(disqualifiedIndices);
 
-        // todo handle these assertions earlier in flow to establish them as invariants
+        // instantiate `delegations` array
         uint256 len = _optimisticDelegations.length;
         if (len == 0) revert InsufficientDelegations();
         delegations = new Delegation[](len);
+        
+        // get eligible delegates
         (, uint256[] memory eligibleProposerIds) = getAllEligibleProposerDelegates();
+        // should be impossible to violate, but assert invariant in case of future changes
         assert(eligibleProposerIds.length >= winningProposals.length);
 
         nounsProposalIds = new uint256[](winningProposals.length);
-        unchecked {
-            for (uint256 i; i < winningProposals.length; ++i) {
-                // establish current proposer delegate
-                uint256 currentProposerId = eligibleProposerIds[i];
-                address currentProposer = getDelegateAddress(currentProposerId);
+        for (uint256 i; i < winningProposals.length; ++i) {
+            // establish current proposer delegate
+            uint256 currentProposerId = eligibleProposerIds[i];
+            address currentProposer = getDelegateAddress(currentProposerId);
 
-                // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
-                nounsProposalIds[i] = Delegate(currentProposer).pushProposal(
-                    nounsGovernor, winningProposals[i].ideaTxs, winningProposals[i].description
-                );
-            }
+            // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
+            nounsProposalIds[i] = Delegate(currentProposer).pushProposal(
+                nounsGovernor, winningProposals[i].ideaTxs, winningProposals[i].description
+            );
         }
 
         delegations = _optimisticDelegations;
@@ -324,17 +334,14 @@ contract PropLot is IPropLot {
     {
         // cache in memory to reduce SLOADs
         uint256 nextDelegateId = _nextDelegateId;
-        // bounded by (Nouns token supply / proposal threshold)
-        unchecked {
-            for (uint256 i = 1; i < nextDelegateId; ++i) {
-                address delegateAddress = getDelegateAddress(i);
-                uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
+        for (uint256 i = 1; i < nextDelegateId; ++i) {
+            address delegateAddress = getDelegateAddress(i);
+            uint256 currentVotes = nounsToken.getCurrentVotes(delegateAddress);
 
-                // when searching for supplement delegate ID, return if additional votes are required
-                if (_isSupplementary && currentVotes < _minRequiredVotes) return i;
-                // when searching for solo delegate ID, return if votes are 0
-                if (!_isSupplementary && currentVotes == 0) return i;
-            }
+            // when searching for supplement delegate ID, return if additional votes are required
+            if (_isSupplementary && currentVotes < _minRequiredVotes) return i;
+            // when searching for solo delegate ID, return if votes are 0
+            if (!_isSupplementary && currentVotes == 0) return i;
         }
 
         // if no delegate matching the given criteria is found, a new one must be created
@@ -345,24 +352,22 @@ contract PropLot is IPropLot {
     function _findProposerDelegate(uint256 _minRequiredVotes) internal view returns (address proposerDelegate) {
         // cache in memory to reduce SLOADs
         uint256 nextDelegateId = _nextDelegateId;
-        // bounded by Nouns token supply / proposal threshold
-        unchecked {
-            // delegate IDs start at 1
-            for (uint256 i = 1; i < nextDelegateId; ++i) {
-                address currentDelegate = getDelegateAddress(i);
 
-                // check for active proposals
-                bool noActiveProp = _checkForActiveProposal(currentDelegate);
+        // delegate IDs start at 1
+        for (uint256 i = 1; i < nextDelegateId; ++i) {
+            address currentDelegate = getDelegateAddress(i);
 
-                // Delegations with active proposals are unable to make additional proposals
-                if (noActiveProp == false) continue;
+            // check for active proposals
+            bool noActiveProp = _checkForActiveProposal(currentDelegate);
 
-                uint256 currentVotingPower = nounsToken.getCurrentVotes(currentDelegate);
-                if (currentVotingPower < _minRequiredVotes) continue;
+            // Delegations with active proposals are unable to make additional proposals
+            if (noActiveProp == false) continue;
 
-                // if checks pass, return eligible delegate
-                return currentDelegate;
-            }
+            uint256 currentVotingPower = nounsToken.getCurrentVotes(currentDelegate);
+            if (currentVotingPower < _minRequiredVotes) continue;
+
+            // if checks pass, return eligible delegate
+            return currentDelegate;
         }
     }
 
@@ -373,39 +378,36 @@ contract PropLot is IPropLot {
         bool[] memory disqualifyingIndices = new bool[](optimisticDelegations.length);
         uint256 numDisqualifiedIndices;
 
-        // array length is bounded by Nouns token supply and will not overflow for eons
-        unchecked {
-            // search for number of disqualifications
-            for (uint256 i; i < optimisticDelegations.length; ++i) {
-                address nounder = optimisticDelegations[i].delegator;
-                address delegate = getDelegateAddress(optimisticDelegations[i].delegateId);
+        // search for number of disqualifications
+        for (uint256 i; i < optimisticDelegations.length; ++i) {
+            address nounder = optimisticDelegations[i].delegator;
+            address delegate = getDelegateAddress(optimisticDelegations[i].delegateId);
 
-                bool disqualify = _isDisqualified(nounder, delegate, optimisticDelegations[i].votingPower);
+            bool disqualify = _isDisqualified(nounder, delegate, optimisticDelegations[i].votingPower);
 
-                if (disqualify == true) {
-                    disqualifyingIndices[i] = true;
-                    ++numDisqualifiedIndices;
+            if (disqualify == true) {
+                disqualifyingIndices[i] = true;
+                ++numDisqualifiedIndices;
+            }
+        }
+
+        // if found, populate array of disqualifications
+        if (numDisqualifiedIndices > 0) {
+            uint256[] memory disqualifiedIndices = new uint256[](numDisqualifiedIndices);
+            uint256 j;
+            uint256 index;
+            // loop until last member of disqualifiedIndices is populated
+            while (index != numDisqualifiedIndices) {
+                if (disqualifyingIndices[j] == true) {
+                    disqualifiedIndices[index] = j;
+                    ++index;
                 }
+                ++j;
             }
 
-            // if found, populate array of disqualifications
-            if (numDisqualifiedIndices > 0) {
-                uint256[] memory disqualifiedIndices = new uint256[](numDisqualifiedIndices);
-                uint256 j;
-                uint256 index;
-                // loop until last member of disqualifiedIndices is populated
-                while (index != numDisqualifiedIndices) {
-                    if (disqualifyingIndices[j] == true) {
-                        disqualifiedIndices[index] = j;
-                        ++index;
-                    }
-                    ++j;
-                }
-
-                return disqualifiedIndices;
-            } else {
-                return new uint256[](0);
-            }
+            return disqualifiedIndices;
+        } else {
+            return new uint256[](0);
         }
     }
 
@@ -425,22 +427,19 @@ contract PropLot is IPropLot {
     function _deleteDelegations(uint256[] memory _indices) internal {
         uint256[] memory sortedIndices = _sortIndicesDescending(_indices);
 
-        // bounded by Noun token supply and will not overflow
-        unchecked {
-            for (uint256 i; i < _indices.length; ++i) {
-                // will not underflow as this function is only invoked if delegation indices were found
-                uint256 lastIndex = _optimisticDelegations.length - 1;
-                uint256 indexToDelete = sortedIndices[i];
-                Delegation memory currentDelegation = _optimisticDelegations[indexToDelete];
+        for (uint256 i; i < _indices.length; ++i) {
+            // will not underflow as this function is only invoked if delegation indices were found
+            uint256 lastIndex = _optimisticDelegations.length - 1;
+            uint256 indexToDelete = sortedIndices[i];
+            Delegation memory currentDelegation = _optimisticDelegations[indexToDelete];
 
-                if (indexToDelete != lastIndex) {
-                    // replace Delegation to be deleted with last member of array
-                    _optimisticDelegations[indexToDelete] = _optimisticDelegations[lastIndex];
-                }
-                _optimisticDelegations.pop();
-
-                emit DelegationDeleted(currentDelegation);
+            if (indexToDelete != lastIndex) {
+                // replace Delegation to be deleted with last member of array
+                _optimisticDelegations[indexToDelete] = _optimisticDelegations[lastIndex];
             }
+            _optimisticDelegations.pop();
+
+            emit DelegationDeleted(currentDelegation);
         }
     }
 
@@ -512,5 +511,9 @@ contract PropLot is IPropLot {
 
             simulatedDeployment := keccak256(startOffset, 85)
         }
+    }
+
+    function _authorizeUpgrade(address /*newImplementation*/) internal virtual override {
+        if (msg.sender != owner()) revert Unauthorized();
     }
 }

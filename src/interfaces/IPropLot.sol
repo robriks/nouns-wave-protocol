@@ -41,7 +41,7 @@ interface IPropLot {
       Errors + Events
     */
 
-    error OnlyIdeaContract();
+    error Unauthorized();
     error InsufficientDelegations();
     error NotDelegated(address nounder, address delegate);
     error InsufficientVotingPower(address nounder);
@@ -58,6 +58,8 @@ interface IPropLot {
     /*
       IPropLot
     */
+
+    function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, string memory uri) external;
 
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
     /// Checks for changes in delegation state on `nounsToken` contract and updates PropLot recordkeeping accordingly
