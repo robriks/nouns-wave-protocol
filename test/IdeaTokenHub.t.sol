@@ -50,7 +50,6 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         propLotImpl = new PropLotHarness();
         bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), uri);
         propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
-        // propLot.initialize(address(nounsGovernorProxy), address(nounsTokenHarness), uri);
 
         // setup mock proposal
         txs.targets.push(address(0x0));
