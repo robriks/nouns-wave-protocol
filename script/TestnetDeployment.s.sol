@@ -19,7 +19,6 @@ import {ProxyRegistryMock} from "nouns-monorepo/../test/foundry/helpers/ProxyReg
 import {NounsDAOForkEscrow} from "nouns-monorepo/governance/fork/NounsDAOForkEscrow.sol";
 import {NounsDAOProxy} from "nouns-monorepo/governance/NounsDAOProxy.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
-import {NounsDAOExecutorV2} from "nouns-monorepo/governance/NounsDAOExecutorV2.sol";
 import {NounsDAOExecutorProxy} from "nouns-monorepo/governance/NounsDAOExecutorProxy.sol";
 import {NounsDAOLogicV1Harness} from "nouns-monorepo/test/NounsDAOLogicV1Harness.sol";
 import {NounsDAOLogicV3Harness} from "nouns-monorepo/test/NounsDAOLogicV3Harness.sol";
@@ -32,6 +31,7 @@ import {Delegate} from "src/Delegate.sol";
 import {IPropLot} from "src/interfaces/IPropLot.sol";
 import {PropLot} from "src/PropLot.sol";
 import {PropLotHarness} from "test/harness/PropLotHarness.sol";
+import {NounsDAOExecutorV2Testnet} from "test/harness/NounsDAOExecutorV2Testnet.sol";
 
 
 /// Usage:
@@ -53,8 +53,8 @@ contract Deploy is Script {
     NounsDAOLogicV1Harness nounsGovernorV1Impl;
     NounsDAOLogicV3Harness nounsGovernorV3Impl;
     NounsDAOLogicV3Harness nounsGovernorProxy;
-    NounsDAOExecutorV2 nounsTimelockImpl;
-    NounsDAOExecutorV2 nounsTimelockProxy;
+    NounsDAOExecutorV2Testnet nounsTimelockImpl;
+    NounsDAOExecutorV2Testnet nounsTimelockProxy;
     IERC721Checkpointable nounsTokenHarness;
     IInflator inflator_;
     INounsArt nounsArt_;
@@ -78,32 +78,7 @@ contract Deploy is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        setUpNounsGovernance(deployerPrivateKey);
-
-        // setup PropLot contracts
-        string memory uri = "someURI";
-        ideaTokenHubImpl = new IdeaTokenHub();
-        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
-        propLotImpl = new PropLotHarness();
-        bytes memory initData = abi.encodeWithSelector(PropLot.initialize.selector,INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri);
-        propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
-
-        console2.logAddress(address(ideaTokenHub));
-        console2.logAddress(address(propLot));
-
-        // balances to roughly mirror mainnet
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 308);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0x65A3870F48B5237f27f674Ec42eA1E017E111D63, 25);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
-
-        vm.stopBroadcast();
-    }
-
-    function setUpNounsGovernance(uint256 deployerPrivateKey) public virtual {
-        // setup Nouns token (harness)
+        // start setup Nouns env
         nounsDAOSafe_ = nounsSafeMinterVetoerDescriptorAdmin;
         nounsAuctionHouserMinter_ = nounsSafeMinterVetoerDescriptorAdmin;
 
@@ -131,17 +106,17 @@ contract Deploy is Script {
         );
 
         // setup Nouns timelock executor
-        nounsTimelockImpl = new NounsDAOExecutorV2();
+        nounsTimelockImpl = new NounsDAOExecutorV2Testnet();
         nounsTimelockProxy =
-            NounsDAOExecutorV2(payable(address(new NounsDAOExecutorProxy(address(nounsTimelockImpl),  bytes('')))));
+            NounsDAOExecutorV2Testnet(payable(address(new NounsDAOExecutorProxy(address(nounsTimelockImpl),  bytes('')))));
         nounsTimelockAdmin_ = nounsSafeMinterVetoerDescriptorAdmin;
         nounsTimelockDelay_ = 1;
         nounsTimelockProxy.initialize(nounsTimelockAdmin_, nounsTimelockDelay_);
 
         // setup Nouns Governor (harness)
         vetoer_ = nounsSafeMinterVetoerDescriptorAdmin; 
-        votingPeriod_ = 600;
-        votingDelay_ = 60;
+        votingPeriod_ = 5; // 1 minute voting period in blocks
+        votingDelay_ = 1; // 12 second voting delay in blocks
         proposalThresholdBPS_ = 25;
         quorumVotesBPS_ = 1000;
         nounsGovernorV1Impl = new NounsDAOLogicV1Harness(); // will be upgraded to v3
@@ -168,5 +143,29 @@ contract Deploy is Script {
         // upgrade to NounsDAOLogicV3Harness and set nounsForkEscrow
         NounsDAOProxy(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
         nounsGovernorProxy._setForkEscrow(address(nounsForkEscrow_));
+
+        //end nouns setup
+
+        // setup PropLot contracts
+        string memory uri = "someURI";
+        ideaTokenHubImpl = new IdeaTokenHub();
+        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
+        propLotImpl = new PropLotHarness();
+        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), uri);
+        propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
+
+        console2.logAddress(address(ideaTokenHub));
+        console2.logAddress(address(propLot));
+        console2.logAddress(address(nounsTokenHarness));
+
+        // balances to roughly mirror mainnet
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 308);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0x65A3870F48B5237f27f674Ec42eA1E017E111D63, 25);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
+
+        vm.stopBroadcast();
     }
 }
