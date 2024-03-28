@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
+import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
@@ -13,6 +14,7 @@ import {PropLot} from "src/PropLot.sol";
 import {PropLotHarness} from "test/harness/PropLotHarness.sol";
 
 contract CreateIdeas is Script {
+    /// @notice Harness contract is used on testnet ONLY
     PropLotHarness propLot;
     IdeaTokenHub ideaTokenHub;
 
@@ -27,7 +29,7 @@ contract CreateIdeas is Script {
 
         uri = "someURI";
         propLot = PropLotHarness(0xfDc4512f88046609eDfD3624d07814b1cee05d48);
-        ideaTokenHub = IdeaTokenHub(propLot.ideaTokenHub());
+        ideaTokenHub = IdeaTokenHub(address(propLot.ideaTokenHub()));
 
         // setup mock proposal
         txs.targets.push(address(0x0));

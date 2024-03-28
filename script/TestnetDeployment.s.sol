@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 import {Test, console2} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Inflator} from "nouns-monorepo/Inflator.sol";
 import {SVGRenderer} from "nouns-monorepo/SVGRenderer.sol";
 import {NounsArt} from "nouns-monorepo/NounsArt.sol";
@@ -41,7 +42,11 @@ import {PropLotHarness} from "test/harness/PropLotHarness.sol";
 contract Deploy is Script {
     // for dev control over onchain workings
     address nounsSafeMinterVetoerDescriptorAdmin = 0x5d5d4d04B70BFe49ad7Aac8C4454536070dAf180;
+    
+    /// @notice Harness contract is used on testnet ONLY
+    PropLotHarness propLotImpl;
     PropLotHarness propLot;
+    IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
 
     // nouns ecosystem
@@ -77,12 +82,14 @@ contract Deploy is Script {
 
         // setup PropLot contracts
         string memory uri = "someURI";
-        propLot = new PropLotHarness(
-            INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri
-        );
-        ideaTokenHub = IdeaTokenHub(propLot.ideaTokenHub());
-        console2.logAddress(address(propLot));
+        ideaTokenHubImpl = new IdeaTokenHub();
+        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
+        propLotImpl = new PropLotHarness();
+        bytes memory initData = abi.encodeWithSelector(PropLot.initialize.selector,INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri);
+        propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
+
         console2.logAddress(address(ideaTokenHub));
+        console2.logAddress(address(propLot));
 
         // balances to roughly mirror mainnet
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
