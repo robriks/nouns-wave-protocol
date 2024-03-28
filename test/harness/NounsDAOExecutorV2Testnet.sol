@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.24;
+
 import {NounsDAOExecutorV2} from "nouns-monorepo/governance/NounsDAOExecutorV2.sol";
 
 contract NounsDAOExecutorV2Testnet is NounsDAOExecutorV2 {
