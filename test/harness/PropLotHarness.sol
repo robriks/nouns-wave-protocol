@@ -15,9 +15,10 @@ contract PropLotHarness is PropLot {
     address self;
     bytes32 creationCodeHash;
 
-    constructor(INounsDAOLogicV3 nounsGovernor_, IERC721Checkpointable nounsToken_, string memory uri)
-        PropLot(nounsGovernor_, nounsToken_, uri)
-    {
+    constructor() PropLot() {}
+    
+    function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, string memory uri) public override {
+        super.initialize(ideaTokenHub_, nounsGovernor_, nounsToken_, uri);
         self = address(this);
         creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(self)))));
     }

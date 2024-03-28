@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {console2} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
@@ -17,7 +18,9 @@ import {TestUtils} from "test/helpers/TestUtils.sol";
 
 /// @dev This IdeaTokenHub test suite inherits from the Nouns governance setup contract to mimic the onchain environment
 contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
+    PropLotHarness propLotImpl;
     PropLotHarness propLot;
+    IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
 
     uint256 waveLength;
@@ -41,10 +44,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         uri = "someURI";
         // roll to block number of at least `waveLength` to prevent underflow within `currentWaveInfo.startBlock`
         vm.roll(waveLength);
-        propLot = new PropLotHarness(
-            INounsDAOLogicV3(address(nounsGovernorProxy)), IERC721Checkpointable(address(nounsTokenHarness)), uri
-        );
-        ideaTokenHub = IdeaTokenHub(propLot.ideaTokenHub());
+
+        ideaTokenHubImpl = new IdeaTokenHub();
+        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
+        propLotImpl = new PropLotHarness();
+        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), uri);
+        propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
+        // propLot.initialize(address(nounsGovernorProxy), address(nounsTokenHarness), uri);
 
         // setup mock proposal
         txs.targets.push(address(0x0));
