@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {ERC1155} from "lib/openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
+import {OwnableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {ERC1155Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC1155/ERC1155Upgradeable.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
 import {IPropLot} from "./interfaces/IPropLot.sol";
 import {PropLot} from "./PropLot.sol";
-import {console2} from "forge-std/console2.sol"; //todo delete
 
 /// @title PropLot Protocol IdeaTokenHub
 /// @author 📯📯📯.eth
@@ -19,7 +20,7 @@ import {console2} from "forge-std/console2.sol"; //todo delete
 /// of each auction, the winning tokenized ideas (with the most funding) are officially proposed into the Nouns governance system
 /// via the use of lent Nouns proposal power, provided by token holders who have delegated to the protocol.
 
-contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
+contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable, IIdeaTokenHub {
     /*
       Constants
     */
@@ -30,13 +31,13 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
     uint256 public immutable waveLength = 1209600;
 
-    IPropLot private immutable __propLotCore;
-    INounsDAOLogicV3 private immutable __nounsGovernor;
-
     /*
       Storage
     */
 
+    IPropLot private __propLotCore;
+    INounsDAOLogicV3 private __nounsGovernor;
+    
     WaveInfo public currentWaveInfo;
     uint96 private _nextIdeaId;
 
@@ -49,9 +50,16 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
       IdeaTokenHub
     */
 
-    constructor(INounsDAOLogicV3 nounsGovernor_, string memory uri_) ERC1155(uri_) {
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address owner_, address nounsGovernor_, string memory uri_) external virtual initializer {
+        _transferOwnership(owner_);
+        __ERC1155_init(uri_);
+
         __propLotCore = IPropLot(msg.sender);
-        __nounsGovernor = nounsGovernor_;
+        __nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
 
         ++currentWaveInfo.currentWave;
         currentWaveInfo.startBlock = uint32(block.number);
@@ -324,5 +332,9 @@ contract IdeaTokenHub is ERC1155, IIdeaTokenHub {
     ) internal virtual override {
         if (from != address(0x0) && to != address(0x0)) revert Soulbound();
         super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
+    }
+
+    function _authorizeUpgrade(address /*newImplementation*/) internal virtual override {
+        if (msg.sender != owner()) revert IPropLot.Unauthorized();
     }
 }

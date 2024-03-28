@@ -47,6 +47,8 @@ interface IIdeaTokenHub {
     function waveLength() external view returns (uint256);
     function currentWaveInfo() external view returns (uint32 currentWave, uint32 startBlock);
 
+    function initialize(address owner_, address nounsGovernor_, string memory uri_) external;
+
     /// @dev Creates a new ERC1155 token referred to by its token ID, ie its `ideaId` identifier
     /// @notice To combat spam and low-quality proposals, idea token creation requires a small minimum payment
     /// The Ether amount paid to create the idea will be reflected in the creator's ERC1155 balance in a 1:1 ratio

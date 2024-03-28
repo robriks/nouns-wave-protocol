@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ECDSA} from "nouns-monorepo/external/openzeppelin/ECDSA.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
 import {IPropLot} from "./interfaces/IPropLot.sol";
+import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
 import {Delegate} from "./Delegate.sol";
-import {IdeaTokenHub} from "./IdeaTokenHub.sol";
-import {console2} from "forge-std/console2.sol"; //todo
 
 /// @title PropLot Protocol Core
 /// @author 📯📯📯.eth
@@ -19,19 +20,20 @@ import {console2} from "forge-std/console2.sol"; //todo
 /// via a permissionless ERC115 mint managed by the PropLot IdeaHub contract.
 /// @notice Since Nouns voting power delegation is all-or-nothing on an address basis, Nounders can only delegate
 /// (and earn yield) on Nouns token balances up to the proposal threshold per wallet address.
-contract PropLot is IPropLot {
+contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
     /*
       Constants
     */
 
-    INounsDAOLogicV3 public immutable nounsGovernor;
-    IERC721Checkpointable public immutable nounsToken;
-    address public immutable ideaTokenHub;
-    bytes32 private immutable __creationCodeHash;
+    INounsDAOLogicV3 public nounsGovernor;
+    IERC721Checkpointable public nounsToken;
+    bytes32 private __creationCodeHash;
 
     /*
       Storage
     */
+
+    IIdeaTokenHub public ideaTokenHub;
 
     /// @notice Since delegations can be revoked directly on the Nouns token contract, active delegations are handled optimistically
     Delegation[] private _optimisticDelegations;
@@ -45,10 +47,17 @@ contract PropLot is IPropLot {
       PropLot
     */
 
-    constructor(INounsDAOLogicV3 nounsGovernor_, IERC721Checkpointable nounsToken_, string memory uri) {
-        ideaTokenHub = address(new IdeaTokenHub(nounsGovernor_, uri));
-        nounsGovernor = nounsGovernor_;
-        nounsToken = nounsToken_;
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, string memory uri) public virtual initializer {
+        _transferOwnership(msg.sender);
+
+        ideaTokenHub = IIdeaTokenHub(ideaTokenHub_);
+        ideaTokenHub.initialize(msg.sender, nounsGovernor_, uri);
+        nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
+        nounsToken = IERC721Checkpointable(nounsToken_);
         __creationCodeHash =
             keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(address(this))))));
 
@@ -63,7 +72,7 @@ contract PropLot is IPropLot {
         payable
         returns (IPropLot.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
     {
-        if (msg.sender != ideaTokenHub) revert OnlyIdeaContract();
+        if (msg.sender != address(ideaTokenHub)) revert Unauthorized();
 
         // check for external Nouns transfers or rogue redelegations, update state
         uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices();
@@ -515,5 +524,9 @@ contract PropLot is IPropLot {
 
             simulatedDeployment := keccak256(startOffset, 85)
         }
+    }
+
+    function _authorizeUpgrade(address /*newImplementation*/) internal virtual override {
+        if (msg.sender != owner()) revert Unauthorized();
     }
 }
