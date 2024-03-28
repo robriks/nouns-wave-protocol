@@ -39,10 +39,6 @@ contract PropLotHarness is PropLot {
         return _findDelegateId(_minRequiredVotes, _isSupplementary);
     }
 
-    function findProposerDelegate(uint256 _minRequiredVotes) public view returns (address proposerDelegate) {
-        return _findProposerDelegate(_minRequiredVotes);
-    }
-
     function disqualifiedDelegationIndices() public view returns (uint256[] memory) {
         return _disqualifiedDelegationIndices();
     }

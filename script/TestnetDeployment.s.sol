@@ -42,6 +42,8 @@ import {NounsDAOExecutorV2Testnet} from "test/harness/NounsDAOExecutorV2Testnet.
 contract Deploy is Script {
     // for dev control over onchain workings
     address nounsSafeMinterVetoerDescriptorAdmin = 0x5d5d4d04B70BFe49ad7Aac8C4454536070dAf180;
+    address frog = 0x65A3870F48B5237f27f674Ec42eA1E017E111D63;
+    address vanity = 0xFFFFfFfFA2eC6F66a22017a0Deb0191e5F8cBc35;
     
     /// @notice Harness contract is used on testnet ONLY
     PropLotHarness propLotImpl;
@@ -159,12 +161,17 @@ contract Deploy is Script {
         console2.logAddress(address(nounsTokenHarness));
 
         // balances to roughly mirror mainnet
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 308);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 130); // must be split into 2 transactions
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 135); // due to inefficiency & block gas limit
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30); // == deployer
+        // must be split into 2 transactions due to inefficiency & block gas limit
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 150);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 158);
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0x65A3870F48B5237f27f674Ec42eA1E017E111D63, 25);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(frog, 25);
+        // must be split into 2 transactions due to inefficiency & block gas limit
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(vanity, 185); // ~rest of missing supply to dummy address
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(vanity, 185); // ~rest of missing supply to dummy address
 
         vm.stopBroadcast();
     }

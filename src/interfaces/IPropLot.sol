@@ -70,7 +70,7 @@ interface IPropLot {
         returns (Delegation[] memory delegations, uint256[] memory nounsProposalIds);
 
     /// @dev Simultaneously creates a delegate if it doesn't yet exist and grants voting power to the delegate
-    /// in a single function call. This is the most convenient option standard wallets using EOA private keys
+    /// in a single function call. This is the most convenient option for standard wallets using EOA private keys
     /// @notice The Nouns ERC721Checkpointable implementation only supports standard EOA ECDSA signatures and thus
     /// does not support smart contract signatures. In that case, `delegate()` must be called on the Nouns contract directly
     function delegateBySig(PropLotSignature calldata propLotSig) external;
@@ -80,9 +80,6 @@ interface IPropLot {
     /// @notice Delegation to must have been performed via a call to the Nouns token contract using either the
     /// `delegate()` or `delegateBySig()` function, having provided the correct Delegate address for the given ID
     function registerDelegation(address nounder, uint256 delegateId, uint256 numNouns) external;
-
-    //todo
-    // function registerPermittedVote(uint256 delegateId, uint256 proposalId) external;
 
     /// @dev Deploys a Delegate contract deterministically via `create2`, using the `_nextDelegateId` as salt
     /// @notice As the constructor argument is appended to bytecode, it affects resulting address, eliminating risk of DOS vector

@@ -348,29 +348,6 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         delegateId = nextDelegateId;
     }
 
-    /// @dev Returns the first Delegate found to be eligible for pushing a proposal to Nouns governance
-    function _findProposerDelegate(uint256 _minRequiredVotes) internal view returns (address proposerDelegate) {
-        // cache in memory to reduce SLOADs
-        uint256 nextDelegateId = _nextDelegateId;
-
-        // delegate IDs start at 1
-        for (uint256 i = 1; i < nextDelegateId; ++i) {
-            address currentDelegate = getDelegateAddress(i);
-
-            // check for active proposals
-            bool noActiveProp = _checkForActiveProposal(currentDelegate);
-
-            // Delegations with active proposals are unable to make additional proposals
-            if (noActiveProp == false) continue;
-
-            uint256 currentVotingPower = nounsToken.getCurrentVotes(currentDelegate);
-            if (currentVotingPower < _minRequiredVotes) continue;
-
-            // if checks pass, return eligible delegate
-            return currentDelegate;
-        }
-    }
-
     /// @dev Returns an array of delegation IDs that violated the protocol rules and are ineligible for yield
     function _disqualifiedDelegationIndices() internal view returns (uint256[] memory) {
         // cache _optimisticDelegations to memory to reduce SLOADs for potential event & gas optimization
