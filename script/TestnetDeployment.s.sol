@@ -35,10 +35,15 @@ import {NounsDAOExecutorV2Testnet} from "test/harness/NounsDAOExecutorV2Testnet.
 
 
 /// Usage:
-///   forge script script/TestnetDeployment.s.sol:Deploy \
-///     --keystore $KS --password $PW --sender $sender \
-///     --fork-url $RPC_URL --broadcast -vvvv \
-///     --verify --etherscan-api-key $ETHERSCAN_API_KEY --verifier-url $ETHERSCAN_ENDPOINT
+/// `forge script script/TestnetDeployment.s.sol:Deploy --fork-url $BASE_SEPOLIA_RPC_URL --private-key $PK --with-gas-price 1000000 --verify --etherscan-api-key $ETHERSCAN_API_KEY --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --broadcast`
+
+/// Verification:
+/* 
+`forge verify-contract <ideaTokenHub> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY src/IdeaTokenHub.sol:IdeaTokenHub`
+`forge verify-contract <propLot> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY src/PropLotHarness.sol:PropLotHarness`
+`forge verify-contract <nounsToken> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY lib/nouns-monorepo/nouns-contracts/contracts/test/NounsTokenHarness.sol`
+*/
+
 contract Deploy is Script {
     // for dev control over onchain workings
     address nounsSafeMinterVetoerDescriptorAdmin = 0x5d5d4d04B70BFe49ad7Aac8C4454536070dAf180;
@@ -156,6 +161,9 @@ contract Deploy is Script {
         bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), uri);
         propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
 
+        require(address(ideaTokenHub).code.length > 0);
+        require(address(propLot).code.length > 0);
+        require(address(nounsTokenHarness).code.length > 0);
         console2.logAddress(address(ideaTokenHub));
         console2.logAddress(address(propLot));
         console2.logAddress(address(nounsTokenHarness));
@@ -166,12 +174,12 @@ contract Deploy is Script {
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30); // == deployer
         // must be split into 2 transactions due to inefficiency & block gas limit
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 150);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 158);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 150);
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(frog, 25);
         // must be split into 2 transactions due to inefficiency & block gas limit
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(vanity, 185); // ~rest of missing supply to dummy address
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(vanity, 185); // ~rest of missing supply to dummy address
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(vanity, 150); // ~rest of missing supply to dummy address
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(vanity, 150); // ~rest of missing supply to dummy address
 
         vm.stopBroadcast();
     }

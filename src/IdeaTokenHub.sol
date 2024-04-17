@@ -29,7 +29,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     uint256 public constant minSponsorshipAmount = 0.0001 ether; //todo
     uint256 public constant decimals = 18;
     /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
-    uint256 public immutable waveLength = 1209600;
+    uint256 public immutable waveLength = 100800;
 
     /*
       Storage
@@ -72,6 +72,9 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         payable
         returns (uint96 newIdeaId)
     {
+        // revert if a new wave should be started
+        if (block.number - waveLength >= currentWaveInfo.startBlock) revert WaveIncomplete();
+        
         _validateIdeaCreation(ideaTxs, description);
 
         // cache in memory to save on SLOADs
