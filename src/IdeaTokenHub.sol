@@ -26,10 +26,10 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     */
 
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
-    uint256 public constant minSponsorshipAmount = 0.0001 ether; //todo
+    uint256 public constant minSponsorshipAmount = 1 wei; //testnet config
     uint256 public constant decimals = 18;
     /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
-    uint256 public immutable waveLength = 100800;
+    uint256 public immutable waveLength = 50; //testnet config
 
     /*
       Storage
