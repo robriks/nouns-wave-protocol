@@ -186,8 +186,8 @@ function getOrderedProposedIdeaIds() external view returns (uint96[] memory orde
 
 PropLot protocol is currently deployed to Base Sepolia testnet for backend & frontend development and finalized Ethereum mainnet deployments are coming soon.
 
-IdeaTokenHub (harness, proxy): `0x26992715639E5A06d12eBfe25Db2e02c9A1F32a7`
-PropLot (harness, proxy): `0x595e826b1490476dE35CEFE14D4f5f05295cC94A`
-NounsToken (harness): `0x2Ce461eCC375171bf266E157740B3FD56657672B`
+IdeaTokenHub (harness, proxy): `0xaB626b93B3f98d79ae1FBf6c76Bf678F83E7faf3`
+PropLot (harness, proxy): `0xD49c56d08D3c40854c0543bA5B1747f2Ad1c7b89`
+NounsToken (harness): `0x1B8D11880fe221B51FC814fF4C41366a91A59DEB`
 
 Note that the above testnet contracts deployed to Base Sepolia network are harnesses to expose convenience functions that would normally otherwise be protected to expedite development.

@@ -38,8 +38,8 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         super.setUpNounsGovernance();
 
         // setup PropLot contracts
-        waveLength = 1209600; //todo
-        minSponsorshipAmount = 0.0001 ether;
+        waveLength = 100800;
+        minSponsorshipAmount = 0.00077 ether;
         decimals = 18;
         uri = "someURI";
         // roll to block number of at least `waveLength` to prevent underflow within `currentWaveInfo.startBlock`
@@ -48,7 +48,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         ideaTokenHubImpl = new IdeaTokenHub();
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
         propLotImpl = new PropLotHarness();
-        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), uri);
+        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), minSponsorshipAmount, waveLength, uri);
         propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
 
         // setup mock proposal
@@ -94,7 +94,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
     function test_createIdeaEOA(uint64 ideaValue, uint8 numCreators) public {
         vm.assume(numCreators != 0);
-        ideaValue = uint64(bound(ideaValue, 0.0001 ether, type(uint64).max));
+        ideaValue = uint64(bound(ideaValue, minSponsorshipAmount, type(uint64).max));
 
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
@@ -135,7 +135,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
     function test_createIdeaSmartAccount(uint64 ideaValue, uint8 numCreators) public {
         vm.assume(numCreators != 0);
-        ideaValue = uint64(bound(ideaValue, 0.0001 ether, type(uint64).max));
+        ideaValue = uint64(bound(ideaValue, minSponsorshipAmount, type(uint64).max));
 
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
@@ -297,7 +297,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -322,7 +322,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId, amt);
+            propLot.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -346,16 +346,22 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             address nounder = eoa ? _createNounderEOA(collisionOffset) : _createNounderSmartAccount(collisionOffset);
             vm.deal(nounder, pseudoRandomIdeaValue);
 
-            vm.expectEmit(true, true, true, false);
-            emit IIdeaTokenHub.IdeaCreated(
-                IPropLot.Proposal(txs, description),
-                nounder,
-                uint96(currentIdeaId),
-                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true)
-            );
+            vm.startPrank(nounder);
+            try ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description) returns (uint96 newIdeaId) {
+                assertEq(newIdeaId, uint96(currentIdeaId));
+            } catch {
+                // wave must first be finalized
+                (,, uint96[] memory winners) = ideaTokenHub.getWinningIdeaIds();
+                string[] memory descs = new string[](winners.length);
+                for (uint256 d; d < winners.length; ++d) {
+                    descs[d] = description;
+                }
+                ideaTokenHub.finalizeWave(winners, descs);
 
-            vm.prank(nounder);
-            ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
+                // then resubmit call to `createIdea()`
+                ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
+            }
+            vm.stopPrank();
 
             assertEq(ideaTokenHub.balanceOf(nounder, currentIdeaId), pseudoRandomIdeaValue);
 
@@ -488,7 +494,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
             eoa = !eoa;
@@ -510,7 +516,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId, amt);
+            propLot.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
             eoa = !eoa;
