@@ -35,12 +35,12 @@ import {NounsDAOExecutorV2Testnet} from "test/harness/NounsDAOExecutorV2Testnet.
 
 
 /// Usage:
-/// `forge script script/TestnetDeployment.s.sol:Deploy --fork-url $BASE_SEPOLIA_RPC_URL --private-key $PK --with-gas-price 1000000 --verify --etherscan-api-key $ETHERSCAN_API_KEY --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --broadcast`
+/// `forge script script/TestnetDeployment.s.sol:Deploy --fork-url $BASE_SEPOLIA_RPC_URL --private-key $PK --with-gas-price 1000000 --verify --etherscan-api-key $BASESCAN_API_KEY --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --broadcast`
 
 /// Verification:
 /* 
 `forge verify-contract <ideaTokenHub> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY src/IdeaTokenHub.sol:IdeaTokenHub`
-`forge verify-contract <propLot> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY src/PropLotHarness.sol:PropLotHarness`
+`forge verify-contract <propLot> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY test/harness/PropLotHarness.sol:PropLotHarness`
 `forge verify-contract <nounsToken> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY lib/nouns-monorepo/nouns-contracts/contracts/test/NounsTokenHarness.sol`
 */
 
@@ -49,6 +49,8 @@ contract Deploy is Script {
     address nounsSafeMinterVetoerDescriptorAdmin = 0x5d5d4d04B70BFe49ad7Aac8C4454536070dAf180;
     address frog = 0x65A3870F48B5237f27f674Ec42eA1E017E111D63;
     address vanity = 0xFFFFfFfFA2eC6F66a22017a0Deb0191e5F8cBc35;
+    uint256 minSponsorshipAmount = 1 wei; // TESTNET ONLY
+    uint256 waveLength = 50; // TESTNET ONLY
     
     /// @notice Harness contract is used on testnet ONLY
     PropLotHarness propLotImpl;
@@ -158,7 +160,7 @@ contract Deploy is Script {
         ideaTokenHubImpl = new IdeaTokenHub();
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
         propLotImpl = new PropLotHarness();
-        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), uri);
+        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), minSponsorshipAmount, waveLength, uri);
         propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
 
         require(address(ideaTokenHub).code.length > 0);
