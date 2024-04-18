@@ -26,10 +26,10 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     */
 
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
-    uint256 public constant minSponsorshipAmount = 1 wei; //testnet config
+    uint256 public constant minSponsorshipAmount = 0.00077 ether;
     uint256 public constant decimals = 18;
     /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
-    uint256 public immutable waveLength = 50; //testnet config
+    uint256 public immutable waveLength = 100800;
 
     /*
       Storage
@@ -296,6 +296,29 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
     function getClaimableYield(address nounder) external view returns (uint256) {
         return claimableYield[nounder];
+    }
+
+    function getOptimisticYieldEstimate(address nounder) external view returns (uint256 optYield) {
+        // get ordered list of winningIdeas, truncated by numEligibleProposers
+        (,, uint96[] memory winningIds) = getWinningIdeaIds();
+        uint216 expectedTotalYield;
+        for (uint256 i; i < winningIds.length; ++i) {
+            expectedTotalYield += ideaInfos[winningIds[i]].totalFunding;
+        }
+
+        // cycle through optimistic delegations for total optimistic voting power to estimate yield
+        IPropLot.Delegation[] memory optimisticDelegations = __propLotCore.getOptimisticDelegations();
+        uint16 totalDelegatedVotes;
+        uint256 nounderVotingPower;
+        for (uint256 j; j < optimisticDelegations.length; ++j) {
+            IPropLot.Delegation memory currentDelegation = optimisticDelegations[j];
+            totalDelegatedVotes += currentDelegation.votingPower;
+
+            // identify match if it exists and save relevant `votingPower`
+            if (currentDelegation.delegator == nounder) nounderVotingPower = currentDelegation.votingPower;
+        }
+
+        expectedTotalYield / totalDelegatedVotes * nounderVotingPower;
     }
 
     function getNextIdeaId() public view returns (uint256) {
