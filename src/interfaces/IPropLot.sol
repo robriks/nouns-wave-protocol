@@ -79,7 +79,7 @@ interface IPropLot {
     /// @dev Serves as an alternative to `delegateByDelegatecall()` for smart contract wallets
     /// @notice Delegation to must have been performed via a call to the Nouns token contract using either the
     /// `delegate()` or `delegateBySig()` function, having provided the correct Delegate address for the given ID
-    function registerDelegation(address nounder, uint256 delegateId, uint256 numNouns) external;
+    function registerDelegation(address nounder, uint256 delegateId) external;
 
     /// @dev Deploys a Delegate contract deterministically via `create2`, using the `_nextDelegateId` as salt
     /// @notice As the constructor argument is appended to bytecode, it affects resulting address, eliminating risk of DOS vector
@@ -129,6 +129,9 @@ interface IPropLot {
         view
         returns (uint256 minRequiredVotes, uint256[] memory eligibleProposerIds);
 
+    /// @dev Returns optimistic delegations from storage. These are subject to change and should never be relied upon
+    function getOptimisticDelegations() external view returns (Delegation[] memory);
+    
     /// @dev Convenience function to facilitate offchain development by computing the `delegateBySig()` digest
     /// for a given signer and expiry
     function computeNounsDelegationDigest(address signer, uint256 delegateId, uint256 expiry)

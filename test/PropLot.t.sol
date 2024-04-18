@@ -222,7 +222,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         vm.expectEmit(true, false, false, false);
         emit DelegationRegistered(delegation);
         vm.prank(nounderSupplement);
-        propLot.registerDelegation(nounderSupplement, delegateId, votingPower);
+        propLot.registerDelegation(nounderSupplement, delegateId);
 
         // assert no new delegate was created
         assertEq(nextDelegateId, propLot.getNextDelegateId());
@@ -292,7 +292,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         vm.expectEmit(true, false, false, false);
         emit DelegationRegistered(delegation);
         vm.prank(nounderSolo);
-        propLot.registerDelegation(nounderSolo, delegateId, votingPower);
+        propLot.registerDelegation(nounderSolo, delegateId);
 
         // assert no new delegate was created
         assertEq(nextDelegateId, propLot.getNextDelegateId());
@@ -380,7 +380,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId, notMinRequiredVotes);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
         }
 
@@ -400,7 +400,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId, returnedFullBalance);
+            propLot.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
         }
 
@@ -463,7 +463,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -502,7 +502,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId, amt);
+            propLot.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -650,7 +650,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
                 vm.startPrank(currentSupplementaryNounder);
                 nounsTokenHarness.delegate(delegate);
-                propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
+                propLot.registerDelegation(currentSupplementaryNounder, delegateId);
                 vm.stopPrank();
 
                 ++supplementaryCounter;
@@ -670,7 +670,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
                 vm.startPrank(currentFullNounder);
                 nounsTokenHarness.delegate(delegate);
-                propLot.registerDelegation(currentFullNounder, delegateId, amt);
+                propLot.registerDelegation(currentFullNounder, delegateId);
                 vm.stopPrank();
             }
 
@@ -763,7 +763,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -799,7 +799,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId, amt);
+            propLot.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -940,7 +940,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -979,7 +979,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId, amt);
+            propLot.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -1148,7 +1148,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -1187,7 +1187,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId, amt);
+            propLot.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -1290,7 +1290,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -1314,7 +1314,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId, amt);
+            propLot.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -1389,7 +1389,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId, amt);
+            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -1413,7 +1413,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId, amt);
+            propLot.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -1478,7 +1478,7 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
 
             vm.startPrank(currentNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentNounder, delegateId, amt);
+            propLot.registerDelegation(currentNounder, delegateId);
 
             isSupplementary = !isSupplementary;
         }
@@ -1494,6 +1494,4 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         address returnedFullDelegate = propLot.getDelegateAddress(returnedFullId);
         assertEq(nounsTokenHarness.getCurrentVotes(returnedFullDelegate), 0);
     }
-    //function test_findProposerDelegate
-    //function test_checkForActiveProposal
 }

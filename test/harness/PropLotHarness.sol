@@ -55,10 +55,6 @@ contract PropLotHarness is PropLot {
         _deleteDelegations(_indices);
     }
 
-    function getOptimisticDelegations() public view returns (Delegation[] memory) {
-        return _getOptimisticDelegations();
-    }
-
     function setOptimisticDelegation(Delegation memory _delegation) public {
         _setOptimisticDelegation(_delegation);
     }
