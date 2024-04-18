@@ -142,7 +142,7 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
     }
 
     /// @inheritdoc IPropLot
-    function registerDelegation(address nounder, uint256 delegateId, uint256 numNouns) external {
+    function registerDelegation(address nounder, uint256 delegateId) external {
         address delegate;
         if (delegateId == _nextDelegateId) {
             delegate = createDelegate();
@@ -153,9 +153,8 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         address externalDelegate = nounsToken.delegates(nounder);
         if (externalDelegate != delegate) revert NotDelegated(nounder, delegate);
 
-        uint256 votesToDelegate = nounsToken.votesToDelegate(nounder);
-        if (votesToDelegate < numNouns || votesToDelegate == 0) revert InsufficientVotingPower(nounder);
-        uint256 votingPower = numNouns;
+        uint256 votingPower = nounsToken.votesToDelegate(nounder);
+        if (votingPower == 0) revert InsufficientVotingPower(nounder);
 
         uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         // votingPower above minimum required votes is not usable due to Nouns token implementation constraint
@@ -300,6 +299,11 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         }
     }
 
+    /// @notice Delegation array in storage is optimistic and should never be relied on externally
+    function getOptimisticDelegations() public view returns (Delegation[] memory) {
+        return _optimisticDelegations;
+    }
+
     /// @inheritdoc IPropLot
     function computeNounsDelegationDigest(address signer, uint256 delegateId, uint256 expiry)
         public
@@ -351,7 +355,7 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
     /// @dev Returns an array of delegation IDs that violated the protocol rules and are ineligible for yield
     function _disqualifiedDelegationIndices() internal view returns (uint256[] memory) {
         // cache _optimisticDelegations to memory to reduce SLOADs for potential event & gas optimization
-        Delegation[] memory optimisticDelegations = _getOptimisticDelegations();
+        Delegation[] memory optimisticDelegations = getOptimisticDelegations();
         bool[] memory disqualifyingIndices = new bool[](optimisticDelegations.length);
         uint256 numDisqualifiedIndices;
 
@@ -433,11 +437,6 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
             }
         }
         return _indices;
-    }
-
-    /// @notice Marked internal since Delegations recorded in storage are optimistic and should not be relied on externally
-    function _getOptimisticDelegations() internal view returns (Delegation[] memory) {
-        return _optimisticDelegations;
     }
 
     function _setOptimisticDelegation(Delegation memory _delegation) internal {
