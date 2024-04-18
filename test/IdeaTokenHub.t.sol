@@ -48,7 +48,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         ideaTokenHubImpl = new IdeaTokenHub();
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
         propLotImpl = new PropLotHarness();
-        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), uri);
+        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), minSponsorshipAmount, waveLength, uri);
         propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
 
         // setup mock proposal
@@ -94,7 +94,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
     function test_createIdeaEOA(uint64 ideaValue, uint8 numCreators) public {
         vm.assume(numCreators != 0);
-        ideaValue = uint64(bound(ideaValue, 0.00077 ether, type(uint64).max));
+        ideaValue = uint64(bound(ideaValue, minSponsorshipAmount, type(uint64).max));
 
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
@@ -135,7 +135,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
     function test_createIdeaSmartAccount(uint64 ideaValue, uint8 numCreators) public {
         vm.assume(numCreators != 0);
-        ideaValue = uint64(bound(ideaValue, 0.00077 ether, type(uint64).max));
+        ideaValue = uint64(bound(ideaValue, minSponsorshipAmount, type(uint64).max));
 
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();

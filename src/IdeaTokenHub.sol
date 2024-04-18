@@ -25,11 +25,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
       Constants
     */
 
-    /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
-    uint256 public constant minSponsorshipAmount = 0.00077 ether;
     uint256 public constant decimals = 18;
-    /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
-    uint256 public immutable waveLength = 100800;
 
     /*
       Storage
@@ -39,6 +35,10 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     INounsDAOLogicV3 private __nounsGovernor;
     
     WaveInfo public currentWaveInfo;
+    /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
+    uint256 public minSponsorshipAmount;
+    /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
+    uint256 public waveLength;
     uint96 private _nextIdeaId;
 
     /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
@@ -54,7 +54,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         _disableInitializers();
     }
 
-    function initialize(address owner_, address nounsGovernor_, string memory uri_) external virtual initializer {
+    function initialize(address owner_, address nounsGovernor_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri_) external virtual initializer {
         _transferOwnership(owner_);
         __ERC1155_init(uri_);
 
@@ -63,6 +63,9 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
         ++currentWaveInfo.currentWave;
         currentWaveInfo.startBlock = uint32(block.number);
+        minSponsorshipAmount = minSponsorshipAmount_;
+        waveLength = waveLength_;
+
         ++_nextIdeaId;
     }
 
@@ -179,6 +182,16 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
         (bool r,) = msg.sender.call{value: claimAmt}("");
         if (!r) revert ClaimFailure();
+    }
+
+    /// @inheritdoc IIdeaTokenHub
+    function setMinSponsorshipAmount(uint256 newMinSponsorshipAmount) external onlyOwner {
+        minSponsorshipAmount = newMinSponsorshipAmount;
+    }
+
+    /// @inheritdoc IIdeaTokenHub
+    function setWaveLength(uint256 newWavelength) external onlyOwner {
+        waveLength = newWavelength;
     }
 
     /*
@@ -298,7 +311,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         return claimableYield[nounder];
     }
 
-    function getOptimisticYieldEstimate(address nounder) external view returns (uint256 optYield) {
+    function getOptimisticYieldEstimate(address nounder) external view returns (uint256 yieldEstimate) {
         // get ordered list of winningIdeas, truncated by numEligibleProposers
         (,, uint96[] memory winningIds) = getWinningIdeaIds();
         uint216 expectedTotalYield;
@@ -318,7 +331,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
             if (currentDelegation.delegator == nounder) nounderVotingPower = currentDelegation.votingPower;
         }
 
-        expectedTotalYield / totalDelegatedVotes * nounderVotingPower;
+        yieldEstimate = expectedTotalYield / totalDelegatedVotes * nounderVotingPower;
     }
 
     function getNextIdeaId() public view returns (uint256) {

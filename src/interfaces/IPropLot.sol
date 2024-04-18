@@ -59,7 +59,7 @@ interface IPropLot {
       IPropLot
     */
 
-    function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, string memory uri) external;
+    function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri) external;
 
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
     /// Checks for changes in delegation state on `nounsToken` contract and updates PropLot recordkeeping accordingly

@@ -47,7 +47,7 @@ interface IIdeaTokenHub {
     function waveLength() external view returns (uint256);
     function currentWaveInfo() external view returns (uint32 currentWave, uint32 startBlock);
 
-    function initialize(address owner_, address nounsGovernor_, string memory uri_) external;
+    function initialize(address owner_, address nounsGovernor_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri_) external;
 
     /// @dev Creates a new ERC1155 token referred to by its token ID, ie its `ideaId` identifier
     /// @notice To combat spam and low-quality proposals, idea token creation requires a small minimum payment
@@ -78,6 +78,14 @@ interface IIdeaTokenHub {
     /// @dev Provides a way to collect the yield earned by Nounders who have delegated to PropLot for a full wave
     /// @notice Reentrance prevented via CEI
     function claim() external returns (uint256 claimAmt);
+
+    /// @dev Sets the new minimum funding required to create and sponsor tokenized ideas
+    /// @notice Only callable by the owner
+    function setMinSponsorshipAmount(uint256 newMinSponsorshipAmount) external;
+
+    /// @dev Sets the new length of PropLot waves in blocks
+    /// @notice Only callable by the owner
+    function setWaveLength(uint256 newWavelength) external;
 
     /// @dev Returns an array of the current wave's leading IdeaIds where the array length is determined 
     /// by the protocol's number of available proposer delegates, fetched from the PropLotCore contract

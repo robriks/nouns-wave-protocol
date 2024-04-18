@@ -30,6 +30,8 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         uint256[] ownedTokenIds;
     }
 
+    uint256 waveLength;
+    uint256 minSponsorshipAmount;
     string uri;
     NounsDAOV3Proposals.ProposalTxs txs;
     string description;
@@ -56,11 +58,13 @@ contract PropLotTest is NounsEnvSetup, TestUtils {
         super.setUpNounsGovernance();
 
         // setup PropLot contracts
+        waveLength = 100800;
+        minSponsorshipAmount = 0.00077 ether;
         uri = "someURI";
         ideaTokenHubImpl = new IdeaTokenHub();
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
         propLotImpl = new PropLotHarness();
-        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), uri);
+        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), minSponsorshipAmount, waveLength, uri);
         propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
 
         // setup mock proposal
