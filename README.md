@@ -1,6 +1,19 @@
+<div align="center">
+
 # PropLot Protocol
 
+</div>
+
 PropLot Protocol is a decentralized system built on top of the Nouns Governance ecosystem to noncustodially and permissionlessly democratize access to the Nouns sphere and lower the barrier of entry so that anyone with a worthy Nouns governance idea may participate and make a difference.
+
+## Table of Contents
+- [Why Extend Nouns Governance?](#why-extend-nouns-governance)
+- [On Security](#on-security)
+- [Architecture Overview](#architecture-overview)
+- [User Flow](#user-flow)
+- [Fuzz Tests](#to-run-fuzz-tests)
+- [Usage](#usage)
+- [Live Deployments](#live-deployments)
 
 ## Why extend Nouns governance?
 
@@ -13,6 +26,10 @@ The protocol is designed with maximal attention to security; since voting power 
 ## Architecture Overview
 
 PropLot consists of three major parts: the IdeaTokenHub ERC1155 auction mechanism, the PropLot Core contract, and Delegates which are used to push winning proposals to Nouns governance contracts.
+
+- **IdeaTokenHub**
+- **PropLot Core**
+- **Delegates**
 
 ### IdeaTokenHub
 
@@ -89,7 +106,7 @@ $ forge test
 
 ## Usage
 
-The PropLot protocol core contract provides numerous convenience functions to improve offchain devX by returning values relevant for developing offchain components. Note that many of these values can change at any time as the Nouns ecosystem is external to PropLot and its state changes may affect the results of the following view functions.
+The PropLot protocol core contract provides numerous convenience functions to improve offchain devX by returning values relevant for developing offchain components.
 
 ### To view the current minimum votes required to submit an onchain proposal to Nouns governance
 
