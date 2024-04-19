@@ -1,6 +1,19 @@
+<div align="center">
+
 # PropLot Protocol
 
+</div>
+
 PropLot Protocol is a decentralized system built on top of the Nouns Governance ecosystem to noncustodially and permissionlessly democratize access to the Nouns sphere and lower the barrier of entry so that anyone with a worthy Nouns governance idea may participate and make a difference.
+
+## Table of Contents
+- [Why Extend Nouns Governance?](#why-extend-nouns-governance)
+- [On Security](#on-security)
+- [Architecture Overview](#architecture-overview)
+- [User Flow](#user-flow)
+- [Fuzz Tests](#to-run-fuzz-tests)
+- [Usage](#usage)
+- [Live Deployments](#live-deployments)
 
 ## Why extend Nouns governance?
 
@@ -13,6 +26,10 @@ The protocol is designed with maximal attention to security; since voting power 
 ## Architecture Overview
 
 PropLot consists of three major parts: the IdeaTokenHub ERC1155 auction mechanism, the PropLot Core contract, and Delegates which are used to push winning proposals to Nouns governance contracts.
+
+- **IdeaTokenHub**
+- **PropLot Core**
+- **Delegates**
 
 ### IdeaTokenHub
 
@@ -89,7 +106,7 @@ $ forge test
 
 ## Usage
 
-The PropLot protocol core contract provides numerous convenience functions to improve offchain devX by returning values relevant for developing offchain components. Note that many of these values can change at any time as the Nouns ecosystem is external to PropLot and its state changes may affect the results of the following view functions.
+The PropLot protocol core contract provides numerous convenience functions to improve offchain devX by returning values relevant for developing offchain components.
 
 ### To view the current minimum votes required to submit an onchain proposal to Nouns governance
 
@@ -184,10 +201,12 @@ function getOrderedProposedIdeaIds() external view returns (uint96[] memory orde
 
 ## Live Deployments
 
-PropLot protocol is currently deployed to Base Sepolia testnet for backend & frontend development and finalized Ethereum mainnet deployments are coming soon.
+PropLot protocol is currently deployed in Beta on Base Sepolia testnet for backend & frontend development and finalized Ethereum mainnet deployments are coming soon.
 
-IdeaTokenHub (harness, proxy): `0xaB626b93B3f98d79ae1FBf6c76Bf678F83E7faf3`
-PropLot (harness, proxy): `0xD49c56d08D3c40854c0543bA5B1747f2Ad1c7b89`
-NounsToken (harness): `0x1B8D11880fe221B51FC814fF4C41366a91A59DEB`
+| Name | Contract Details | Contract Address |
+| --- | --- | --- |
+| IdeaTokenHub | Harness, Proxy | 0xaB626b93B3f98d79ae1FBf6c76Bf678F83E7faf3 |
+| PropLot | Harness, Proxy | 0xD49c56d08D3c40854c0543bA5B1747f2Ad1c7b89 |
+| NounsToken | Harness | 0x1B8D11880fe221B51FC814fF4C41366a91A59DEB |
 
 Note that the above testnet contracts deployed to Base Sepolia network are harnesses to expose convenience functions that would normally otherwise be protected to expedite development.
