@@ -151,6 +151,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         // populate array with winning txs & description and aggregate total payout amount
         uint256 winningProposalsTotalFunding;
         IPropLot.Proposal[] memory winningProposals = new IPropLot.Proposal[](winningIds.length);
+        ProposalInfo[] memory proposedIdeas = new ProposalInfo[](winningIds.length);
         for (uint256 i; i < winningIds.length; ++i) {
             uint96 currentWinnerId = winningIds[i];
             // re-validate canonical winnerId values against provided ones
@@ -160,9 +161,19 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
             winner.isProposed = true;
             winningProposalsTotalFunding += winner.totalFunding;
             winningProposals[i] = IPropLot.Proposal(winner.proposalTxs, offchainDescriptions[i]);
+            
+            // use placeholder value since `nounsProposalId` is not known and will be assigned by Nouns Governor
+            proposedIdeas[i] = ProposalInfo(0, uint256(currentWinnerId), winner.totalFunding, winner.blockCreated);
         }
 
         (delegations, nounsProposalIds) = __propLotCore.pushProposals(winningProposals);
+
+        // populate array's `nounsProposalId` struct field for event emission now that they are known
+        for (uint256 i; i < proposedIdeas.length; ++i) {
+            proposedIdeas[i].nounsProposalId = nounsProposalIds[i];
+        }
+
+        emit ProposedIdeas(proposedIdeas);
 
         // calculate yield for returned valid delegations
         for (uint256 j; j < delegations.length; ++j) {
