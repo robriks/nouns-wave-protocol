@@ -27,6 +27,13 @@ interface IIdeaTokenHub {
         bool isCreator;
     }
 
+    struct ProposalInfo {
+        uint256 nounsProposalId;
+        uint256 waveIdeaId;
+        uint216 totalFunding;
+        uint32 blockCreated;
+    }
+
     error BelowMinimumSponsorshipAmount(uint256 value);
     error InvalidActionsCount(uint256 count);
     error ProposalInfoArityMismatch();
@@ -40,7 +47,7 @@ interface IIdeaTokenHub {
 
     event IdeaCreated(IPropLot.Proposal idea, address creator, uint96 ideaId, SponsorshipParams params);
     event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params);
-    event IdeaProposed(IdeaInfo ideaInfo);
+    event ProposedIdeas(ProposalInfo[] proposedIdeas);
 
     function minSponsorshipAmount() external view returns (uint256);
     function decimals() external view returns (uint256);
