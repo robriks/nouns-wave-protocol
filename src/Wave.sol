@@ -8,19 +8,19 @@ import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
-import {IPropLot} from "./interfaces/IPropLot.sol";
+import {IWave} from "./interfaces/IWave.sol";
 import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
 import {Delegate} from "./Delegate.sol";
 
-/// @title PropLot Protocol Core
+/// @title Wave Protocol Core
 /// @author 📯📯📯.eth
-/// @notice The PropLot Protocol Core contract manages a set of deterministic Delegate contracts whose sole purpose
+/// @notice The Wave Protocol Core contract manages a set of deterministic Delegate contracts whose sole purpose
 /// is to noncustodially receive delegation from Noun token holders who wish to earn yield in exchange for granting
-/// PropLot the ability to push onchain proposals to the Nouns governance ecosystem. Winning proposals are chosen
-/// via a permissionless ERC115 mint managed by the PropLot IdeaHub contract.
+/// Wave the ability to push onchain proposals to the Nouns governance ecosystem. Winning proposals are chosen
+/// via a permissionless ERC115 mint managed by the Wave IdeaHub contract.
 /// @notice Since Nouns voting power delegation is all-or-nothing on an address basis, Nounders can only delegate
 /// (and earn yield) on Nouns token balances up to the proposal threshold per wallet address.
-contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
+contract Wave is Ownable, UUPSUpgradeable, IWave {
     /*
       Constants
     */
@@ -44,7 +44,7 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
     uint16 private _nextDelegateId;
 
     /*
-      PropLot
+      Wave
     */
 
     constructor() {
@@ -66,11 +66,11 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         createDelegate();
     }
 
-    /// @inheritdoc IPropLot
-    function pushProposals(IPropLot.Proposal[] calldata winningProposals)
+    /// @inheritdoc IWave
+    function pushProposals(IWave.Proposal[] calldata winningProposals)
         public
         payable
-        returns (IPropLot.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
+        returns (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
     {
         if (msg.sender != address(ideaTokenHub)) revert Unauthorized();
 
@@ -103,45 +103,45 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         delegations = _optimisticDelegations;
     }
 
-    /// @inheritdoc IPropLot
-    function delegateBySig(PropLotSignature calldata propLotSig) external {
-        bytes32 digest = computeNounsDelegationDigest(propLotSig.signer, propLotSig.delegateId, propLotSig.expiry);
-        (address recovered, ECDSA.RecoverError err) = ECDSA.tryRecover(digest, propLotSig.signature);
-        if (recovered != propLotSig.signer || err != ECDSA.RecoverError.NoError) revert InvalidSignature();
+    /// @inheritdoc IWave
+    function delegateBySig(WaveSignature calldata waveSig) external {
+        bytes32 digest = computeNounsDelegationDigest(waveSig.signer, waveSig.delegateId, waveSig.expiry);
+        (address recovered, ECDSA.RecoverError err) = ECDSA.tryRecover(digest, waveSig.signature);
+        if (recovered != waveSig.signer || err != ECDSA.RecoverError.NoError) revert InvalidSignature();
 
-        uint256 votesToDelegate = nounsToken.votesToDelegate(propLotSig.signer);
-        uint256 votingPower = propLotSig.numNouns;
-        if (votesToDelegate < votingPower || votesToDelegate == 0) revert InsufficientVotingPower(propLotSig.signer);
+        uint256 votesToDelegate = nounsToken.votesToDelegate(waveSig.signer);
+        uint256 votingPower = waveSig.numNouns;
+        if (votesToDelegate < votingPower || votesToDelegate == 0) revert InsufficientVotingPower(waveSig.signer);
 
         uint256 minRequiredVotes = getCurrentMinRequiredVotes();
         if (votingPower > minRequiredVotes) votingPower = minRequiredVotes;
 
         Delegation memory delegation =
-            Delegation(propLotSig.signer, uint32(block.number), uint16(votingPower), uint16(propLotSig.delegateId));
+            Delegation(waveSig.signer, uint32(block.number), uint16(votingPower), uint16(waveSig.delegateId));
         // emits `DelegationRegistered` event
         _setOptimisticDelegation(delegation);
 
         address delegate;
-        if (propLotSig.delegateId == _nextDelegateId) {
+        if (waveSig.delegateId == _nextDelegateId) {
             delegate = createDelegate();
         } else {
-            delegate = getDelegateAddress(propLotSig.delegateId);
+            delegate = getDelegateAddress(waveSig.delegateId);
         }
 
         // filter outdated signatures to prevent excess delegation- will require new signature
-        if (nounsToken.getCurrentVotes(delegate) >= minRequiredVotes) revert DelegateSaturated(propLotSig.delegateId);
+        if (nounsToken.getCurrentVotes(delegate) >= minRequiredVotes) revert DelegateSaturated(waveSig.delegateId);
 
         nounsToken.delegateBySig(
             delegate,
-            propLotSig.nonce,
-            propLotSig.expiry,
-            uint8(bytes1(propLotSig.signature[64])),
-            bytes32(propLotSig.signature[0:32]),
-            bytes32(propLotSig.signature[32:64])
+            waveSig.nonce,
+            waveSig.expiry,
+            uint8(bytes1(waveSig.signature[64])),
+            bytes32(waveSig.signature[0:32]),
+            bytes32(waveSig.signature[32:64])
         );
     }
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function registerDelegation(address nounder, uint256 delegateId) external {
         address delegate;
         if (delegateId == _nextDelegateId) {
@@ -167,7 +167,7 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         _setOptimisticDelegation(delegation);
     }
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function createDelegate() public returns (address delegate) {
         uint256 nextDelegateId = uint256(_nextDelegateId);
         delegate = address(new Delegate{salt: bytes32(nextDelegateId)}(address(this)));
@@ -182,13 +182,13 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
       Views
     */
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function getDelegateAddress(uint256 delegateId) public view returns (address delegate) {
         if (delegateId == 0) revert InvalidDelegateId(delegateId);
         delegate = _simulateCreate2(bytes32(uint256(delegateId)), __creationCodeHash);
     }
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function getDelegateIdByType(uint256 minRequiredVotes, bool isSupplementary)
         public
         view
@@ -197,12 +197,12 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         delegateId = _findDelegateId(minRequiredVotes, isSupplementary);
     }
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function getNextDelegateId() public view returns (uint256 nextDelegateId) {
         return uint256(_nextDelegateId);
     }
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function getSuitableDelegateFor(address nounder)
         external
         view
@@ -216,12 +216,12 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         delegate = getDelegateAddress(delegateId);
     }
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function getCurrentMinRequiredVotes() public view returns (uint256 minRequiredVotes) {
         return nounsGovernor.proposalThreshold() + 1;
     }
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function getAllPartialDelegates()
         external
         view
@@ -254,7 +254,7 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         }
     }
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function numEligibleProposerDelegates()
         public
         view
@@ -274,7 +274,7 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         }
     }
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function getAllEligibleProposerDelegates()
         public
         view
@@ -304,7 +304,7 @@ contract PropLot is Ownable, UUPSUpgradeable, IPropLot {
         return _optimisticDelegations;
     }
 
-    /// @inheritdoc IPropLot
+    /// @inheritdoc IWave
     function computeNounsDelegationDigest(address signer, uint256 delegateId, uint256 expiry)
         public
         view

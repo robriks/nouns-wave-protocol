@@ -3,8 +3,8 @@ pragma solidity ^0.8.24;
 
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 
-/// @dev Interface for interacting with the PropLot protocol core contract
-interface IPropLot {
+/// @dev Interface for interacting with the Wave protocol core contract
+interface IWave {
     /*
       Structs
     */
@@ -23,7 +23,7 @@ interface IPropLot {
         uint16 delegateId;
     }
 
-    struct PropLotSignature {
+    struct WaveSignature {
         address signer;
         uint256 delegateId;
         uint256 numNouns;
@@ -56,14 +56,14 @@ interface IPropLot {
     event DelegationDeleted(Delegation disqualifiedDelegation);
 
     /*
-      IPropLot
+      IWave
     */
 
     function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri) external;
 
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
-    /// Checks for changes in delegation state on `nounsToken` contract and updates PropLot recordkeeping accordingly
-    /// @notice May only be called by the PropLot's ERC1155 Idea token hub at the conclusion of each 2-week wave
+    /// Checks for changes in delegation state on `nounsToken` contract and updates Wave recordkeeping accordingly
+    /// @notice May only be called by the Wave's ERC1155 Idea token hub at the conclusion of each 2-week wave
     function pushProposals(Proposal[] calldata winningProposals)
         external
         payable
@@ -73,7 +73,7 @@ interface IPropLot {
     /// in a single function call. This is the most convenient option for standard wallets using EOA private keys
     /// @notice The Nouns ERC721Checkpointable implementation only supports standard EOA ECDSA signatures and thus
     /// does not support smart contract signatures. In that case, `delegate()` must be called on the Nouns contract directly
-    function delegateBySig(PropLotSignature calldata propLotSig) external;
+    function delegateBySig(WaveSignature calldata waveSig) external;
 
     /// @dev Updates this contract's storage to reflect delegations performed directly on the Nouns token contract
     /// @dev Serves as an alternative to `delegateByDelegatecall()` for smart contract wallets

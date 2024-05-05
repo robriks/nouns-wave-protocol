@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
-import {IPropLot} from "./IPropLot.sol";
+import {IWave} from "./IWave.sol";
 
-/// @dev Interface for interacting with the PropLot IdeaTokenHub contract which manages tokenized ideas via ERC1155
+/// @dev Interface for interacting with the Wave IdeaTokenHub contract which manages tokenized ideas via ERC1155
 interface IIdeaTokenHub {
     /*
       Structs
@@ -45,7 +45,7 @@ interface IIdeaTokenHub {
     error ClaimFailure();
     error Soulbound();
 
-    event IdeaCreated(IPropLot.Proposal idea, address creator, uint96 ideaId, SponsorshipParams params);
+    event IdeaCreated(IWave.Proposal idea, address creator, uint96 ideaId, SponsorshipParams params);
     event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params);
     event ProposedIdeas(ProposalInfo[] proposedIdeas);
 
@@ -70,19 +70,19 @@ interface IIdeaTokenHub {
     /// sponsorship attempts are reverted if the wave period has passed and `finalizeWave()` has not been executed
     function sponsorIdea(uint256 ideaId) external payable;
 
-    /// @dev Finalizes a PropLot wave, marking the end of an auction wave. Winning ideas are selected by the highest
+    /// @dev Finalizes a Wave wave, marking the end of an auction wave. Winning ideas are selected by the highest
     /// sponsored balances and officially proposed to the Nouns governance contracts. The number of winners varies
     /// depending on the available 'liquidity' of lent Nouns NFTs and their proposal power. Yield distributions are
-    /// tallied by calling the PropLot Core and recording valid delegations in the `claimableYield` mapping where they
-    /// can then be claimed at any time by a Nouns holder who has delegated to PropLot
+    /// tallied by calling the Wave Core and recording valid delegations in the `claimableYield` mapping where they
+    /// can then be claimed at any time by a Nouns holder who has delegated to Wave
     function finalizeWave(uint96[] calldata offchainWinningIds, string[] calldata offchainDescriptions)
         external
         returns (
-            IPropLot.Delegation[] memory delegations,
+            IWave.Delegation[] memory delegations,
             uint256[] memory nounsProposalIds
         );
 
-    /// @dev Provides a way to collect the yield earned by Nounders who have delegated to PropLot for a full wave
+    /// @dev Provides a way to collect the yield earned by Nounders who have delegated to Wave for a full wave
     /// @notice Reentrance prevented via CEI
     function claim() external returns (uint256 claimAmt);
 
@@ -90,12 +90,12 @@ interface IIdeaTokenHub {
     /// @notice Only callable by the owner
     function setMinSponsorshipAmount(uint256 newMinSponsorshipAmount) external;
 
-    /// @dev Sets the new length of PropLot waves in blocks
+    /// @dev Sets the new length of Wave waves in blocks
     /// @notice Only callable by the owner
     function setWaveLength(uint256 newWavelength) external;
 
     /// @dev Returns an array of the current wave's leading IdeaIds where the array length is determined 
-    /// by the protocol's number of available proposer delegates, fetched from the PropLotCore contract
+    /// by the protocol's number of available proposer delegates, fetched from the WaveCore contract
     function getWinningIdeaIds() external view returns (uint256 minRequiredVotes, uint256 numEligibleProposers, uint96[] memory winningIds);
 
     /// @dev Fetches an array of `ideaIds` eligible for proposal, ordered by total funding
@@ -113,7 +113,7 @@ interface IIdeaTokenHub {
     /// @dev Returns the SponsorshipParams struct associated with a given `sponsor` address and `ideaId`
     function getSponsorshipInfo(address sponsor, uint256 ideaId) external view returns (SponsorshipParams memory);
 
-    /// @dev Returns the funds available to claim for a Nounder who has delegated to PropLot
+    /// @dev Returns the funds available to claim for a Nounder who has delegated to Wave
     function getClaimableYield(address nounder) external view returns (uint256);
 
     /// @dev Returns the next `ideaId` which makes use of the `tokenId` mechanic from the ERC1155 standard

@@ -10,20 +10,20 @@ import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
-import {IPropLot} from "src/interfaces/IPropLot.sol";
-import {PropLot} from "src/PropLot.sol";
-import {PropLotHarness} from "test/harness/PropLotHarness.sol";
+import {IWave} from "src/interfaces/IWave.sol";
+import {Wave} from "src/Wave.sol";
+import {WaveHarness} from "test/harness/WaveHarness.sol";
 
 contract CreateIdeas is Script {
     /// @notice Harness contract is used on testnet ONLY
-    PropLotHarness propLot;
+    WaveHarness waveCore;
     IdeaTokenHub ideaTokenHub;
     IERC721Checkpointable nounsToken;
 
     string uri;
     NounsDAOV3Proposals.ProposalTxs txs;
     string description;
-    IPropLot.Proposal[] proposals;
+    IWave.Proposal[] proposals;
 
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -33,8 +33,8 @@ contract CreateIdeas is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         uri = "someURI";
-        propLot = PropLotHarness(0x92bc9f0D42A3194Df2C5AB55c3bbDD82e6Fb2F92);
-        ideaTokenHub = IdeaTokenHub(address(propLot.ideaTokenHub()));
+        waveCore = WaveHarness(0x92bc9f0D42A3194Df2C5AB55c3bbDD82e6Fb2F92);
+        ideaTokenHub = IdeaTokenHub(address(waveCore.ideaTokenHub()));
         nounsToken = IERC721Checkpointable(0x9B786579B3d4372d54DFA212cc8B1589Aaf6DcF3);
 
         // setup mock proposal
@@ -54,10 +54,10 @@ contract CreateIdeas is Script {
         // ideaTokenHub.createIdea{value: 0.0001 ether}(txs, description);
         // ideaTokenHub.sponsorIdea{value: 0.0001 ether}(1);
         
-        // proplot delegate events
-        // (address targetProxy, uint256 votes) = propLot.getSuitableDelegateFor(deployer);
+        // Wave delegate events
+        // (address targetProxy, uint256 votes) = waveCore.getSuitableDelegateFor(deployer);
         // console2.logUint(votes);
-        // assert(targetProxy == propLot.getDelegateAddress(1));
+        // assert(targetProxy == waveCore.getDelegateAddress(1));
         // nounsToken.delegate(targetProxy);
 
         vm.stopBroadcast();

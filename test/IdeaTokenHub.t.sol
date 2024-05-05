@@ -10,16 +10,16 @@ import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IIdeaTokenHub} from "src/interfaces/IIdeaTokenHub.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
-import {IPropLot} from "src/interfaces/IPropLot.sol";
-import {PropLotTest} from "test/PropLot.t.sol";
-import {PropLotHarness} from "test/harness/PropLotHarness.sol";
+import {IWave} from "src/interfaces/IWave.sol";
+import {WaveTest} from "test/Wave.t.sol";
+import {WaveHarness} from "test/harness/WaveHarness.sol";
 import {NounsEnvSetup} from "test/helpers/NounsEnvSetup.sol";
 import {TestUtils} from "test/helpers/TestUtils.sol";
 
 /// @dev This IdeaTokenHub test suite inherits from the Nouns governance setup contract to mimic the onchain environment
 contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
-    PropLotHarness propLotImpl;
-    PropLotHarness propLot;
+    WaveHarness waveCoreImpl;
+    WaveHarness waveCore;
     IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
 
@@ -30,14 +30,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     NounsDAOV3Proposals.ProposalTxs txs;
     string description;
     // singular proposal stored for easier referencing against `IdeaInfo` struct member
-    IPropLot.Proposal proposal;
+    IWave.Proposal proposal;
     IdeaTokenHub.WaveInfo firstWaveInfo; // only used for sanity checks
 
     function setUp() public {
         // establish clone of onchain Nouns governance environment
         super.setUpNounsGovernance();
 
-        // setup PropLot contracts
+        // setup Wave contracts
         waveLength = 100800;
         minSponsorshipAmount = 0.00077 ether;
         decimals = 18;
@@ -47,9 +47,9 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
         ideaTokenHubImpl = new IdeaTokenHub();
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
-        propLotImpl = new PropLotHarness();
-        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), minSponsorshipAmount, waveLength, uri);
-        propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
+        waveCoreImpl = new WaveHarness();
+        bytes memory initData = abi.encodeWithSelector(IWave.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), minSponsorshipAmount, waveLength, uri);
+        waveCore = WaveHarness(address(new ERC1967Proxy(address(waveCoreImpl), initData)));
 
         // setup mock proposal
         txs.targets.push(address(0x0));
@@ -71,7 +71,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         // continue with IdeaTokenHub configuration
         firstWaveInfo.currentWave = 1;
         firstWaveInfo.startBlock = uint32(block.number);
-        proposal = IPropLot.Proposal(txs, description);
+        proposal = IWave.Proposal(txs, description);
     }
 
     function test_setUp() public {
@@ -111,7 +111,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             uint256 currentIdeaId = startId + i;
             vm.expectEmit(true, true, true, false);
             emit IIdeaTokenHub.IdeaCreated(
-                IPropLot.Proposal(txs, description),
+                IWave.Proposal(txs, description),
                 nounder,
                 uint96(currentIdeaId),
                 IIdeaTokenHub.SponsorshipParams(ideaValue, true)
@@ -154,7 +154,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             vm.expectEmit(true, true, true, false);
             emit IIdeaTokenHub.IdeaCreated(
-                IPropLot.Proposal(txs, description),
+                IWave.Proposal(txs, description),
                 nounder,
                 uint96(currentIdeaId),
                 IIdeaTokenHub.SponsorshipParams(ideaValue, true)
@@ -201,7 +201,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             vm.expectEmit(true, true, true, false);
             emit IIdeaTokenHub.IdeaCreated(
-                IPropLot.Proposal(txs, description),
+                IWave.Proposal(txs, description),
                 nounder,
                 uint96(currentIdeaId),
                 IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true)
@@ -276,7 +276,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         vm.assume(numCreators != 0);
         vm.assume(numFullDelegations != 0 || numSupplementaryDelegations > 1);
 
-        uint256 startMinRequiredVotes = propLot.getCurrentMinRequiredVotes(); // stored for assertions
+        uint256 startMinRequiredVotes = waveCore.getCurrentMinRequiredVotes(); // stored for assertions
 
         bool eoa; // used to alternate simulating EOA users and smart contract wallet users
         // perform supplementary delegations
@@ -284,7 +284,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             // mint `minRequiredVotes / 2` to new nounder and delegate
             address currentSupplementaryNounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
 
-            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 minRequiredVotes = waveCore.getCurrentMinRequiredVotes();
             uint256 amt = minRequiredVotes / 2;
             NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
 
@@ -292,12 +292,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
 
-            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
-            address delegate = propLot.getDelegateAddress(delegateId);
+            uint256 delegateId = waveCore.getDelegateIdByType(minRequiredVotes, true);
+            address delegate = waveCore.getDelegateAddress(delegateId);
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            waveCore.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -310,19 +310,19 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
             address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
 
-            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 minRequiredVotes = waveCore.getCurrentMinRequiredVotes();
             uint256 amt = minRequiredVotes; // amount to mint
 
             NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
             uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
             assertEq(returnedFullBalance, amt);
 
-            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
-            address delegate = propLot.getDelegateAddress(delegateId);
+            uint256 delegateId = waveCore.getDelegateIdByType(minRequiredVotes, false);
+            address delegate = waveCore.getDelegateAddress(delegateId);
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId);
+            waveCore.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
             // simulate time passing
@@ -431,14 +431,14 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         for (uint256 m; m < winningIds.length; ++m) {
             descriptions[m] = description;
         }
-        (IPropLot.Delegation[] memory delegations, uint256[] memory nounsProposalIds) =
+        (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds) =
             ideaTokenHub.finalizeWave(winningIds, descriptions);
 
         (uint32 postCurrentWave, uint32 postStartBlock) = ideaTokenHub.currentWaveInfo();
         assertEq(postCurrentWave, prevCurrentWave + 1);
         assertTrue(postStartBlock > prevStartBlock);
 
-        uint256 endMinRequiredVotes = propLot.getCurrentMinRequiredVotes();
+        uint256 endMinRequiredVotes = waveCore.getCurrentMinRequiredVotes();
         if (delegations.length == 0) {
             assertTrue(startMinRequiredVotes != endMinRequiredVotes);
             // assert no proposals were made
@@ -481,7 +481,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         for (uint256 i; i < numSupplementaryDelegations; ++i) {
             // mint `minRequiredVotes / 2` to new nounder and delegate
             address currentSupplementaryNounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
-            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 minRequiredVotes = waveCore.getCurrentMinRequiredVotes();
             uint256 amt = minRequiredVotes / 2;
             NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentSupplementaryNounder, amt);
 
@@ -489,12 +489,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentSupplementaryNounder);
             assertEq(returnedSupplementaryBalance, amt);
 
-            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, true);
-            address delegate = propLot.getDelegateAddress(delegateId);
+            uint256 delegateId = waveCore.getDelegateIdByType(minRequiredVotes, true);
+            address delegate = waveCore.getDelegateAddress(delegateId);
 
             vm.startPrank(currentSupplementaryNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentSupplementaryNounder, delegateId);
+            waveCore.registerDelegation(currentSupplementaryNounder, delegateId);
             vm.stopPrank();
 
             eoa = !eoa;
@@ -504,19 +504,19 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         for (uint256 j; j < numFullDelegations; ++j) {
             // mint `minRequiredVotes`to new nounder and delegate, adding `numSupplementaryDelegates` to `j` to get new addresses
             address currentFullNounder = _createNounderEOA(j + numSupplementaryDelegations);
-            uint256 minRequiredVotes = propLot.getCurrentMinRequiredVotes();
+            uint256 minRequiredVotes = waveCore.getCurrentMinRequiredVotes();
             uint256 amt = minRequiredVotes; // amount to mint
 
             NounsTokenHarness(address(nounsTokenHarness)).mintMany(currentFullNounder, amt);
             uint256 returnedFullBalance = NounsTokenHarness(address(nounsTokenHarness)).balanceOf(currentFullNounder);
             assertEq(returnedFullBalance, amt);
 
-            uint256 delegateId = propLot.getDelegateIdByType(minRequiredVotes, false);
-            address delegate = propLot.getDelegateAddress(delegateId);
+            uint256 delegateId = waveCore.getDelegateIdByType(minRequiredVotes, false);
+            address delegate = waveCore.getDelegateAddress(delegateId);
 
             vm.startPrank(currentFullNounder);
             nounsTokenHarness.delegate(delegate);
-            propLot.registerDelegation(currentFullNounder, delegateId);
+            waveCore.registerDelegation(currentFullNounder, delegateId);
             vm.stopPrank();
 
             eoa = !eoa;
@@ -540,7 +540,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
             vm.expectEmit(true, true, true, false);
             emit IIdeaTokenHub.IdeaCreated(
-                IPropLot.Proposal(txs, description),
+                IWave.Proposal(txs, description),
                 nounder,
                 uint96(currentIdeaId),
                 IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomIdeaValue), true)

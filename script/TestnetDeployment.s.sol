@@ -28,9 +28,9 @@ import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
-import {IPropLot} from "src/interfaces/IPropLot.sol";
-import {PropLot} from "src/PropLot.sol";
-import {PropLotHarness} from "test/harness/PropLotHarness.sol";
+import {IWave} from "src/interfaces/IWave.sol";
+import {Wave} from "src/Wave.sol";
+import {WaveHarness} from "test/harness/WaveHarness.sol";
 import {NounsDAOExecutorV2Testnet} from "test/harness/NounsDAOExecutorV2Testnet.sol";
 
 
@@ -40,7 +40,7 @@ import {NounsDAOExecutorV2Testnet} from "test/harness/NounsDAOExecutorV2Testnet.
 /// Verification:
 /* 
 `forge verify-contract <ideaTokenHub> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY src/IdeaTokenHub.sol:IdeaTokenHub`
-`forge verify-contract <propLot> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY test/harness/PropLotHarness.sol:PropLotHarness`
+`forge verify-contract <waveCore> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY test/harness/WaveHarness.sol:WaveHarness`
 `forge verify-contract <nounsToken> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY lib/nouns-monorepo/nouns-contracts/contracts/test/NounsTokenHarness.sol`
 */
 
@@ -53,8 +53,8 @@ contract Deploy is Script {
     uint256 waveLength = 50; // TESTNET ONLY
     
     /// @notice Harness contract is used on testnet ONLY
-    PropLotHarness propLotImpl;
-    PropLotHarness propLot;
+    WaveHarness waveCoreImpl;
+    WaveHarness waveCore;
     IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
 
@@ -155,19 +155,19 @@ contract Deploy is Script {
 
         //end nouns setup
 
-        // setup PropLot contracts
+        // setup Wave contracts
         string memory uri = "someURI";
         ideaTokenHubImpl = new IdeaTokenHub();
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
-        propLotImpl = new PropLotHarness();
-        bytes memory initData = abi.encodeWithSelector(IPropLot.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), minSponsorshipAmount, waveLength, uri);
-        propLot = PropLotHarness(address(new ERC1967Proxy(address(propLotImpl), initData)));
+        waveCoreImpl = new WaveHarness();
+        bytes memory initData = abi.encodeWithSelector(IWave.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), minSponsorshipAmount, waveLength, uri);
+        waveCore = WaveHarness(address(new ERC1967Proxy(address(waveCoreImpl), initData)));
 
         require(address(ideaTokenHub).code.length > 0);
-        require(address(propLot).code.length > 0);
+        require(address(waveCore).code.length > 0);
         require(address(nounsTokenHarness).code.length > 0);
         console2.logAddress(address(ideaTokenHub));
-        console2.logAddress(address(propLot));
+        console2.logAddress(address(waveCore));
         console2.logAddress(address(nounsTokenHarness));
 
         // balances to roughly mirror mainnet
