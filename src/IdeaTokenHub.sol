@@ -7,13 +7,13 @@ import {ERC1155Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contrac
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
-import {IPropLot} from "./interfaces/IPropLot.sol";
-import {PropLot} from "./PropLot.sol";
+import {IWave} from "./interfaces/IWave.sol";
+import {Wave} from "./Wave.sol";
 
-/// @title PropLot Protocol IdeaTokenHub
+/// @title Wave Protocol IdeaTokenHub
 /// @author 📯📯📯.eth
-/// @notice The PropLot Protocol Idea Token Hub extends the Nouns governance ecosystem by tokenizing and crowdfunding ideas
-/// for Nouns governance proposals. Nouns NFT holders earn yield in exchange for lending their tokens' proposal power to PropLot,
+/// @notice The Wave Protocol Idea Token Hub extends the Nouns governance ecosystem by tokenizing and crowdfunding ideas
+/// for Nouns governance proposals. Nouns NFT holders earn yield in exchange for lending their tokens' proposal power to Wave,
 /// which democratizes access and lowers the barrier of entry for anyone with a worthy idea, represented as an ERC1155 tokenId.
 /// Use of ERC1155 enables permissionless onchain minting with competition introduced by a crowdfunding auction.
 /// Each `tokenId` represents a proposal idea which can be individually funded via permissionless mint. At the conclusion
@@ -31,7 +31,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
       Storage
     */
 
-    IPropLot private __propLotCore;
+    IWave private __waveCore;
     INounsDAOLogicV3 private __nounsGovernor;
     
     WaveInfo public currentWaveInfo;
@@ -58,7 +58,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         _transferOwnership(owner_);
         __ERC1155_init(uri_);
 
-        __propLotCore = IPropLot(msg.sender);
+        __waveCore = IWave(msg.sender);
         __nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
 
         ++currentWaveInfo.currentWave;
@@ -92,7 +92,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
         _mint(msg.sender, newIdeaId, msg.value, "");
 
-        emit IdeaCreated(IPropLot.Proposal(ideaTxs, description), msg.sender, newIdeaId, SponsorshipParams(value, true));
+        emit IdeaCreated(IWave.Proposal(ideaTxs, description), msg.sender, newIdeaId, SponsorshipParams(value, true));
     }
 
     /// @inheritdoc IIdeaTokenHub
@@ -123,7 +123,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     function finalizeWave(uint96[] calldata offchainWinningIds, string[] calldata offchainDescriptions)
         external
         returns (
-            IPropLot.Delegation[] memory delegations,
+            IWave.Delegation[] memory delegations,
             uint256[] memory nounsProposalIds
         )
     {
@@ -138,7 +138,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         uint96[] memory winningIds;
         (minRequiredVotes, numEligibleProposers, winningIds) = getWinningIdeaIds();
         // terminate early when there is not enough liquidity for proposals to be made
-        if (numEligibleProposers == 0) return (new IPropLot.Delegation[](0), new uint256[](0));
+        if (numEligibleProposers == 0) return (new IWave.Delegation[](0), new uint256[](0));
 
         // re-validate the provided offchain parameter lengths against returned canonical onchain state
         uint256 descriptionsLen = offchainDescriptions.length;
@@ -150,7 +150,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
         // populate array with winning txs & description and aggregate total payout amount
         uint256 winningProposalsTotalFunding;
-        IPropLot.Proposal[] memory winningProposals = new IPropLot.Proposal[](winningIds.length);
+        IWave.Proposal[] memory winningProposals = new IWave.Proposal[](winningIds.length);
         ProposalInfo[] memory proposedIdeas = new ProposalInfo[](winningIds.length);
         for (uint256 i; i < winningIds.length; ++i) {
             uint96 currentWinnerId = winningIds[i];
@@ -160,13 +160,13 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
             IdeaInfo storage winner = ideaInfos[currentWinnerId];
             winner.isProposed = true;
             winningProposalsTotalFunding += winner.totalFunding;
-            winningProposals[i] = IPropLot.Proposal(winner.proposalTxs, offchainDescriptions[i]);
+            winningProposals[i] = IWave.Proposal(winner.proposalTxs, offchainDescriptions[i]);
             
             // use placeholder value since `nounsProposalId` is not known and will be assigned by Nouns Governor
             proposedIdeas[i] = ProposalInfo(0, uint256(currentWinnerId), winner.totalFunding, winner.blockCreated);
         }
 
-        (delegations, nounsProposalIds) = __propLotCore.pushProposals(winningProposals);
+        (delegations, nounsProposalIds) = __waveCore.pushProposals(winningProposals);
 
         // populate array's `nounsProposalId` struct field for event emission now that they are known
         for (uint256 i; i < proposedIdeas.length; ++i) {
@@ -214,7 +214,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     /// If a full list of eligible IdeaIds ordered by current funding is desired, use `getOrderedEligibleIdeaIds(0)` instead
     function getWinningIdeaIds() public view returns (uint256 minRequiredVotes, uint256 numEligibleProposers, uint96[] memory winningIds) {
         // identify number of proposals to push for current voting threshold
-        (minRequiredVotes, numEligibleProposers) = __propLotCore.numEligibleProposerDelegates();
+        (minRequiredVotes, numEligibleProposers) = __waveCore.numEligibleProposerDelegates();
         // terminate early when there is not enough liquidity for proposals to be made; avoids issues with `getOrderedEligibleIdeaIds()`
         if (numEligibleProposers == 0) return (minRequiredVotes, 0, new uint96[](0));
 
@@ -331,11 +331,11 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         }
 
         // cycle through optimistic delegations for total optimistic voting power to estimate yield
-        IPropLot.Delegation[] memory optimisticDelegations = __propLotCore.getOptimisticDelegations();
+        IWave.Delegation[] memory optimisticDelegations = __waveCore.getOptimisticDelegations();
         uint16 totalDelegatedVotes;
         uint256 nounderVotingPower;
         for (uint256 j; j < optimisticDelegations.length; ++j) {
-            IPropLot.Delegation memory currentDelegation = optimisticDelegations[j];
+            IWave.Delegation memory currentDelegation = optimisticDelegations[j];
             totalDelegatedVotes += currentDelegation.votingPower;
 
             // identify match if it exists and save relevant `votingPower`
@@ -385,6 +385,6 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     }
 
     function _authorizeUpgrade(address /*newImplementation*/) internal virtual override {
-        if (msg.sender != owner()) revert IPropLot.Unauthorized();
+        if (msg.sender != owner()) revert IWave.Unauthorized();
     }
 }

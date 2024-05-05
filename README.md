@@ -1,10 +1,10 @@
 <div align="center">
 
-# PropLot Protocol
+# Wave Protocol
 
 </div>
 
-PropLot Protocol is a decentralized system built on top of the Nouns Governance ecosystem to noncustodially and permissionlessly democratize access to the Nouns sphere and lower the barrier of entry so that anyone with a worthy Nouns governance idea may participate and make a difference.
+Wave Protocol is a decentralized system built on top of the Nouns Governance ecosystem to noncustodially and permissionlessly democratize access to the Nouns sphere and lower the barrier of entry so that anyone with a worthy Nouns governance idea may participate and make a difference.
 
 ## Table of Contents
 - [Why Extend Nouns Governance?](#why-extend-nouns-governance)
@@ -17,33 +17,33 @@ PropLot Protocol is a decentralized system built on top of the Nouns Governance 
 
 ## Why extend Nouns governance?
 
-The PropLot protocol introduces numerous benefits to all parties involved. It provides Nouns NFT holders with a way to earn yield on their Nouns tokens by noncustodially lending their voting power to the PropLot protocol via delegation. Delegating to PropLot thereby extends the right to make onchain proposals to addresses that don't hold Nouns tokens but would like to submit proposal ideas.
+The Wave protocol introduces numerous benefits to all parties involved. It provides Nouns NFT holders with a way to earn yield on their Nouns tokens by noncustodially lending their voting power to the Wave protocol via delegation. Delegating to Wave thereby extends the right to make onchain proposals to addresses that don't hold Nouns tokens but would like to submit proposal ideas.
 
 ### On security
 
-The protocol is designed with maximal attention to security; since voting power is simply delegated noncustodially to PropLot contracts, there is no requirement for any kind of approval, transfer, or other action which could compromise the ownership of the Nouns NFTs. Only the voting power of the Nouns token's `ERC721Checkpointable` ledger is ever required to participate in PropLot and earn yield.
+The protocol is designed with maximal attention to security; since voting power is simply delegated noncustodially to Wave contracts, there is no requirement for any kind of approval, transfer, or other action which could compromise the ownership of the Nouns NFTs. Only the voting power of the Nouns token's `ERC721Checkpointable` ledger is ever required to participate in Wave and earn yield.
 
 ## Architecture Overview
 
-PropLot consists of three major parts: the IdeaTokenHub ERC1155 auction mechanism, the PropLot Core contract, and Delegates which are used to push winning proposals to Nouns governance contracts.
+Wave consists of three major parts: the IdeaTokenHub ERC1155 auction mechanism, the Wave Core contract, and Delegates which are used to push winning proposals to Nouns governance contracts.
 
 - **IdeaTokenHub**
-- **PropLot Core**
+- **Wave Core**
 - **Delegates**
 
 ### IdeaTokenHub
 
-The IdeaTokenHub handles tokenization and crowdfunding of permissionlessly submitted ideas for new Nouns governance proposals. Each idea is represented as a unique ERC1155 tokenId, which enables permissionless on-chain minting. Competition for pushing an idea token through to Nouns governance is introduced through a crowdfunding auction called a "wave". Tokenized ideas with the most funding at the end of each auction are officially proposed into the Nouns governance system by leveraging proposal power lent/delegated to PropLot by Nouns tokenholders.
+The IdeaTokenHub handles tokenization and crowdfunding of permissionlessly submitted ideas for new Nouns governance proposals. Each idea is represented as a unique ERC1155 tokenId, which enables permissionless on-chain minting. Competition for pushing an idea token through to Nouns governance is introduced through a crowdfunding auction called a "wave". Tokenized ideas with the most funding at the end of each auction are officially proposed into the Nouns governance system by leveraging proposal power lent/delegated to Wave by Nouns tokenholders.
 
-### PropLot Core
+### Wave Core
 
-To perform official onchain proposals to Nouns governance, the PropLot Core contract manages a set of deterministically derived Delegate contracts. These Delegate contracts are designed for a single function: to non-custodially receive delegation from Noun token holders and push onchain proposals to the Nouns governance ecosystem. Nouns NFT holders who delegate to PropLot are compensated for granting the protocol the ability to create proposals on their behalf in the form of earning yield.
+To perform official onchain proposals to Nouns governance, the Wave Core contract manages a set of deterministically derived Delegate contracts. These Delegate contracts are designed for a single function: to non-custodially receive delegation from Noun token holders and push onchain proposals to the Nouns governance ecosystem. Nouns NFT holders who delegate to Wave are compensated for granting the protocol the ability to create proposals on their behalf in the form of earning yield.
 
 One caveat worth noting is that since Nouns voting power delegation is all-or-nothing on an address basis, Noun token holders can only delegate (and earn yield) on Nouns token balances up to the proposal threshold per wallet address. Furthermore, registered delegations are handled optimistically and resolved at proposal time due to the fact that delegations can be revoked directly on the Nouns token contract.
 
 ### Delegates
 
-All PropLot Protocol Delegate contracts are managed by the PropLot Core. They are designed to receive Nouns token delegation non-custodially so they can be used as proxies to push onchain proposals to Nouns governance.
+All Wave Protocol Delegate contracts are managed by the Wave Core. They are designed to receive Nouns token delegation non-custodially so they can be used as proxies to push onchain proposals to Nouns governance.
 
 For utmost security, Delegates never custody Nouns tokens and can only push proposals.
 
@@ -51,9 +51,9 @@ For utmost security, Delegates never custody Nouns tokens and can only push prop
 
 ### Nouns holders
 
-Nouns tokenholders must delegate their voting power to PropLot via a call to the Nouns token contract using either the `delegate()` or `delegateBySig()` function, while providing a valid Delegate address. Functions for selecting a suitable delegate for a Nouns holder can be referenced in the "Usage" section below.
+Nouns tokenholders must delegate their voting power to Wave via a call to the Nouns token contract using either the `delegate()` or `delegateBySig()` function, while providing a valid Delegate address. Functions for selecting a suitable delegate for a Nouns holder can be referenced in the "Usage" section below.
 
-Once voting power has been delegated to PropLot, the tokenholder must register their delegation with PropLot and thus their intent to provide proposal power. Registration updates this contract's storage to optimistically expect the registered voting power. Since delegation is performed directly on the Nouns token contract, this may change and is validated at the conclusion of each auction.
+Once voting power has been delegated to Wave, the tokenholder must register their delegation with Wave and thus their intent to provide proposal power. Registration updates this contract's storage to optimistically expect the registered voting power. Since delegation is performed directly on the Nouns token contract, this may change and is validated at the conclusion of each auction.
 
 ```solidity
 /// @dev Updates this contract's storage to reflect delegations performed directly on the Nouns token contract
@@ -64,13 +64,13 @@ Using ECDSA signatures, Nouns tokenholders can simultaneously create a delegate 
 
 ```solidity
 /// @dev Simultaneously creates a delegate if it doesn't yet exist and grants voting power to the delegate
-function delegateBySig(PropLotSignature calldata propLotSig) external;
+function delegateBySig(WaveSignature calldata waveSig) external;
 ```
 
 At the end of each wave, delegations deemed to have violated their optimistic registration are cleared and the remaining delegators whose voting power was legitimately provided to the protocol are marked eligible to claim their yield:
 
 ```solidity
-/// @dev Provides a way to collect the yield earned by Nounders who have delegated to PropLot
+/// @dev Provides a way to collect the yield earned by Nounders who have delegated to Wave
 function claim() external returns (uint256 claimAmt);
 ```
 
@@ -106,7 +106,7 @@ $ forge test
 
 ## Usage
 
-The PropLot protocol core contract provides numerous convenience functions to improve offchain devX by returning values relevant for developing offchain components.
+The Wave protocol core contract provides numerous convenience functions to improve offchain devX by returning values relevant for developing offchain components.
 
 ### To view the current minimum votes required to submit an onchain proposal to Nouns governance
 
@@ -114,7 +114,7 @@ The PropLot protocol core contract provides numerous convenience functions to im
 function getCurrentMinRequiredVotes() external view returns (uint256 minRequiredVotes);
 ```
 
-### To fetch a suitable PropLot delegate for a given user based on their Nouns token voting power. This is the address the tokenholder should delegate to, using the Nouns token contract `delegate()` function.
+### To fetch a suitable Wave delegate for a given user based on their Nouns token voting power. This is the address the tokenholder should delegate to, using the Nouns token contract `delegate()` function.
 
 ```solidity
 /// @dev Returns a suitable delegate address for an account based on its voting power
@@ -180,7 +180,7 @@ function getOrderedEligibleIdeaIds(uint256 optLimiter) external view returns (ui
 
 ```solidity
 /// @dev Returns an array of the current wave's leading IdeaIds where the array length is determined
-/// by the protocol's number of available proposer delegates, fetched from the PropLotCore contract
+/// by the protocol's number of available proposer delegates, fetched from the WaveCore contract
 function getWinningIdeaIds() external view returns (uint256 minRequiredVotes, uint256 numEligibleProposers, uint96[] memory winningIds);
 ```
 
@@ -201,12 +201,12 @@ function getOrderedProposedIdeaIds() external view returns (uint96[] memory orde
 
 ## Live Deployments
 
-PropLot protocol is currently deployed in Beta on Base Sepolia testnet for backend & frontend development and finalized Ethereum mainnet deployments are coming soon.
+Wave protocol is currently deployed in Beta on Base Sepolia testnet for backend & frontend development and finalized Ethereum mainnet deployments are coming soon.
 
 | Name | Contract Details | Contract Address |
 | --- | --- | --- |
 | IdeaTokenHub | Harness, Proxy | 0xaB626b93B3f98d79ae1FBf6c76Bf678F83E7faf3 |
-| PropLot | Harness, Proxy | 0xD49c56d08D3c40854c0543bA5B1747f2Ad1c7b89 |
+| Wave | Harness, Proxy | 0xD49c56d08D3c40854c0543bA5B1747f2Ad1c7b89 |
 | NounsToken | Harness | 0x1B8D11880fe221B51FC814fF4C41366a91A59DEB |
 
 Note that the above testnet contracts deployed to Base Sepolia network are harnesses to expose convenience functions that would normally otherwise be protected to expedite development.

@@ -7,15 +7,15 @@ import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {Delegate} from "src/Delegate.sol";
-import {PropLot} from "src/PropLot.sol";
+import {Wave} from "src/Wave.sol";
 import {console2} from "forge-std/console2.sol";
 
-/// @dev PropLot harness contract exposing all internal functions externally for testing
-contract PropLotHarness is PropLot {
+/// @dev Wave harness contract exposing all internal functions externally for testing
+contract WaveHarness is Wave {
     address self;
     bytes32 creationCodeHash;
 
-    constructor() PropLot() {}
+    constructor() Wave() {}
     
     function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri) public override {
         super.initialize(ideaTokenHub_, nounsGovernor_, nounsToken_, minSponsorshipAmount_, waveLength_, uri);
