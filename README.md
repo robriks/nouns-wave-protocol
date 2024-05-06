@@ -211,8 +211,8 @@ Wave protocol is currently deployed in Beta on Base Sepolia testnet for backend 
 
 | Name | Contract Details | Contract Address |
 | --- | --- | --- |
-| IdeaTokenHub | Harness, Proxy | 0x54a488958D1f7e90aC1a9C7eE5a450d1E2170789 |
-| Wave | Harness, Proxy | 0x55C7c4ADEd315FF29a336cAE5671a4B0A69ae348 |
-| NounsToken | Harness | 0xa28Fb072290d6d731cA08EFb8f79bF4dB1D13e67 |
+| IdeaTokenHub | Harness, Proxy | 0x450127A75b43986A51e27072AA6BBB526EEA5Ac7 |
+| Wave | Harness, Proxy | 0x6DBc664b1196B083F9342030dBe3047Cc30C6E79 |
+| NounsToken | Harness | 0xFc77bdB59040CB548Fdc7cf85E31d8a0C6D56466 |
 
 Note that the above testnet contracts deployed to Base Sepolia network are harnesses to expose convenience functions that would normally otherwise be protected to expedite development.
