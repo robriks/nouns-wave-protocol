@@ -189,6 +189,16 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
     }
 
     /// @inheritdoc IWave
+    function getDelegateId(address delegate) external view returns (uint256 delegateId) {
+        uint256 nextDelegateId = getNextDelegateId();
+        for (uint256 i = 1; i <= nextDelegateId; ++i) {
+            if (_simulateCreate2(bytes32(uint256(i)), __creationCodeHash) == delegate) return i;
+        }
+
+        revert InvalidDelegateAddress(delegate);
+    }
+
+    /// @inheritdoc IWave
     function getDelegateIdByType(uint256 minRequiredVotes, bool isSupplementary)
         public
         view

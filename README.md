@@ -114,6 +114,12 @@ The Wave protocol core contract provides numerous convenience functions to impro
 function getCurrentMinRequiredVotes() external view returns (uint256 minRequiredVotes);
 ```
 
+### To fetch the `delegateId` for a given delegate address
+
+```solidity
+function getDelegateId(address delegate) external view returns (uint256 delegateId);
+```
+
 ### To fetch a suitable Wave delegate for a given user based on their Nouns token voting power. This is the address the tokenholder should delegate to, using the Nouns token contract `delegate()` function.
 
 ```solidity
@@ -205,8 +211,8 @@ Wave protocol is currently deployed in Beta on Base Sepolia testnet for backend 
 
 | Name | Contract Details | Contract Address |
 | --- | --- | --- |
-| IdeaTokenHub | Harness, Proxy | 0xaB626b93B3f98d79ae1FBf6c76Bf678F83E7faf3 |
-| Wave | Harness, Proxy | 0xD49c56d08D3c40854c0543bA5B1747f2Ad1c7b89 |
-| NounsToken | Harness | 0x1B8D11880fe221B51FC814fF4C41366a91A59DEB |
+| IdeaTokenHub | Harness, Proxy | 0x54a488958D1f7e90aC1a9C7eE5a450d1E2170789 |
+| Wave | Harness, Proxy | 0x55C7c4ADEd315FF29a336cAE5671a4B0A69ae348 |
+| NounsToken | Harness | 0xa28Fb072290d6d731cA08EFb8f79bF4dB1D13e67 |
 
 Note that the above testnet contracts deployed to Base Sepolia network are harnesses to expose convenience functions that would normally otherwise be protected to expedite development.
