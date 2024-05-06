@@ -47,6 +47,7 @@ interface IWave {
     error InsufficientVotingPower(address nounder);
     error DelegateSaturated(uint256 delegateId);
     error InvalidDelegateId(uint256 delegateId);
+    error InvalidDelegateAddress(address delegate);
     error InvalidSignature();
     error OnlyDelegatecallContext();
     error Create2Failure();
@@ -59,7 +60,14 @@ interface IWave {
       IWave
     */
 
-    function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri) external;
+    function initialize(
+        address ideaTokenHub_,
+        address nounsGovernor_,
+        address nounsToken_,
+        uint256 minSponsorshipAmount_,
+        uint256 waveLength_,
+        string memory uri
+    ) external;
 
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem
     /// Checks for changes in delegation state on `nounsToken` contract and updates Wave recordkeeping accordingly
@@ -87,6 +95,10 @@ interface IWave {
 
     /// @dev Computes the counterfactual address for a given delegate ID whether or not it has been deployed
     function getDelegateAddress(uint256 delegateId) external view returns (address delegate);
+
+    /// @dev Returns the `delegateId` for a given delegate address by iterating over existing delegates to find a match
+    /// @notice Intended for offchain devX convenience only; not used in a write capacity within protocol
+    function getDelegateId(address delegate) external view returns (uint256 delegateId);
 
     /// @dev Returns either an existing delegate ID if one meets the given parameters, otherwise returns the next delegate ID
     /// @param isSupplementary Whether or not to search for a Delegate that doesn't meet the current proposal threshold
@@ -131,7 +143,7 @@ interface IWave {
 
     /// @dev Returns optimistic delegations from storage. These are subject to change and should never be relied upon
     function getOptimisticDelegations() external view returns (Delegation[] memory);
-    
+
     /// @dev Convenience function to facilitate offchain development by computing the `delegateBySig()` digest
     /// for a given signer and expiry
     function computeNounsDelegationDigest(address signer, uint256 delegateId, uint256 expiry)

@@ -51,7 +51,14 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         _disableInitializers();
     }
 
-    function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri) public virtual initializer {
+    function initialize(
+        address ideaTokenHub_,
+        address nounsGovernor_,
+        address nounsToken_,
+        uint256 minSponsorshipAmount_,
+        uint256 waveLength_,
+        string memory uri
+    ) public virtual initializer {
         _transferOwnership(msg.sender);
 
         ideaTokenHub = IIdeaTokenHub(ideaTokenHub_);
@@ -82,7 +89,7 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         uint256 len = _optimisticDelegations.length;
         if (len == 0) revert InsufficientDelegations();
         delegations = new Delegation[](len);
-        
+
         // get eligible delegates
         (, uint256[] memory eligibleProposerIds) = getAllEligibleProposerDelegates();
         // should be impossible to violate, but assert invariant in case of future changes
@@ -186,6 +193,16 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
     function getDelegateAddress(uint256 delegateId) public view returns (address delegate) {
         if (delegateId == 0) revert InvalidDelegateId(delegateId);
         delegate = _simulateCreate2(bytes32(uint256(delegateId)), __creationCodeHash);
+    }
+
+    /// @inheritdoc IWave
+    function getDelegateId(address delegate) external view returns (uint256 delegateId) {
+        uint256 nextDelegateId = getNextDelegateId();
+        for (uint256 i = 1; i <= nextDelegateId; ++i) {
+            if (_simulateCreate2(bytes32(uint256(i)), __creationCodeHash) == delegate) return i;
+        }
+
+        revert InvalidDelegateAddress(delegate);
     }
 
     /// @inheritdoc IWave
@@ -489,7 +506,7 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         }
     }
 
-    function _authorizeUpgrade(address /*newImplementation*/) internal virtual override {
+    function _authorizeUpgrade(address /*newImplementation*/ ) internal virtual override {
         if (msg.sender != owner()) revert Unauthorized();
     }
 }

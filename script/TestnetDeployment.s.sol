@@ -33,7 +33,6 @@ import {Wave} from "src/Wave.sol";
 import {WaveHarness} from "test/harness/WaveHarness.sol";
 import {NounsDAOExecutorV2Testnet} from "test/harness/NounsDAOExecutorV2Testnet.sol";
 
-
 /// Usage:
 /// `forge script script/TestnetDeployment.s.sol:Deploy --fork-url $BASE_SEPOLIA_RPC_URL --private-key $PK --with-gas-price 1000000 --verify --etherscan-api-key $BASESCAN_API_KEY --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --broadcast`
 
@@ -51,7 +50,7 @@ contract Deploy is Script {
     address vanity = 0xFFFFfFfFA2eC6F66a22017a0Deb0191e5F8cBc35;
     uint256 minSponsorshipAmount = 1 wei; // TESTNET ONLY
     uint256 waveLength = 50; // TESTNET ONLY
-    
+
     /// @notice Harness contract is used on testnet ONLY
     WaveHarness waveCoreImpl;
     WaveHarness waveCore;
@@ -73,7 +72,7 @@ contract Deploy is Script {
     IProxyRegistry nounsProxyRegistry_;
     NounsDAOForkEscrow nounsForkEscrow_;
 
-    address nounsDAOSafe_; 
+    address nounsDAOSafe_;
     address nounsAuctionHouserMinter_;
     address nounsTimelockAdmin_;
     uint256 nounsTimelockDelay_;
@@ -87,13 +86,55 @@ contract Deploy is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        // start setup Nouns env
+        // setup Nouns env
+        _deployNounsInfra(deployerPrivateKey);
+
+        // setup Wave contracts
+        string memory uri = "someURI";
+        ideaTokenHubImpl = new IdeaTokenHub();
+        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), "")));
+        waveCoreImpl = new WaveHarness();
+        bytes memory initData = abi.encodeWithSelector(
+            IWave.initialize.selector,
+            address(ideaTokenHub),
+            address(nounsGovernorProxy),
+            address(nounsTokenHarness),
+            minSponsorshipAmount,
+            waveLength,
+            uri
+        );
+        waveCore = WaveHarness(address(new ERC1967Proxy(address(waveCoreImpl), initData)));
+
+        require(address(ideaTokenHub).code.length > 0);
+        require(address(waveCore).code.length > 0);
+        require(address(nounsTokenHarness).code.length > 0);
+        console2.logAddress(address(ideaTokenHub));
+        console2.logAddress(address(waveCore));
+        console2.logAddress(address(nounsTokenHarness));
+
+        // balances to roughly mirror mainnet
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 130); // must be split into 2 transactions
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 135); // due to inefficiency & block gas limit
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30); // == deployer
+        // must be split into 2 transactions due to inefficiency & block gas limit
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 150);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 150);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(frog, 25);
+        // must be split into 2 transactions due to inefficiency & block gas limit
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(vanity, 150); // ~rest of missing supply to dummy address
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(vanity, 150); // ~rest of missing supply to dummy address
+
+        vm.stopBroadcast();
+    }
+
+    function _deployNounsInfra(uint256 _deployerPrivateKey) internal {
         nounsDAOSafe_ = nounsSafeMinterVetoerDescriptorAdmin;
         nounsAuctionHouserMinter_ = nounsSafeMinterVetoerDescriptorAdmin;
 
         inflator_ = IInflator(address(new Inflator()));
         // rather than simulate create2, set temporary descriptor address then change to correct one after deployment
-        nounsArt_ = INounsArt(address(new NounsArt(vm.addr(deployerPrivateKey), inflator_)));
+        nounsArt_ = INounsArt(address(new NounsArt(vm.addr(_deployerPrivateKey), inflator_)));
         nounsRenderer_ = ISVGRenderer(address(new SVGRenderer()));
         nounsDescriptor_ = INounsDescriptorMinimal(address(new NounsDescriptorV2(nounsArt_, nounsRenderer_)));
         // add dummy art and change descriptor to correct address after deployment
@@ -116,14 +157,15 @@ contract Deploy is Script {
 
         // setup Nouns timelock executor
         nounsTimelockImpl = new NounsDAOExecutorV2Testnet();
-        nounsTimelockProxy =
-            NounsDAOExecutorV2Testnet(payable(address(new NounsDAOExecutorProxy(address(nounsTimelockImpl),  bytes('')))));
+        nounsTimelockProxy = NounsDAOExecutorV2Testnet(
+            payable(address(new NounsDAOExecutorProxy(address(nounsTimelockImpl), bytes(""))))
+        );
         nounsTimelockAdmin_ = nounsSafeMinterVetoerDescriptorAdmin;
         nounsTimelockDelay_ = 1;
         nounsTimelockProxy.initialize(nounsTimelockAdmin_, nounsTimelockDelay_);
 
         // setup Nouns Governor (harness)
-        vetoer_ = nounsSafeMinterVetoerDescriptorAdmin; 
+        vetoer_ = nounsSafeMinterVetoerDescriptorAdmin;
         votingPeriod_ = 5; // 1 minute voting period in blocks
         votingDelay_ = 1; // 12 second voting delay in blocks
         proposalThresholdBPS_ = 25;
@@ -152,37 +194,5 @@ contract Deploy is Script {
         // upgrade to NounsDAOLogicV3Harness and set nounsForkEscrow
         NounsDAOProxy(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
         nounsGovernorProxy._setForkEscrow(address(nounsForkEscrow_));
-
-        //end nouns setup
-
-        // setup Wave contracts
-        string memory uri = "someURI";
-        ideaTokenHubImpl = new IdeaTokenHub();
-        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
-        waveCoreImpl = new WaveHarness();
-        bytes memory initData = abi.encodeWithSelector(IWave.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), minSponsorshipAmount, waveLength, uri);
-        waveCore = WaveHarness(address(new ERC1967Proxy(address(waveCoreImpl), initData)));
-
-        require(address(ideaTokenHub).code.length > 0);
-        require(address(waveCore).code.length > 0);
-        require(address(nounsTokenHarness).code.length > 0);
-        console2.logAddress(address(ideaTokenHub));
-        console2.logAddress(address(waveCore));
-        console2.logAddress(address(nounsTokenHarness));
-
-        // balances to roughly mirror mainnet
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 130); // must be split into 2 transactions
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 135); // due to inefficiency & block gas limit
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30); // == deployer
-        // must be split into 2 transactions due to inefficiency & block gas limit
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 150);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 150);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(frog, 25);
-        // must be split into 2 transactions due to inefficiency & block gas limit
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(vanity, 150); // ~rest of missing supply to dummy address
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(vanity, 150); // ~rest of missing supply to dummy address
-
-        vm.stopBroadcast();
     }
 }
