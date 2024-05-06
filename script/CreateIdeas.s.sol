@@ -49,11 +49,10 @@ contract CreateIdeas is Script {
         // NounsTokenHarness(address(nounsToken)).mintMany(0x5d5d4d04B70BFe49ad7Aac8C4454536070dAf180, 25);
         NounsTokenHarness(address(nounsToken)).transferFrom(deployer, frog, 1);
 
-
         // idea stuff
         // ideaTokenHub.createIdea{value: 0.0001 ether}(txs, description);
         // ideaTokenHub.sponsorIdea{value: 0.0001 ether}(1);
-        
+
         // Wave delegate events
         // (address targetProxy, uint256 votes) = waveCore.getSuitableDelegateFor(deployer);
         // console2.logUint(votes);

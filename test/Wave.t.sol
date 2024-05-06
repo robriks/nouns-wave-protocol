@@ -62,9 +62,17 @@ contract WaveTest is NounsEnvSetup, TestUtils {
         minSponsorshipAmount = 0.00077 ether;
         uri = "someURI";
         ideaTokenHubImpl = new IdeaTokenHub();
-        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), '')));
+        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), "")));
         waveCoreImpl = new WaveHarness();
-        bytes memory initData = abi.encodeWithSelector(IWave.initialize.selector, address(ideaTokenHub), address(nounsGovernorProxy), address(nounsTokenHarness), minSponsorshipAmount, waveLength, uri);
+        bytes memory initData = abi.encodeWithSelector(
+            IWave.initialize.selector,
+            address(ideaTokenHub),
+            address(nounsGovernorProxy),
+            address(nounsTokenHarness),
+            minSponsorshipAmount,
+            waveLength,
+            uri
+        );
         waveCore = WaveHarness(address(new ERC1967Proxy(address(waveCoreImpl), initData)));
 
         // setup mock proposal

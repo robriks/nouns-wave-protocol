@@ -6,6 +6,6 @@ import {ERC1155Holder} from "lib/openzeppelin-contracts/contracts/token/ERC1155/
 /// @dev Test utility contract providing functionality for common testing tasks
 /// such as creating traditional EOA and smart wallet addresses
 contract MockERC1155Holder is ERC1155Holder {
-// 404 error: implementation not found ;)
+    // 404 error: implementation not found ;)
     receive() external payable {}
 }

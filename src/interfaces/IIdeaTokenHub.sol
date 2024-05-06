@@ -54,7 +54,13 @@ interface IIdeaTokenHub {
     function waveLength() external view returns (uint256);
     function currentWaveInfo() external view returns (uint32 currentWave, uint32 startBlock);
 
-    function initialize(address owner_, address nounsGovernor_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri_) external;
+    function initialize(
+        address owner_,
+        address nounsGovernor_,
+        uint256 minSponsorshipAmount_,
+        uint256 waveLength_,
+        string memory uri_
+    ) external;
 
     /// @dev Creates a new ERC1155 token referred to by its token ID, ie its `ideaId` identifier
     /// @notice To combat spam and low-quality proposals, idea token creation requires a small minimum payment
@@ -77,10 +83,7 @@ interface IIdeaTokenHub {
     /// can then be claimed at any time by a Nouns holder who has delegated to Wave
     function finalizeWave(uint96[] calldata offchainWinningIds, string[] calldata offchainDescriptions)
         external
-        returns (
-            IWave.Delegation[] memory delegations,
-            uint256[] memory nounsProposalIds
-        );
+        returns (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds);
 
     /// @dev Provides a way to collect the yield earned by Nounders who have delegated to Wave for a full wave
     /// @notice Reentrance prevented via CEI
@@ -94,9 +97,12 @@ interface IIdeaTokenHub {
     /// @notice Only callable by the owner
     function setWaveLength(uint256 newWavelength) external;
 
-    /// @dev Returns an array of the current wave's leading IdeaIds where the array length is determined 
+    /// @dev Returns an array of the current wave's leading IdeaIds where the array length is determined
     /// by the protocol's number of available proposer delegates, fetched from the WaveCore contract
-    function getWinningIdeaIds() external view returns (uint256 minRequiredVotes, uint256 numEligibleProposers, uint96[] memory winningIds);
+    function getWinningIdeaIds()
+        external
+        view
+        returns (uint256 minRequiredVotes, uint256 numEligibleProposers, uint96[] memory winningIds);
 
     /// @dev Fetches an array of `ideaIds` eligible for proposal, ordered by total funding
     /// @param optLimiter An optional limiter used to define the number of desired `ideaIds`, for example the number of

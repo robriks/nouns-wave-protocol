@@ -51,7 +51,14 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         _disableInitializers();
     }
 
-    function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri) public virtual initializer {
+    function initialize(
+        address ideaTokenHub_,
+        address nounsGovernor_,
+        address nounsToken_,
+        uint256 minSponsorshipAmount_,
+        uint256 waveLength_,
+        string memory uri
+    ) public virtual initializer {
         _transferOwnership(msg.sender);
 
         ideaTokenHub = IIdeaTokenHub(ideaTokenHub_);
@@ -82,7 +89,7 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         uint256 len = _optimisticDelegations.length;
         if (len == 0) revert InsufficientDelegations();
         delegations = new Delegation[](len);
-        
+
         // get eligible delegates
         (, uint256[] memory eligibleProposerIds) = getAllEligibleProposerDelegates();
         // should be impossible to violate, but assert invariant in case of future changes
@@ -499,7 +506,7 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         }
     }
 
-    function _authorizeUpgrade(address /*newImplementation*/) internal virtual override {
+    function _authorizeUpgrade(address /*newImplementation*/ ) internal virtual override {
         if (msg.sender != owner()) revert Unauthorized();
     }
 }

@@ -16,8 +16,15 @@ contract WaveHarness is Wave {
     bytes32 creationCodeHash;
 
     constructor() Wave() {}
-    
-    function initialize(address ideaTokenHub_, address nounsGovernor_, address nounsToken_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri) public override {
+
+    function initialize(
+        address ideaTokenHub_,
+        address nounsGovernor_,
+        address nounsToken_,
+        uint256 minSponsorshipAmount_,
+        uint256 waveLength_,
+        string memory uri
+    ) public override {
         super.initialize(ideaTokenHub_, nounsGovernor_, nounsToken_, minSponsorshipAmount_, waveLength_, uri);
         self = address(this);
         creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(self)))));

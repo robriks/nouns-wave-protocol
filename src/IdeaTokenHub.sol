@@ -33,7 +33,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
     IWave private __waveCore;
     INounsDAOLogicV3 private __nounsGovernor;
-    
+
     WaveInfo public currentWaveInfo;
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
     uint256 public minSponsorshipAmount;
@@ -54,7 +54,13 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         _disableInitializers();
     }
 
-    function initialize(address owner_, address nounsGovernor_, uint256 minSponsorshipAmount_, uint256 waveLength_, string memory uri_) external virtual initializer {
+    function initialize(
+        address owner_,
+        address nounsGovernor_,
+        uint256 minSponsorshipAmount_,
+        uint256 waveLength_,
+        string memory uri_
+    ) external virtual initializer {
         _transferOwnership(owner_);
         __ERC1155_init(uri_);
 
@@ -77,7 +83,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     {
         // revert if a new wave should be started
         if (block.number - waveLength >= currentWaveInfo.startBlock) revert WaveIncomplete();
-        
+
         _validateIdeaCreation(ideaTxs, description);
 
         // cache in memory to save on SLOADs
@@ -122,10 +128,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     /// @notice To save gas on `description` string SSTOREs, descriptions are stored offchain and their winning IDs must be re-validated in memory
     function finalizeWave(uint96[] calldata offchainWinningIds, string[] calldata offchainDescriptions)
         external
-        returns (
-            IWave.Delegation[] memory delegations,
-            uint256[] memory nounsProposalIds
-        )
+        returns (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
     {
         // check that waveLength has passed
         if (block.number - waveLength < currentWaveInfo.startBlock) revert WaveIncomplete();
@@ -143,9 +146,8 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         // re-validate the provided offchain parameter lengths against returned canonical onchain state
         uint256 descriptionsLen = offchainDescriptions.length;
         if (
-            numEligibleProposers < descriptionsLen 
-            || winningIds.length != descriptionsLen 
-            || winningIds.length != offchainWinningIds.length
+            numEligibleProposers < descriptionsLen || winningIds.length != descriptionsLen
+                || winningIds.length != offchainWinningIds.length
         ) revert InvalidOffchainDataProvided();
 
         // populate array with winning txs & description and aggregate total payout amount
@@ -161,7 +163,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
             winner.isProposed = true;
             winningProposalsTotalFunding += winner.totalFunding;
             winningProposals[i] = IWave.Proposal(winner.proposalTxs, offchainDescriptions[i]);
-            
+
             // use placeholder value since `nounsProposalId` is not known and will be assigned by Nouns Governor
             proposedIdeas[i] = ProposalInfo(0, uint256(currentWinnerId), winner.totalFunding, winner.blockCreated);
         }
@@ -212,7 +214,11 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     /// @inheritdoc IIdeaTokenHub
     /// @notice Intended for offchain usage to aid in fetching offchain `description` string data before calling `finalizeWave()`
     /// If a full list of eligible IdeaIds ordered by current funding is desired, use `getOrderedEligibleIdeaIds(0)` instead
-    function getWinningIdeaIds() public view returns (uint256 minRequiredVotes, uint256 numEligibleProposers, uint96[] memory winningIds) {
+    function getWinningIdeaIds()
+        public
+        view
+        returns (uint256 minRequiredVotes, uint256 numEligibleProposers, uint96[] memory winningIds)
+    {
         // identify number of proposals to push for current voting threshold
         (minRequiredVotes, numEligibleProposers) = __waveCore.numEligibleProposerDelegates();
         // terminate early when there is not enough liquidity for proposals to be made; avoids issues with `getOrderedEligibleIdeaIds()`
@@ -242,7 +248,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
             winningIds[j] = unfilteredWinningIds[j];
         }
     }
-    
+
     /// @inheritdoc IIdeaTokenHub
     /// @notice The returned array treats ineligible IDs (ie already proposed) as 0 values at the array end.
     /// Since 0 is an invalid `ideaId`, these are filtered out when invoked by `finalizeWave()` and `getWinningIdeaIds()`
@@ -384,7 +390,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
     }
 
-    function _authorizeUpgrade(address /*newImplementation*/) internal virtual override {
+    function _authorizeUpgrade(address /*newImplementation*/ ) internal virtual override {
         if (msg.sender != owner()) revert IWave.Unauthorized();
     }
 }
