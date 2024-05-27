@@ -9,6 +9,10 @@ import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Wave} from "src/Wave.sol";
 import {WaveHarness} from "test/harness/WaveHarness.sol";
 
+/// Usage:
+/// `forge script script/UpgradeDeployment.s.sol --fork-url $BASE_SEPOLIA_RPC_URL --private-key $PK --with-gas-price 1000000 --verify --etherscan-api-key $BASESCAN_API_KEY --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --broadcast`
+
+
 /// @dev Script to upgrade existing testnet deployments of the IdeaTokenHub and Wave harness
 /// @notice Must be called by the owner address
 contract UpgradeDeploymentScript is Script {

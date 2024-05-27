@@ -236,7 +236,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
                     actualLen = 0;
                     break;
                 } else {
-                    actualLen = i + 1;
+                    actualLen = i;
                     break;
                 }
             }
