@@ -256,7 +256,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             );
 
             vm.prank(sponsor);
-            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId, '');
+            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
 
             assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
 
@@ -412,7 +412,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             );
 
             vm.prank(sponsor);
-            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId, '');
+            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
 
             assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
 
@@ -599,7 +599,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             );
 
             vm.prank(sponsor);
-            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId, '');
+            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
 
             assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
 
