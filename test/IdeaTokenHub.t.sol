@@ -244,14 +244,15 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             // reduce an entropic hash to the `[0:nextIdeaId]` range via modulo
             uint256 numIds = ideaTokenHub.getNextIdeaId() - 1;
             // add 1 since modulo produces one less than desired range, incl 0
-            uint256 pseudoRandomIdeaId = (uint256(keccak256(abi.encode(l))) % numIds) + 1;
+            uint96 pseudoRandomIdeaId = uint96((uint256(keccak256(abi.encode(l))) % numIds)) + 1;
             uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
 
             vm.expectEmit(true, true, true, false);
             emit IIdeaTokenHub.Sponsorship(
                 sponsor,
                 uint96(pseudoRandomIdeaId),
-                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false)
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
+                ''
             );
 
             vm.prank(sponsor);
@@ -399,14 +400,15 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             // reduce an entropic hash to the `[0:nextIdeaId]` range via modulo
             uint256 numIds = ideaTokenHub.getNextIdeaId() - 1;
             // add 1 since modulo produces one less than desired range, incl 0
-            uint256 pseudoRandomIdeaId = (uint256(keccak256(abi.encode(l))) % numIds) + 1;
+            uint96 pseudoRandomIdeaId = uint96(uint256(keccak256(abi.encode(l))) % numIds) + 1;
             uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
 
             vm.expectEmit(true, true, true, false);
             emit IIdeaTokenHub.Sponsorship(
                 sponsor,
                 uint96(pseudoRandomIdeaId),
-                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false)
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
+                ''
             );
 
             vm.prank(sponsor);
@@ -585,14 +587,15 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             // reduce an entropic hash to the `[0:nextIdeaId]` range via modulo
             uint256 numIds = ideaTokenHub.getNextIdeaId() - 1;
             // add 1 since modulo produces one less than desired range, incl 0
-            uint256 pseudoRandomIdeaId = (uint256(keccak256(abi.encode(l))) % numIds) + 1;
+            uint96 pseudoRandomIdeaId = uint96((uint256(keccak256(abi.encode(l))) % numIds)) + 1;
             uint256 currentIdTotalFunding = ideaTokenHub.getIdeaInfo(pseudoRandomIdeaId).totalFunding; // get existing funding value
 
             vm.expectEmit(true, true, true, false);
             emit IIdeaTokenHub.Sponsorship(
                 sponsor,
                 uint96(pseudoRandomIdeaId),
-                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false)
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
+                ''
             );
 
             vm.prank(sponsor);

@@ -102,26 +102,19 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     }
 
     /// @inheritdoc IIdeaTokenHub
-    function sponsorIdea(uint256 ideaId) public payable {
-        if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
-        if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
-        // revert if a new wave should be started
-        if (block.number - waveLength >= currentWaveInfo.startBlock) revert WaveIncomplete();
+    function sponsorIdea(uint96 ideaId) public payable {
+        _sponsorIdea(ideaId);
+        SponsorshipParams storage params = sponsorships[msg.sender][ideaId];
 
-        // typecast values can contain all Ether in existence && quintillions of ideas per human on earth
-        uint216 value = uint216(msg.value);
-        uint96 id = uint96(ideaId);
-        if (ideaInfos[id].isProposed) revert AlreadyProposed(ideaId);
+        emit Sponsorship(msg.sender, ideaId, params, '');
+    }
 
-        ideaInfos[id].totalFunding += value;
-        // `isCreator` for caller remains the same as at creation
-        sponsorships[msg.sender][id].contributedBalance += value;
+    /// @inheritdoc IIdeaTokenHub
+    function sponsorIdeaWithReason(uint96 ideaId, string calldata reason) public payable {
+        _sponsorIdea(ideaId);
+        SponsorshipParams storage params = sponsorships[msg.sender][ideaId];
 
-        SponsorshipParams storage params = sponsorships[msg.sender][id];
-
-        _mint(msg.sender, ideaId, msg.value, "");
-
-        emit Sponsorship(msg.sender, id, params);
+        emit Sponsorship(msg.sender, ideaId, params, reason);
     }
 
     /// @inheritdoc IIdeaTokenHub
@@ -376,6 +369,23 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         ) revert ProposalInfoArityMismatch();
 
         if (keccak256(bytes(_description)) == keccak256("")) revert InvalidDescription();
+    }
+
+    function _sponsorIdea(uint96 _ideaId) internal {
+        if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
+        if (_ideaId >= _nextIdeaId || _ideaId == 0) revert NonexistentIdeaId(_ideaId);
+        // revert if a new wave should be started
+        if (block.number - waveLength >= currentWaveInfo.startBlock) revert WaveIncomplete();
+
+        // typecast values can contain all Ether in existence && quintillions of ideas per human on earth
+        uint216 value = uint216(msg.value);
+        if (ideaInfos[_ideaId].isProposed) revert AlreadyProposed(_ideaId);
+
+        ideaInfos[_ideaId].totalFunding += value;
+        // `isCreator` for caller remains the same as at creation
+        sponsorships[msg.sender][_ideaId].contributedBalance += value;
+
+        _mint(msg.sender, _ideaId, msg.value, "");
     }
 
     function _beforeTokenTransfer(

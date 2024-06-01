@@ -46,7 +46,7 @@ interface IIdeaTokenHub {
     error Soulbound();
 
     event IdeaCreated(IWave.Proposal idea, address creator, uint96 ideaId, SponsorshipParams params);
-    event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params);
+    event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params, string reason);
     event ProposedIdeas(ProposalInfo[] proposedIdeas);
 
     function minSponsorshipAmount() external view returns (uint256);
@@ -74,7 +74,12 @@ interface IIdeaTokenHub {
     /// to create the idea will be reflected in the creator's ERC1155 balance in a 1:1 ratio
     /// @notice To incentivize smooth protocol transitions and continued rollover of auction waves,
     /// sponsorship attempts are reverted if the wave period has passed and `finalizeWave()` has not been executed
-    function sponsorIdea(uint256 ideaId) external payable;
+    function sponsorIdea(uint96 ideaId) external payable;
+
+    /// @dev Idential execution to `sponsorIdea()` emitting a separate event with additional description string
+    /// @notice To incentivize smooth protocol transitions and continued rollover of auction waves,
+    /// sponsorship attempts are reverted if the wave period has passed and `finalizeWave()` has not been executed
+    function sponsorIdeaWithReason(uint96 ideaId, string calldata reason) external payable;
 
     /// @dev Finalizes a Wave wave, marking the end of an auction wave. Winning ideas are selected by the highest
     /// sponsored balances and officially proposed to the Nouns governance contracts. The number of winners varies
