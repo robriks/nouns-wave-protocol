@@ -251,11 +251,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             emit IIdeaTokenHub.Sponsorship(
                 sponsor,
                 uint96(pseudoRandomIdeaId),
-                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false)
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
+                ''
             );
 
             vm.prank(sponsor);
-            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
+            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId, '');
 
             assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
 
@@ -406,11 +407,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             emit IIdeaTokenHub.Sponsorship(
                 sponsor,
                 uint96(pseudoRandomIdeaId),
-                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false)
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
+                ''
             );
 
             vm.prank(sponsor);
-            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
+            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId, '');
 
             assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
 
@@ -592,11 +594,12 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             emit IIdeaTokenHub.Sponsorship(
                 sponsor,
                 uint96(pseudoRandomIdeaId),
-                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false)
+                IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
+                ''
             );
 
             vm.prank(sponsor);
-            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId);
+            ideaTokenHub.sponsorIdea{value: pseudoRandomSponsorValue}(pseudoRandomIdeaId, '');
 
             assertEq(ideaTokenHub.balanceOf(sponsor, pseudoRandomIdeaId), pseudoRandomSponsorValue);
 
