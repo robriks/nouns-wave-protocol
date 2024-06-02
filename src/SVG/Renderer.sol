@@ -7,6 +7,7 @@ import { Badges } from "./Badges.sol";
 import "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import "lib/openzeppelin-contracts/contracts/utils/Base64.sol";
 
+
 /// @title Renderer
 /// @notice Provides a function for generating an SVG associated with a PropLot idea
 /// inspired by UNI: https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/NFTSVG.sol
@@ -84,7 +85,15 @@ contract Renderer {
         );
     }
 
+    // function splitTitle(string memory title) private view returns (string[] memory) {
+    //     return ["Enjoy Nouns with", "probe.wtf"];
+    // }
+
     function generateTitle(uint256 tokenId) private view returns (string memory svg) {
+        string memory title = "Enjoy Nouns with probe.wtf";
+        // string memory title = "Heal Noun O'Clock; Full Spec and Economic Audit of % Exit, An Arbitrage-Free Forking Mechanic";
+
+
         string[] memory colors = _pluckColor(tokenId);
         return string(
             abi.encodePacked(
