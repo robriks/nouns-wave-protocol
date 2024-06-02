@@ -14,14 +14,12 @@ contract Renderer {
     using Strings for uint256;
     using Strings for uint216;
 
-    uint256 colorCount = 0;
-    mapping (uint256 => ColorTrio) public colors;
-
-    struct ColorTrio {
-        string light;
-        string medium;
-        string dark;
-    }
+    string[][] public allColors = [
+        // yellow
+        ["#FEF3C7", "#FCD34D", "#F59E0B"],
+        // green
+        ["#dcfce7", "#4ade80", "#22c55e"]
+    ];
 
     address public tokenAddress;
     address public polyDisplay;
@@ -38,22 +36,20 @@ contract Renderer {
     }
 
     function tokenURI(uint256 tokenId) external view returns (string memory) {
-        // string memory output = generateSVG(params);
-        // string memory json = Base64.encode(bytes(string(abi.encodePacked('{"name": "Nouns Prop Lot Idea #', params.tokenId.toString(), '", "description": "An NFT recieved for supporting an idea in Nouns Prop Lot.", "image": "data:image/svg+xml;base64,', Base64.encode(bytes(output)), '"}'))));
-        // output = string(abi.encodePacked('data:application/json;base64,', json));
-        // return output;
-
-        return "";
+        string memory output = generateSVG(tokenId);
+        string memory json = Base64.encode(bytes(string(abi.encodePacked('{"name": "Nouns Prop Lot Idea #', tokenId.toString(), '", "description": "An NFT recieved for supporting an idea in Nouns Prop Lot.", "image": "data:image/svg+xml;base64,', Base64.encode(bytes(output)), '"}'))));
+        output = string(abi.encodePacked('data:application/json;base64,', json));
+        return output;
     }
 
-    function generateNewSVG() public view returns (string memory svg) {
+    function generateSVG(uint256 tokenId) public view returns (string memory svg) {
         return
          string(
                 abi.encodePacked(
                     constructSVG(),
-                    generateTitle(),
-                    generateShape(0, 1),
-                    generateStats(0),
+                    generateTitle(tokenId),
+                    generateShape(tokenId),
+                    generateStats(tokenId),
                     "</svg>"
                 )
             );
@@ -88,72 +84,92 @@ contract Renderer {
         );
     }
 
-    function generateTitle() private pure returns (string memory svg) {
+    function generateTitle(uint256 tokenId) private view returns (string memory svg) {
+        string[] memory colors = _pluckColor(tokenId);
         return string(
             abi.encodePacked(
-                "<rect width='100%' height='250' fill='#FEF3C7'/>",
-                "<text x='16' y='56' font-size='48' class='polyDisp' fill='#F59E0B'>Enjoy Nouns with</text>",
-                "<text x='16' y='115' font-size='48' class='polyDisp' fill='#F59E0B'>probe.wtf</text>"
+                "<rect width='100%' height='250' fill='",
+                colors[0],
+                "'/>",
+                "<text x='16' y='56' font-size='48' class='polyDisp' fill='",
+                colors[2],
+                "'>Enjoy Nouns with</text>",
+                "<text x='16' y='115' font-size='48' class='polyDisp' fill='",
+                colors[2],
+                "'>probe.wtf</text>"
             )
         );
     }
 
-    function generateShape(uint256 colorIndex, uint256 shapeIndex) public view returns (string memory) {
-        // ColorTrio memory color = colors[colorIndex];
-        string memory shape = Badges(badges).getShape(shapeIndex);
+    function generateShape(uint256 tokenId) public view returns (string memory) {
+        string[] memory colors = _pluckColor(tokenId);
+        string memory shape = Badges(badges).getShape(0);
 
         return string(
             abi.encodePacked(
                 "<g transform='translate(480, 20)'>",
                 "<path d='",
                 shape,
-                "' fill='#F59E0B'/>",
-                "<text x='24' y='55' fill='#FFF' class='polyDisp' font-size='24'>+for</text>"
+                "' fill='",
+                colors[2],
+                "'/>",
+                "<text x='24' y='55' fill='#FFF' class='polyText' font-size='24'>+for</text>"
                 "</g>"
             )
         );
     }
 
-    function generateStats(uint256 colorIndex) public view returns (string memory) {
-        // ColorTrio memory color = colors[colorIndex];
+    function generateStats(uint256 tokenId) public view returns (string memory) {
+        string[] memory colors = _pluckColor(tokenId);
         return string(
             abi.encodePacked(
                 "<g transform='translate(0, 250)'>",
                 "<rect x='0' y='0' width='100%' height='110' fill='#FFFFFF'/>",
                 "<g transform='translate(0, 16)'>",
-                "<text x='16' y='15' fill='#FCD34D' class='dispText'>Total supporters</text>"
-                "<line id='dynamic-line' x1='140' y1='10' x2='550' y2='10' stroke='#FCD34D' stroke-width='1' stroke-dasharray='4,2'/>"
-                "<text x='584' y='15' fill='#FCD34D' class='dispText' text-anchor='end'>100</text>",
+                generateStatLine("Total yield", 100, colors[1]),
+                "</g>",
+                "<g transform='translate(0, 46)'>",
+                generateStatLine("Total supply", 100, colors[1]),
+                "</g>",
+                "<g transform='translate(0, 76)'>",
+                generateStatLine("Total whatever", 100, colors[1]),
                 "</g>",
                 "</g>"
             )
         );
-        // <g transform='translate(0, 250)'>
-        //     <g transform='translate(0, 46)'>
-        //         <text x="16" y="15" fill="#FCD34D" class="disp-text">Total yield</text>
-        //         <line id="dynamic-line" x1="100" y1="10" x2="550" y2="10" stroke="#FCD34D" stroke-width="1" stroke-dasharray="4,2"/>
-        //         <text x="584" y="15" fill="#FCD34D" class="disp-text" text-anchor="end">100</text>
-        //     </g>
-        //     <g transform='translate(0, 76)'>
-        //         <text x="16" y="15" fill="#FCD34D" class="disp-text">Biggest supporter</text>
-        //         <line id="dynamic-line" x1="150" y1="10" x2="550" y2="10" stroke="#FCD34D" stroke-width="1" stroke-dasharray="4,2"/>
-        //         <text x="584" y="15" fill="#FCD34D" class="disp-text" text-anchor="end">100</text>
-        //     </g>
-        // </g>
     }
 
-    function addColor(string memory light, string memory medium, string memory dark) public {
-        colors[colorCount] = ColorTrio(light, medium, dark);
-        colorCount++;
+    function generateStatLine(string memory label, uint256 value, string memory color) public view returns (string memory) {
+        return string(
+            abi.encodePacked(
+                "<text x='16' y='15' fill='",
+                color,
+                "' class='polyText'>",
+                label,
+                "</text>"
+                "<line id='dynamic-line' x1='140' y1='10' x2='550' y2='10' stroke='",
+                color,
+                "' stroke-width='1' stroke-dasharray='4,2'/>"
+                "<text x='584' y='15' fill='",
+                color,
+                "' class='polyText' text-anchor='end'>",
+                value.toString(),
+                "</text>"
+            ));
     }
 
-    function batchAddColors(string[][] memory colorArray) public {
-        for (uint256 i = 0; i < colorArray.length; i++) {
-            addColor(colorArray[i][0], colorArray[i][1], colorArray[i][2]);
-        }
+     /*==============================================================
+     ==                     Random selection fns                   ==
+     ==============================================================*/
+
+    function _random(string memory input) internal pure returns (uint256) {
+      return uint256(keccak256(abi.encodePacked(input)));
     }
 
-    function getColors(uint256 tokenId) external view returns (ColorTrio memory) {
-        return colors[tokenId];
+    // tokenId - the tokenId of the NFT
+    function _pluckColor(uint256 tokenId) internal view returns (string[] memory) {
+      uint256 rand = _random(string(abi.encodePacked("COLORS", tokenId.toString())));
+      string[] memory output = allColors[rand % allColors.length];
+      return output;
     }
 }
