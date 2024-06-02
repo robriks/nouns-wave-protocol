@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { IFont } from '../SVG/interfaces/IFont.sol';
 import { IIdeaTokenHub } from '../interfaces/IIdeaTokenHub.sol';
+import { Badges } from "./Badges.sol";
 import "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import "lib/openzeppelin-contracts/contracts/utils/Base64.sol";
 
@@ -12,149 +14,146 @@ contract Renderer {
     using Strings for uint256;
     using Strings for uint216;
 
-    struct SVGParams {
-        uint256 tokenId;
-        string color;
-    }
+    uint256 colorCount = 0;
+    mapping (uint256 => ColorTrio) public colors;
 
-    // don"t actually need this here, just need it for spiking out the leaderboard
-    // I imagine the IdeaTokenHub would implement this...
-     struct Sponsor {
-        address sponsor;
-        uint216 contributedBalance;
+    struct ColorTrio {
+        string light;
+        string medium;
+        string dark;
     }
 
     address public tokenAddress;
+    address public polyDisplay;
+    address public polyText;
+    address public badges;
 
-    constructor(address _tokenAddress) {
+
+    constructor(address _tokenAddress, address _polyDisplay, address _polyText, address _badges) {
         tokenAddress = _tokenAddress;
+        polyDisplay = _polyDisplay;
+        polyText = _polyText;
+        /// would "is badges" be better (renderer inherits badges)
+        badges = _badges;
     }
 
-    function tokenURI(SVGParams memory params) external view returns (string memory) {
-        string memory output = generateSVG(params);
-        string memory json = Base64.encode(bytes(string(abi.encodePacked('{"name": "Nouns Prop Lot Idea #', params.tokenId.toString(), '", "description": "An NFT recieved for supporting an idea in Nouns Prop Lot.", "image": "data:image/svg+xml;base64,', Base64.encode(bytes(output)), '"}'))));
-        output = string(abi.encodePacked('data:application/json;base64,', json));
-        return output;
+    function tokenURI(uint256 tokenId) external view returns (string memory) {
+        // string memory output = generateSVG(params);
+        // string memory json = Base64.encode(bytes(string(abi.encodePacked('{"name": "Nouns Prop Lot Idea #', params.tokenId.toString(), '", "description": "An NFT recieved for supporting an idea in Nouns Prop Lot.", "image": "data:image/svg+xml;base64,', Base64.encode(bytes(output)), '"}'))));
+        // output = string(abi.encodePacked('data:application/json;base64,', json));
+        // return output;
+
+        return "";
     }
 
-    function generateSVG(SVGParams memory params) internal view returns (string memory svg) {
+    function generateNewSVG() public view returns (string memory svg) {
         return
-            string(
+         string(
                 abi.encodePacked(
-                    generateSVGDefs(params),
-                    generateSVGBody(params),
+                    constructSVG(),
+                    generateTitle(),
+                    generateShape(0, 1),
+                    generateStats(0),
                     "</svg>"
                 )
             );
     }
 
-    function generateSVGDefs(SVGParams memory params) private view returns (string memory svg) {
-        svg = string(
+    function constructSVG() private view returns (string memory) {
+        return string(
             abi.encodePacked(
-                "<svg width='290' height='500' viewBox='0 0 290 500' xmlns='http://www.w3.org/2000/svg' shape-rendering='crispEdges'",
+                "<svg width='600' height='360' viewBox='0 0 600 360' xmlns='http://www.w3.org/2000/svg' shape-rendering='crispEdges'"
                 " xmlns:xlink='http://www.w3.org/1999/xlink'>",
-                "<defs>",
-                "<style>",
-                "@import url('https://fonts.googleapis.com/css?family=IBM+Plex+Mono:400,400i,700,700i');",
-                " .left { fill: #ffffff70; }",
-                " .right { fill: #fff; text-anchor: end; }",
-                "</style>",
-                "</defs>",
-                "<rect width='100%' height='100%' rx='15' fill='#",
-                 params.color,
-                "'/>"
-            ));
+                   "<style type='text/css'>"
+                   "@font-face {"
+                   "font-family: 'PolyDisplay';"
+                   "font-style: normal;"
+                   "src:url(",
+                   IFont(polyDisplay).getFont(),
+                   ");}"
+                   ".polyDisp {"
+                   "font-family: 'PolyDisplay';"
+                   "}"
+                   "@font-face {"
+                   "font-family: 'PolyText';"
+                   "font-style: normal;"
+                   "src:url(",
+                   IFont(polyText).getFont(),
+                   ");}"
+                   ".polyText {"
+                   "font-family: 'PolyText';"
+                   "}"
+                   "</style>"
+            )
+        );
     }
 
-    function generateSVGBody(SVGParams memory params) private view returns (string memory svg) {
-        svg = string(
+    function generateTitle() private pure returns (string memory svg) {
+        return string(
             abi.encodePacked(
-                "<g transform='translate(10, 10)'>",
-                "<rect width='270' height='480' rx='12' fill='#FFFFFF12' />",
-                // generateNounsGlasses(),
-                generateHeader(params.tokenId),
-                generateTitle(params.tokenId),
-                generateLeaderboard(params.tokenId),
+                "<rect width='100%' height='250' fill='#FEF3C7'/>",
+                "<text x='16' y='56' font-size='48' class='polyDisp' fill='#F59E0B'>Enjoy Nouns with</text>",
+                "<text x='16' y='115' font-size='48' class='polyDisp' fill='#F59E0B'>probe.wtf</text>"
+            )
+        );
+    }
+
+    function generateShape(uint256 colorIndex, uint256 shapeIndex) public view returns (string memory) {
+        // ColorTrio memory color = colors[colorIndex];
+        string memory shape = Badges(badges).getShape(shapeIndex);
+
+        return string(
+            abi.encodePacked(
+                "<g transform='translate(480, 20)'>",
+                "<path d='",
+                shape,
+                "' fill='#F59E0B'/>",
+                "<text x='24' y='55' fill='#FFF' class='polyDisp' font-size='24'>+for</text>"
                 "</g>"
             )
         );
     }
 
-    function generateHeader(uint256 tokenId) private view returns (string memory svg) {
-        svg = string(
+    function generateStats(uint256 colorIndex) public view returns (string memory) {
+        // ColorTrio memory color = colors[colorIndex];
+        return string(
             abi.encodePacked(
-                "<g transform='translate(0, 0)'>",
-                "<text x='20' y='35' font-family='IBM Plex Mono' font-size='16' fill='white'>NOUNS DAO LOT</text>",
-                "<text x='20' y='50' font-family='IBM Plex Mono' font-size='10' fill='white' opacity='.7'>NOUNS.DAO.LOT/IDEA-",
-                tokenId.toString(),
-                "</text>"
-                "</g>"
-            )
-        );
-    }
-
-    function generateTitle(uint256 tokenId) private view returns (string memory svg) {
-        // IIdeaTokenHub.IdeaInfo memory details = IIdeaTokenHub(tokenAddress).getIdeaInfo(tokenId);
-        // string memory description = details.proposal.description;
-
-        // placeholder
-        string memory description = 'Here is the great idea';
-        svg = string(
-            abi.encodePacked(
-                "<g transform='translate(0, 80)'>",
-                "<text x='20' y='35' font-family='IBM Plex Mono' font-size='16' fill='white' opacity='.7'>IDEA</text>",
-                "<g transform='translate(10, 50)'>",
-                "<rect width='250' height='40' rx='6' fill='#FFFFFF10'/>",
-                "<path id='textPathCurve' d='M 10 26 L 240 26' />",
-                "<text font-family='IBM Plex Mono' fill='white'>",
-                "<textPath href='#textPathCurve' startOffset='0%'>",
-                description,
-                "<animate attributeName='startOffset' from='100%' to='-150%' begin='0s' dur='10s' repeatCount='indefinite'></animate>",
-                "</textPath>",
-                "</text>",
+                "<g transform='translate(0, 250)'>",
+                "<rect x='0' y='0' width='100%' height='110' fill='#FFFFFF'/>",
+                "<g transform='translate(0, 16)'>",
+                "<text x='16' y='15' fill='#FCD34D' class='dispText'>Total supporters</text>"
+                "<line id='dynamic-line' x1='140' y1='10' x2='550' y2='10' stroke='#FCD34D' stroke-width='1' stroke-dasharray='4,2'/>"
+                "<text x='584' y='15' fill='#FCD34D' class='dispText' text-anchor='end'>100</text>",
                 "</g>",
                 "</g>"
             )
         );
+        // <g transform='translate(0, 250)'>
+        //     <g transform='translate(0, 46)'>
+        //         <text x="16" y="15" fill="#FCD34D" class="disp-text">Total yield</text>
+        //         <line id="dynamic-line" x1="100" y1="10" x2="550" y2="10" stroke="#FCD34D" stroke-width="1" stroke-dasharray="4,2"/>
+        //         <text x="584" y="15" fill="#FCD34D" class="disp-text" text-anchor="end">100</text>
+        //     </g>
+        //     <g transform='translate(0, 76)'>
+        //         <text x="16" y="15" fill="#FCD34D" class="disp-text">Biggest supporter</text>
+        //         <line id="dynamic-line" x1="150" y1="10" x2="550" y2="10" stroke="#FCD34D" stroke-width="1" stroke-dasharray="4,2"/>
+        //         <text x="584" y="15" fill="#FCD34D" class="disp-text" text-anchor="end">100</text>
+        //     </g>
+        // </g>
     }
 
-    function generateLeaderboard(uint256 tokenId) private view returns (string memory svg) {
+    function addColor(string memory light, string memory medium, string memory dark) public {
+        colors[colorCount] = ColorTrio(light, medium, dark);
+        colorCount++;
+    }
 
-        // mock data -- replace with some function call like
-        // Sponsor[] memory leaders = IIdeaTokenHub(tokenAddress).getLeaderboard(tokenId);
-        // this should return max 5 for layout reasons
-        Sponsor[] memory leaders = new Sponsor[](5);
-        leaders[0] = Sponsor({sponsor: 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, contributedBalance: 500});
-        leaders[1] = Sponsor({sponsor: 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2, contributedBalance: 400});
-        leaders[2] = Sponsor({sponsor: 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db, contributedBalance: 300});
-        leaders[3] = Sponsor({sponsor: 0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB, contributedBalance: 200});
-        leaders[4] = Sponsor({sponsor: 0x617F2E2fD72FD9D5503197092aC168c91465E7f2, contributedBalance: 100});
-
-        // each leader requires 2 lines of svg
-        string[] memory parts = new string[](leaders.length * 2);
-
-        for (uint256 index = 0; index < leaders.length; index++) {
-            Sponsor memory leader = leaders[index];
-            uint256 y = 20 + index*20;
-            uint256 offset = index*2;
-            string memory sponsor = Strings.toHexString(uint256(uint160(leader.sponsor)), 20);
-
-
-            parts[offset] = string(abi.encodePacked("<text x='20' y='",y.toString(),"' font-family='IBM Plex Mono' font-size='10' fill='white' opacity='.7' class='left'>",sponsor,"</text>"));
-            parts[offset + 1] = string(abi.encodePacked("<text x='250' y='",y.toString(),"' font-family='IBM Plex Mono' font-size='16' fill='white' class='right'>",leader.contributedBalance.toString(),"</text>"));
+    function batchAddColors(string[][] memory colorArray) public {
+        for (uint256 i = 0; i < colorArray.length; i++) {
+            addColor(colorArray[i][0], colorArray[i][1], colorArray[i][2]);
         }
+    }
 
-        bytes memory innerContent;
-        for (uint256 i = 0; i < parts.length; i++) {
-            innerContent = abi.encodePacked(innerContent, parts[i]);
-        }
-
-        svg = string(
-            abi.encodePacked(
-                "<g transform='translate(0, 360)'>",
-                innerContent,
-                "</g>"
-            )
-        );
+    function getColors(uint256 tokenId) external view returns (ColorTrio memory) {
+        return colors[tokenId];
     }
 }

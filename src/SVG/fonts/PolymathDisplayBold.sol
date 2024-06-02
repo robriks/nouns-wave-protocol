@@ -5,9 +5,16 @@ import {IFont} from "../interfaces/IFont.sol";
 import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
 import {SSTORE2} from "solady/utils/SSTORE2.sol";
 
-/// @title Example of uploading a font on-chain
-/// @author @0x_beans
-contract ExampleFont is OwnableRoles, IFont {
+/// @title Polymath display bold font
+/// @author modified @0x_beans code by @frog (warpcast)
+contract PolymathDisplayBold is OwnableRoles, IFont {
+    /*==============================================================
+    ==                     Owner                                  ==
+    ==============================================================*/
+    constructor() {
+        _initializeOwner(msg.sender);
+    }
+
     /*==============================================================
     ==                     Custom Font Variables                  ==
     ==============================================================*/
