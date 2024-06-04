@@ -47,7 +47,7 @@ interface IIdeaTokenHub {
 
     event IdeaCreated(IWave.Proposal idea, address creator, uint96 ideaId, SponsorshipParams params);
     event Sponsorship(address sponsor, uint96 ideaId, SponsorshipParams params, string reason);
-    event ProposedIdeas(ProposalInfo[] proposedIdeas);
+    event WaveFinalized(ProposalInfo[] proposedIdeas, WaveInfo previousWaveInfo);
 
     function minSponsorshipAmount() external view returns (uint256);
     function decimals() external view returns (uint256);
@@ -135,6 +135,9 @@ interface IIdeaTokenHub {
 
     /// @dev Returns information pertaining to the current Wave as a `WaveInfo` struct
     function getCurrentWaveInfo() external view returns (uint256 currentWaveId, WaveInfo memory currentWaveInfo);
+
+    /// @dev Returns the `waveId` representing the parent Wave during which the given `ideaId` was created
+    function getParentWaveId(uint256 ideaId) external view returns (uint256 waveId);
 
     /// @dev Returns the next `ideaId` which makes use of the `tokenId` mechanic from the ERC1155 standard
     function getNextIdeaId() external view returns (uint256);

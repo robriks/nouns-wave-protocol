@@ -124,7 +124,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         returns (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
     {
         // transition contract state to next Wave
-        _updateWaveState();
+        uint256 previousWaveId = _updateWaveState();
 
         // determine winners from ordered list if there are any
         uint256 minRequiredVotes;
@@ -151,7 +151,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
             proposedIdeas[i].nounsProposalId = nounsProposalIds[i];
         }
 
-        emit ProposedIdeas(proposedIdeas);
+        emit WaveFinalized(proposedIdeas, waveInfos[previousWaveId]);
 
         // calculate yield for returned valid delegations
         for (uint256 j; j < delegations.length; ++j) {
@@ -297,6 +297,30 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     }
 
     /// @inheritdoc IIdeaTokenHub
+    function getParentWaveId(uint256 ideaId) external view returns (uint256 waveId) {
+        if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
+        
+        // binary search for parent Wave
+        uint256 left;
+        uint256 right = _currentWaveId;
+        uint32 blockCreated = ideaInfos[uint96(ideaId)].blockCreated;
+        while (left <= right) {
+            uint256 middle = left + (right - left) / 2;
+            WaveInfo storage currentWave = waveInfos[middle];
+
+            // catch case where `ideaId` was created in the same block as Wave finalization
+            if (currentWave.startBlock <= blockCreated && blockCreated <= currentWave.endBlock) {
+                return middle;
+            } else if (blockCreated < currentWave.startBlock) {
+                if (middle == 0) break; // prevent underflow
+                right = middle - 1;
+            } else {
+                left = middle + 1;
+            }
+        }
+    }
+
+    /// @inheritdoc IIdeaTokenHub
     function getSponsorshipInfo(address sponsor, uint256 ideaId) public view returns (SponsorshipParams memory) {
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
         return sponsorships[sponsor][uint96(ideaId)];
@@ -387,9 +411,9 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         _mint(msg.sender, _ideaId, msg.value, "");
     }
 
-    function _updateWaveState() internal {
+    function _updateWaveState() internal returns (uint256 previousWaveId) {
         // cache & advance waveId using post-increment
-        uint256 previousWaveId = _currentWaveId++;
+        previousWaveId = _currentWaveId++;
         WaveInfo storage previousWaveInfo = waveInfos[previousWaveId];
 
         // check that waveLength has passed
