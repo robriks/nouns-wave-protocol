@@ -6,8 +6,8 @@ import "lib/openzeppelin-contracts/contracts/utils/Base64.sol";
 import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
 import {SSTORE2} from "solady/utils/SSTORE2.sol";
 
-/// @title Badges
-contract Badges is OwnableRoles {
+/// @title BadgeStorage
+contract BadgeStorage is OwnableRoles {
     uint256 count = 0;
     mapping(uint256 => address) public shapes;
 
@@ -20,13 +20,14 @@ contract Badges is OwnableRoles {
         count++;
     }
 
-    function addManyShapes(string[] calldata shapeSVGs) external onlyOwner {
+    function addManyShapes(string[] calldata shapeSVGs) public onlyOwner {
         for (uint256 i = 0; i < shapeSVGs.length; i++) {
             addShape(shapeSVGs[i]);
         }
     }
 
-     function getShape(uint256 index) external view returns (string memory) {
-        return string(abi.encodePacked(SSTORE2.read(shapes[index])));
+    /// index % count allows us to pass "random" int and get a shape back
+    function getShape(uint256 index) internal view returns (string memory) {
+        return string(abi.encodePacked(SSTORE2.read(shapes[index % count])));
     }
 }
