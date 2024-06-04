@@ -1,10 +1,14 @@
-<div align="center">
+<div align="center" style="font-size: 2em;">
 
 # Wave Protocol
 
 </div>
 
-Wave Protocol is a decentralized system built on top of the Nouns Governance ecosystem to noncustodially and permissionlessly democratize access to the Nouns sphere and lower the barrier of entry so that anyone with a worthy Nouns governance idea may participate and make a difference.
+Wave Protocol is an onchain crowdfunding system built upon the Nouns Governance ecosystem to permissionlessly and meritocratically democratize access to contributing to the Nouns sphere via proposals. Economic incentives for each type of protocol participant (Nounders, Idea Creators, and Sponsors) are aligned by compensating Nouns token delegators with yield, Idea Creators with competitive access to Nouns proposals, and Sponsors with scouting provenance.
+
+## Protocol Overview
+
+The protocol accepts Nouns token voting power noncustodially via delegation, leveraging optimistic state to compensate registered Noun delegators with yield in exchange for delegating their voting power. The yield comprises the total funds raised by each Wave's winning ideas, which are represented as ERC1155 tokens. Idea tokens that amass the highest capital from Sponsors are selected as winners at the conclusion of each Wave, the crowdfunding period during which ideas can be created and sponsored. The Wave Core contract determines the number of winning ideas per Wave and validates optimistic state at finalization, based on its available "liquidity" (voting power) which it uses to push onchain proposals to the Nouns Governor.
 
 ## Table of Contents
 
