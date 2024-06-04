@@ -252,7 +252,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 sponsor,
                 uint96(pseudoRandomIdeaId),
                 IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
-                ''
+                ""
             );
 
             vm.prank(sponsor);
@@ -408,7 +408,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 sponsor,
                 uint96(pseudoRandomIdeaId),
                 IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
-                ''
+                ""
             );
 
             vm.prank(sponsor);
@@ -447,7 +447,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         (uint256 currentWaveId, IIdeaTokenHub.WaveInfo memory postWaveInfo) = ideaTokenHub.getCurrentWaveInfo();
         assertTrue(currentWaveId == previousWaveId + 1);
         assertTrue(postWaveInfo.startBlock > preWaveInfo.startBlock);
-        
+
         // `preWaveInfo.endBlock` is assigned by `finalizeWave()` so it was still 0 when first fetched. Thus, refetch
         IIdeaTokenHub.WaveInfo memory finalizedPreviousWaveInfo = ideaTokenHub.getWaveInfo(previousWaveId);
         assertTrue(postWaveInfo.startBlock == finalizedPreviousWaveInfo.endBlock);
@@ -599,7 +599,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 sponsor,
                 uint96(pseudoRandomIdeaId),
                 IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
-                ''
+                ""
             );
 
             vm.prank(sponsor);

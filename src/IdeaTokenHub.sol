@@ -106,7 +106,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         _sponsorIdea(ideaId);
         SponsorshipParams storage params = sponsorships[msg.sender][ideaId];
 
-        emit Sponsorship(msg.sender, ideaId, params, '');
+        emit Sponsorship(msg.sender, ideaId, params, "");
     }
 
     /// @inheritdoc IIdeaTokenHub
@@ -141,8 +141,12 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
                 || winningIds.length != offchainWinningIds.length
         ) revert InvalidOffchainDataProvided();
 
-        // validate + populate winning ideaId arrays, update `ideaInfos` mapping, and aggregate total yield payout 
-        (uint256 winningProposalsTotalFunding, IWave.Proposal[] memory winningProposals, ProposalInfo[] memory proposedIdeas) = _processWinningIdeas(offchainWinningIds, offchainDescriptions, winningIds);
+        // validate + populate winning ideaId arrays, update `ideaInfos` mapping, and aggregate total yield payout
+        (
+            uint256 winningProposalsTotalFunding,
+            IWave.Proposal[] memory winningProposals,
+            ProposalInfo[] memory proposedIdeas
+        ) = _processWinningIdeas(offchainWinningIds, offchainDescriptions, winningIds);
 
         (delegations, nounsProposalIds) = __waveCore.pushProposals(winningProposals);
 
@@ -299,7 +303,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     /// @inheritdoc IIdeaTokenHub
     function getParentWaveId(uint256 ideaId) external view returns (uint256 waveId) {
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
-        
+
         // binary search for parent Wave
         uint256 left;
         uint256 right = _currentWaveId;
@@ -426,7 +430,18 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         waveInfos[currentWaveId].startBlock = currentBlock;
     }
 
-    function _processWinningIdeas(uint96[] calldata _offchainWinningIds, string[] calldata _offchainDescriptions, uint96[] memory _winningIds) internal returns (uint256 winningProposalsTotalFunding, IWave.Proposal[] memory winningProposals, ProposalInfo[] memory proposedIdeas) {
+    function _processWinningIdeas(
+        uint96[] calldata _offchainWinningIds,
+        string[] calldata _offchainDescriptions,
+        uint96[] memory _winningIds
+    )
+        internal
+        returns (
+            uint256 winningProposalsTotalFunding,
+            IWave.Proposal[] memory winningProposals,
+            ProposalInfo[] memory proposedIdeas
+        )
+    {
         // populate array with winning txs & description and aggregate total payout amount
         uint256 len = _winningIds.length;
         winningProposals = new IWave.Proposal[](len);
