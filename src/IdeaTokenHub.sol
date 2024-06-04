@@ -34,15 +34,16 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     IWave private __waveCore;
     INounsDAOLogicV3 private __nounsGovernor;
 
-    WaveInfo public currentWaveInfo;
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
     uint256 public minSponsorshipAmount;
     /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
     uint256 public waveLength;
+    uint256 private _currentWaveId;
     uint96 private _nextIdeaId;
 
     /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
     mapping(uint96 => IdeaInfo) internal ideaInfos;
+    mapping(uint256 => WaveInfo) internal waveInfos;
     mapping(address => mapping(uint96 => SponsorshipParams)) internal sponsorships;
     mapping(address => uint256) internal claimableYield;
 
@@ -67,8 +68,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         __waveCore = IWave(msg.sender);
         __nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
 
-        ++currentWaveInfo.currentWave;
-        currentWaveInfo.startBlock = uint32(block.number);
+        waveInfos[_currentWaveId].startBlock = uint32(block.number);
         minSponsorshipAmount = minSponsorshipAmount_;
         waveLength = waveLength_;
 
@@ -82,7 +82,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         returns (uint96 newIdeaId)
     {
         // revert if a new wave should be started
-        if (block.number - waveLength >= currentWaveInfo.startBlock) revert WaveIncomplete();
+        if (block.number - waveLength >= waveInfos[_currentWaveId].startBlock) revert WaveIncomplete();
 
         _validateIdeaCreation(ideaTxs, description);
 
@@ -106,7 +106,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         _sponsorIdea(ideaId);
         SponsorshipParams storage params = sponsorships[msg.sender][ideaId];
 
-        emit Sponsorship(msg.sender, ideaId, params, '');
+        emit Sponsorship(msg.sender, ideaId, params, "");
     }
 
     /// @inheritdoc IIdeaTokenHub
@@ -123,10 +123,8 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         external
         returns (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
     {
-        // check that waveLength has passed
-        if (block.number - waveLength < currentWaveInfo.startBlock) revert WaveIncomplete();
-        ++currentWaveInfo.currentWave;
-        currentWaveInfo.startBlock = uint32(block.number);
+        // transition contract state to next Wave
+        uint256 previousWaveId = _updateWaveState();
 
         // determine winners from ordered list if there are any
         uint256 minRequiredVotes;
@@ -143,23 +141,12 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
                 || winningIds.length != offchainWinningIds.length
         ) revert InvalidOffchainDataProvided();
 
-        // populate array with winning txs & description and aggregate total payout amount
-        uint256 winningProposalsTotalFunding;
-        IWave.Proposal[] memory winningProposals = new IWave.Proposal[](winningIds.length);
-        ProposalInfo[] memory proposedIdeas = new ProposalInfo[](winningIds.length);
-        for (uint256 i; i < winningIds.length; ++i) {
-            uint96 currentWinnerId = winningIds[i];
-            // re-validate canonical winnerId values against provided ones
-            if (offchainWinningIds[i] != currentWinnerId) revert InvalidOffchainDataProvided();
-
-            IdeaInfo storage winner = ideaInfos[currentWinnerId];
-            winner.isProposed = true;
-            winningProposalsTotalFunding += winner.totalFunding;
-            winningProposals[i] = IWave.Proposal(winner.proposalTxs, offchainDescriptions[i]);
-
-            // use placeholder value since `nounsProposalId` is not known and will be assigned by Nouns Governor
-            proposedIdeas[i] = ProposalInfo(0, uint256(currentWinnerId), winner.totalFunding, winner.blockCreated);
-        }
+        // validate + populate winning ideaId arrays, update `ideaInfos` mapping, and aggregate total yield payout
+        (
+            uint256 winningProposalsTotalFunding,
+            IWave.Proposal[] memory winningProposals,
+            ProposalInfo[] memory proposedIdeas
+        ) = _processWinningIdeas(offchainWinningIds, offchainDescriptions, winningIds);
 
         (delegations, nounsProposalIds) = __waveCore.pushProposals(winningProposals);
 
@@ -168,7 +155,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
             proposedIdeas[i].nounsProposalId = nounsProposalIds[i];
         }
 
-        emit ProposedIdeas(proposedIdeas);
+        emit WaveFinalized(proposedIdeas, waveInfos[previousWaveId]);
 
         // calculate yield for returned valid delegations
         for (uint256 j; j < delegations.length; ++j) {
@@ -307,20 +294,48 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         }
     }
 
+    /// @inheritdoc IIdeaTokenHub
     function getIdeaInfo(uint256 ideaId) external view returns (IdeaInfo memory) {
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
         return ideaInfos[uint96(ideaId)];
     }
 
+    /// @inheritdoc IIdeaTokenHub
+    function getParentWaveId(uint256 ideaId) external view returns (uint256 waveId) {
+        if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
+
+        // binary search for parent Wave
+        uint256 left;
+        uint256 right = _currentWaveId;
+        uint32 blockCreated = ideaInfos[uint96(ideaId)].blockCreated;
+        while (left <= right) {
+            uint256 middle = left + (right - left) / 2;
+            WaveInfo storage currentWave = waveInfos[middle];
+
+            // catch case where `ideaId` was created in the same block as Wave finalization
+            if (currentWave.startBlock <= blockCreated && blockCreated <= currentWave.endBlock) {
+                return middle;
+            } else if (blockCreated < currentWave.startBlock) {
+                if (middle == 0) break; // prevent underflow
+                right = middle - 1;
+            } else {
+                left = middle + 1;
+            }
+        }
+    }
+
+    /// @inheritdoc IIdeaTokenHub
     function getSponsorshipInfo(address sponsor, uint256 ideaId) public view returns (SponsorshipParams memory) {
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
         return sponsorships[sponsor][uint96(ideaId)];
     }
 
+    /// @inheritdoc IIdeaTokenHub
     function getClaimableYield(address nounder) external view returns (uint256) {
         return claimableYield[nounder];
     }
 
+    /// @inheritdoc IIdeaTokenHub
     function getOptimisticYieldEstimate(address nounder) external view returns (uint256 yieldEstimate) {
         // get ordered list of winningIdeas, truncated by numEligibleProposers
         (,, uint96[] memory winningIds) = getWinningIdeaIds();
@@ -344,6 +359,18 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         yieldEstimate = expectedTotalYield / totalDelegatedVotes * nounderVotingPower;
     }
 
+    /// @inheritdoc IIdeaTokenHub
+    function getWaveInfo(uint256 waveId) public view returns (WaveInfo memory) {
+        return waveInfos[waveId];
+    }
+
+    /// @inheritdoc IIdeaTokenHub
+    function getCurrentWaveInfo() external view returns (uint256 currentWaveId, WaveInfo memory currentWaveInfo) {
+        currentWaveId = _currentWaveId;
+        currentWaveInfo = getWaveInfo(currentWaveId);
+    }
+
+    /// @inheritdoc IIdeaTokenHub
     function getNextIdeaId() public view returns (uint256) {
         return uint256(_nextIdeaId);
     }
@@ -375,7 +402,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
         if (_ideaId >= _nextIdeaId || _ideaId == 0) revert NonexistentIdeaId(_ideaId);
         // revert if a new wave should be started
-        if (block.number - waveLength >= currentWaveInfo.startBlock) revert WaveIncomplete();
+        if (block.number - waveLength >= waveInfos[_currentWaveId].startBlock) revert WaveIncomplete();
 
         // typecast values can contain all Ether in existence && quintillions of ideas per human on earth
         uint216 value = uint216(msg.value);
@@ -386,6 +413,52 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         sponsorships[msg.sender][_ideaId].contributedBalance += value;
 
         _mint(msg.sender, _ideaId, msg.value, "");
+    }
+
+    function _updateWaveState() internal returns (uint256 previousWaveId) {
+        // cache & advance waveId using post-increment
+        previousWaveId = _currentWaveId++;
+        WaveInfo storage previousWaveInfo = waveInfos[previousWaveId];
+
+        // check that waveLength has passed
+        if (block.number - waveLength < previousWaveInfo.startBlock) revert WaveIncomplete();
+
+        // both `endBlock` of previous Wave and `startBlock` of current Wave are updated for better offchain readability
+        uint32 currentBlock = uint32(block.number);
+        previousWaveInfo.endBlock = currentBlock;
+        uint256 currentWaveId = previousWaveId + 1;
+        waveInfos[currentWaveId].startBlock = currentBlock;
+    }
+
+    function _processWinningIdeas(
+        uint96[] calldata _offchainWinningIds,
+        string[] calldata _offchainDescriptions,
+        uint96[] memory _winningIds
+    )
+        internal
+        returns (
+            uint256 winningProposalsTotalFunding,
+            IWave.Proposal[] memory winningProposals,
+            ProposalInfo[] memory proposedIdeas
+        )
+    {
+        // populate array with winning txs & description and aggregate total payout amount
+        uint256 len = _winningIds.length;
+        winningProposals = new IWave.Proposal[](len);
+        proposedIdeas = new ProposalInfo[](len);
+        for (uint256 i; i < len; ++i) {
+            uint96 currentWinnerId = _winningIds[i];
+            // re-validate canonical winnerId values against provided ones
+            if (_offchainWinningIds[i] != currentWinnerId) revert InvalidOffchainDataProvided();
+
+            IdeaInfo storage winner = ideaInfos[currentWinnerId];
+            winner.isProposed = true;
+            winningProposalsTotalFunding += winner.totalFunding;
+            winningProposals[i] = IWave.Proposal(winner.proposalTxs, _offchainDescriptions[i]);
+
+            // use placeholder value since `nounsProposalId` is not known and will be assigned by Nouns Governor
+            proposedIdeas[i] = ProposalInfo(0, uint256(currentWinnerId), winner.totalFunding, winner.blockCreated);
+        }
     }
 
     function _beforeTokenTransfer(
