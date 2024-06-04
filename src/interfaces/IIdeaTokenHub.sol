@@ -11,8 +11,8 @@ interface IIdeaTokenHub {
     */
 
     struct WaveInfo {
-        uint32 currentWave;
         uint32 startBlock;
+        uint32 endBlock;
     }
 
     struct IdeaInfo {
@@ -52,7 +52,6 @@ interface IIdeaTokenHub {
     function minSponsorshipAmount() external view returns (uint256);
     function decimals() external view returns (uint256);
     function waveLength() external view returns (uint256);
-    function currentWaveInfo() external view returns (uint32 currentWave, uint32 startBlock);
 
     function initialize(
         address owner_,
@@ -126,6 +125,16 @@ interface IIdeaTokenHub {
 
     /// @dev Returns the funds available to claim for a Nounder who has delegated to Wave
     function getClaimableYield(address nounder) external view returns (uint256);
+
+    /// @dev Returns an estimate of expected yield for the given Nounder LP who has delegated voting power to Wave
+    /// @notice Returned estimate is based on optimistic state and is subject to change until Wave finalization
+    function getOptimisticYieldEstimate(address nounder) external view returns (uint256 yieldEstimate);
+
+    /// @dev Returns information pertaining to the given Wave ID as a `WaveInfo` struct
+    function getWaveInfo(uint256 waveId) external view returns (WaveInfo memory);
+
+    /// @dev Returns information pertaining to the current Wave as a `WaveInfo` struct
+    function getCurrentWaveInfo() external view returns (uint256 currentWaveId, WaveInfo memory currentWaveInfo);
 
     /// @dev Returns the next `ideaId` which makes use of the `tokenId` mechanic from the ERC1155 standard
     function getNextIdeaId() external view returns (uint256);
