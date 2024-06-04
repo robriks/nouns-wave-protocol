@@ -42,7 +42,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         minSponsorshipAmount = 0.00077 ether;
         decimals = 18;
         uri = "someURI";
-        // roll to block number of at least `waveLength` to prevent underflow within `currentWaveInfo.startBlock`
+        // roll to block number of at least `waveLength` to prevent underflow within current Wave `startBlock`
         vm.roll(waveLength);
 
         ideaTokenHubImpl = new IdeaTokenHub();
@@ -77,7 +77,6 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
 
         // continue with IdeaTokenHub configuration
-        firstWaveInfo.currentWave = 1;
         firstWaveInfo.startBlock = uint32(block.number);
         proposal = IWave.Proposal(txs, description);
     }
@@ -91,9 +90,10 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         // no IdeaIds have yet been created (IDs start at 1)
         uint256 startId = ideaTokenHub.getNextIdeaId();
         assertEq(startId, 1);
-        (uint32 currentWave, uint32 startBlock) = ideaTokenHub.currentWaveInfo();
-        assertEq(currentWave, firstWaveInfo.currentWave);
-        assertEq(startBlock, firstWaveInfo.startBlock);
+        (uint256 currentWaveId, IIdeaTokenHub.WaveInfo memory currentWaveInfo) = ideaTokenHub.getCurrentWaveInfo();
+        assertTrue(currentWaveId == 0); // first Wave ID begins at 0
+        assertEq(currentWaveInfo.startBlock, firstWaveInfo.startBlock);
+        assertEq(currentWaveInfo.endBlock, 0); // first Wave's `endBlock` is not known at this point
 
         bytes memory err = abi.encodeWithSelector(IIdeaTokenHub.NonexistentIdeaId.selector, startId);
         vm.expectRevert(err);
@@ -431,7 +431,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         }
 
         // get values for assertions
-        (uint32 prevCurrentWave, uint32 prevStartBlock) = ideaTokenHub.currentWaveInfo();
+        (uint256 previousWaveId, IIdeaTokenHub.WaveInfo memory preWaveInfo) = ideaTokenHub.getCurrentWaveInfo();
 
         // fast forward to wave completion block and finalize
         vm.roll(block.number + waveLength);
@@ -444,9 +444,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds) =
             ideaTokenHub.finalizeWave(winningIds, descriptions);
 
-        (uint32 postCurrentWave, uint32 postStartBlock) = ideaTokenHub.currentWaveInfo();
-        assertEq(postCurrentWave, prevCurrentWave + 1);
-        assertTrue(postStartBlock > prevStartBlock);
+        (uint256 currentWaveId, IIdeaTokenHub.WaveInfo memory postWaveInfo) = ideaTokenHub.getCurrentWaveInfo();
+        assertTrue(currentWaveId == previousWaveId + 1);
+        assertTrue(postWaveInfo.startBlock > preWaveInfo.startBlock);
+        
+        // `preWaveInfo.endBlock` is assigned by `finalizeWave()` so it was still 0 when first fetched. Thus, refetch
+        IIdeaTokenHub.WaveInfo memory finalizedPreviousWaveInfo = ideaTokenHub.getWaveInfo(previousWaveId);
+        assertTrue(postWaveInfo.startBlock == finalizedPreviousWaveInfo.endBlock);
 
         uint256 endMinRequiredVotes = waveCore.getCurrentMinRequiredVotes();
         if (delegations.length == 0) {
