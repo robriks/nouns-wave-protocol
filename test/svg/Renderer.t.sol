@@ -50,7 +50,7 @@ contract RendererTest is Test {
         // string memory b64 = renderer.tokenURI(params);
         // console2.log(b64);
 
-        string memory svg = renderer.generateSVG(1);
+        string memory svg = renderer.generateSVG(69);
         console2.log(svg);
     }
 }

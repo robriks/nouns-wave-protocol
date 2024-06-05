@@ -85,9 +85,11 @@ contract Renderer is BadgeStorage, Wave {
         string[] memory colors = _pluckColor(tokenId);
         return string(
             abi.encodePacked(
-                "<rect width='100%' height='250' fill='",
+                "<rect width='100%' height='100%' fill='",
                 colors[0],
-                "'/>",
+                "' stroke='",
+                colors[2],
+                "' stroke-width='8'/>",
                 "<text x='16' y='56' font-size='48' class='polyDisp' fill='",
                 colors[2],
                 "'>Supporter of wave</text>",
@@ -129,7 +131,7 @@ contract Renderer is BadgeStorage, Wave {
         return string(
             abi.encodePacked(
                 "<g transform='translate(0, 250)'>",
-                "<rect x='0' y='0' width='100%' height='110' fill='#FFFFFF'/>",
+                "<rect x='6' y='0' width='590' height='104' fill='#FFFFFF'/>",
                 "<g transform='translate(0, 16)'>",
                 generateStatLine("Is live proposal", isLiveProposal, colors[1]),
                 "</g>",
