@@ -628,6 +628,4 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         vm.expectRevert(err);
         ideaTokenHub.finalizeWave(winningIds, descriptions);
     }
-
-    // function test_uri
 }

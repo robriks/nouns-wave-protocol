@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { IFont } from '../SVG/interfaces/IFont.sol';
 import { IIdeaTokenHub } from '../interfaces/IIdeaTokenHub.sol';
 import { BadgeStorage } from "./BadgeStorage.sol";
+import { Wave } from "./Wave.sol";
 import "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import "lib/openzeppelin-contracts/contracts/utils/Base64.sol";
 
@@ -11,34 +12,9 @@ import "lib/openzeppelin-contracts/contracts/utils/Base64.sol";
 /// @title Renderer
 /// @notice Provides a function for generating an SVG associated with a PropLot idea
 /// inspired by UNI: https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/NFTSVG.sol
-contract Renderer is BadgeStorage {
+contract Renderer is BadgeStorage, Wave {
     using Strings for uint256;
     using Strings for uint216;
-
-    string[][] public allColors = [
-        // yellow
-        ["#FEF3C7", "#FCD34D", "#F59E0B"],
-        // green
-        ["#dcfce7", "#4ade80", "#22c55e"],
-        // cyan
-        ["#cffafe", "#22d3ee", "#06b6d4"],
-        // sky
-        ["#e0f2fe", "#38bdf8", "#0ea5e9"],
-        // blue
-        ["#dbeafe", "#60a5fa", "#3b82f6"],
-        // indigo
-        ["#e0e7ff", "#818cf8", "#6366f1"],
-        // violet
-        ["#ede9fe", "#a78bfa", "#8b5cf6"],
-        // purple
-        ["#f3e8ff", "#c084fc", "#a855f7"],
-        // fuchsia
-        ["#fae8ff", "#e879f9", "#d946ef"],
-        // pink
-        ["#fce7f3", "#f472b6", "#ec4899"],
-        // rose
-        ["#ffe4e6", "#fb7185", "#f43f5e"]
-    ];
 
     address public tokenAddress;
     address public polyDisplay;
@@ -67,12 +43,14 @@ contract Renderer is BadgeStorage {
                 abi.encodePacked(
                     constructSVG(),
                     generateTitle(tokenId),
+                    constructWave(tokenId),
                     generateShape(tokenId),
                     generateStats(tokenId),
                     "</svg>"
                 )
             );
     }
+
 
     function constructSVG() private view returns (string memory) {
         return string(
@@ -143,26 +121,30 @@ contract Renderer is BadgeStorage {
 
     function generateStats(uint256 tokenId) internal view returns (string memory) {
         string[] memory colors = _pluckColor(tokenId);
-        IdeaInfo memory idea = IIdeaTokenHub(tokenAddress).getIdeaInfo(tokenId);
+        // IIdeaTokenHub.IdeaInfo memory idea = IIdeaTokenHub(tokenAddress).getIdeaInfo(tokenId);
+        string memory yield = ".0001";
+        string memory waveNumber = "5";
+        string memory isLiveProposal = "No";
+
         return string(
             abi.encodePacked(
                 "<g transform='translate(0, 250)'>",
                 "<rect x='0' y='0' width='100%' height='110' fill='#FFFFFF'/>",
                 "<g transform='translate(0, 16)'>",
-                generateStatLine("Total yield", 100, colors[1]),
+                generateStatLine("Is live proposal", isLiveProposal, colors[1]),
                 "</g>",
                 "<g transform='translate(0, 46)'>",
-                generateStatLine("Total supply", 100, colors[1]),
+                generateStatLine("Wave number", waveNumber, colors[1]),
                 "</g>",
                 "<g transform='translate(0, 76)'>",
-                generateStatLine("Total whatever", 100, colors[1]),
+                generateStatLine("Total yield", yield, colors[1]),
                 "</g>",
                 "</g>"
             )
         );
     }
 
-    function generateStatLine(string memory label, uint256 value, string memory color) public pure returns (string memory) {
+    function generateStatLine(string memory label, string memory value, string memory color) public pure returns (string memory) {
         return string(
             abi.encodePacked(
                 "<text x='16' y='15' fill='",
@@ -176,7 +158,7 @@ contract Renderer is BadgeStorage {
                 "<text x='584' y='15' fill='",
                 color,
                 "' class='polyText' text-anchor='end'>",
-                value.toString(),
+                value,
                 "</text>"
             ));
     }
@@ -184,17 +166,6 @@ contract Renderer is BadgeStorage {
      /*==============================================================
      ==                     Random selection fns                   ==
      ==============================================================*/
-
-    function _random(string memory input) internal pure returns (uint256) {
-      return uint256(keccak256(abi.encodePacked(input)));
-    }
-
-    // tokenId - the tokenId of the NFT
-    function _pluckColor(uint256 tokenId) internal view returns (string[] memory) {
-      uint256 rand = _random(string(abi.encodePacked("COLORS", tokenId.toString())));
-      string[] memory output = allColors[rand % allColors.length];
-      return output;
-    }
 
     function _pluckShape(uint256 tokenId) internal view returns (string memory) {
       uint256 rand = _random(string(abi.encodePacked("SHAPE", tokenId.toString())));
