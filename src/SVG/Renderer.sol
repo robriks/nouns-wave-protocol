@@ -43,7 +43,7 @@ contract Renderer is BadgeStorage, Wave {
                 abi.encodePacked(
                     constructSVG(),
                     generateTitle(tokenId),
-                    constructWave(tokenId),
+                    constructWaveScene(tokenId),
                     generateShape(tokenId),
                     generateStats(tokenId),
                     "</svg>"

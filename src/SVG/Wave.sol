@@ -326,15 +326,31 @@ contract Wave is ColorStorage {
         );
     }
 
-    function constructWave(uint256 tokenId) public view returns (string memory) {
+    function constructWave(uint256 tokenId, string memory scale, string memory xPos, string memory yPos) private view returns (string memory) {
         string[] memory colors = _pluckColor(tokenId);
 
         return string(
             abi.encodePacked(
-                "<g transform='scale(4) translate(1, 42)'>",
+                "<g transform='scale(",
+                scale,
+                ") translate(",
+                xPos,
+                ", ",
+                yPos,
+                ")'>",
                 constructWaveGroup1(colors[0], colors[1], colors[2]),
                 constructWaveGroup2(colors[0], colors[1], colors[2]),
                 "'/></g>"
+            )
+        );
+    }
+
+    function constructWaveScene(uint256 tokenId) public view returns (string memory) {
+        return string(
+            abi.encodePacked(
+                constructWave(tokenId, "4", "1", "42"),
+                constructWave(tokenId, "3.8", "10", "42"),
+                constructWave(tokenId, "3.6", "15", "42")
             )
         );
     }
