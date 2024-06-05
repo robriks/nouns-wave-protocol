@@ -90,10 +90,10 @@ contract Renderer is BadgeStorage, Wave {
                 "'/>",
                 "<text x='16' y='56' font-size='48' class='polyDisp' fill='",
                 colors[2],
-                "'>Wave protocol</text>",
+                "'>Supporter of wave</text>",
                 "<text x='16' y='115' font-size='48' class='polyDisp' fill='",
                 colors[2],
-                "'>Idea #",
+                "'>Protocol Idea #",
                 tokenId.toString(),
                 "</text>"
             )

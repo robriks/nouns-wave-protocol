@@ -338,8 +338,8 @@ contract Wave is ColorStorage {
                 ", ",
                 yPos,
                 ")'>",
-                constructWaveGroup1(colors[0], colors[1], colors[2]),
-                constructWaveGroup2(colors[0], colors[1], colors[2]),
+                constructWaveGroup1(colors[3], colors[4], colors[5]),
+                constructWaveGroup2(colors[3], colors[4], colors[5]),
                 "'/></g>"
             )
         );
@@ -349,8 +349,10 @@ contract Wave is ColorStorage {
         return string(
             abi.encodePacked(
                 constructWave(tokenId, "4", "1", "42"),
-                constructWave(tokenId, "3.8", "10", "42"),
-                constructWave(tokenId, "3.6", "15", "42")
+                constructWave(tokenId, "3.2", "15", "58"),
+                constructWave(tokenId, "2.56", "35", "77"),
+                constructWave(tokenId, "2.04", "60", "102"),
+                constructWave(tokenId, "1.6", "92", "136")
             )
         );
     }
