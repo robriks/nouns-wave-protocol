@@ -1,21 +1,26 @@
 import {console2, Test} from "forge-std/Test.sol";
 import {Renderer} from "../../src/SVG/Renderer.sol";
+import { RendererTwo } from "../../src/SVG/RendererTwo.sol";
 import { PolymathDisplayBold } from "../../src/SVG/fonts/PolymathDisplayBold.sol";
 import { PolymathTextRegular } from "../../src/SVG/fonts/PolymathTextRegular.sol";
 
 // forge t --mc RendererTest
 contract RendererTest is Test {
     Renderer public renderer;
+    RendererTwo public rendererTwo;
     PolymathDisplayBold public displayBold;
     PolymathTextRegular public textRegular;
+    uint256 fork = ""; // get your own rpc
 
     function setUp() public {
         vm.startPrank(address(123));
+        vm.selectFork(fork);
 
         displayBold = new PolymathDisplayBold();
         textRegular = new PolymathTextRegular();
          // replace first arg with proplot contract
         renderer = new Renderer(address(this), address(displayBold), address(textRegular));
+        rendererTwo = new RendererTwo();
         addShapesToBadge("shapes");
 
         // string memory polyDisplay = getFileContents("polyDisplay.txt");
@@ -49,8 +54,13 @@ contract RendererTest is Test {
     function test_generateSVG() public {
         // string memory b64 = renderer.tokenURI(params);
         // console2.log(b64);
+        // string memory svg = renderer.generateSVG(69);
+        // console2.log(svg);
+    }
 
-        string memory svg = renderer.generateSVG(69);
+    function test_rendererTwo() public {
+        vm.selectFork(fork);
+        string memory svg = rendererTwo.generateSVG(69);
         console2.log(svg);
     }
 }
