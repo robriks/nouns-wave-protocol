@@ -1,15 +1,17 @@
-import {console2, Test} from "forge-std/Test.sol";
-import {Renderer} from "../../src/SVG/Renderer.sol";
+//SPDX-License-Identifier: MIT
+pragma solidity ^0.8.13;
+
+import "forge-std/Test.sol";
+import { RendererTwo } from "../../src/SVG/RendererTwo.sol";
 import { PolymathDisplayBold } from "../../src/SVG/fonts/PolymathDisplayBold.sol";
 import { PolymathTextRegular } from "../../src/SVG/fonts/PolymathTextRegular.sol";
 
-// forge t --mc RendererTest
-contract RendererTest is Test {
-    Renderer public renderer;
+
+contract HotChainSVG is Test {
     PolymathDisplayBold public displayBold;
     PolymathTextRegular public textRegular;
+    RendererTwo public r;
     uint256 fork = vm.createFork("https://eth-mainnet.g.alchemy.com/v2/gbbxbIHNfMbHaJFe0d5XdfNITz9s7057");
-
 
     function setUp() public {
         vm.startPrank(address(123));
@@ -18,8 +20,7 @@ contract RendererTest is Test {
         displayBold = new PolymathDisplayBold();
         textRegular = new PolymathTextRegular();
          // replace first arg with proplot contract
-        renderer = new Renderer(address(this), address(displayBold), address(textRegular));
-        addShapesToBadge("shapes");
+        r = new RendererTwo(address(this), address(displayBold), address(textRegular));
 
         // string memory polyDisplay = getFileContents("polyDisplay.txt");
         // string memory polyText = getFileContents("polyText.txt");
@@ -34,25 +35,15 @@ contract RendererTest is Test {
         vm.stopPrank();
     }
 
-    function addShapesToBadge(string memory fileName) public {
-      string memory inputDir = string.concat(vm.projectRoot(), "/script/inputs/");
-      string memory filePath = string.concat(fileName, ".json");
-      string memory file = vm.readFile(string.concat(inputDir, filePath));
-      bytes memory values = vm.parseJson(file, ".shapes");
-      string[] memory newShapes = abi.decode(values, (string[]));
-      renderer.addManyShapes(newShapes);
-    }
+    function test_HotChainSVG() public {
+        vm.selectFork(fork);
+        string memory webpage = string.concat(
+            "<html>",
+            "<title>Hot Chain SVG</title>",
+            r.generateSVG(4),
+            "</html>"
+        );
 
-    function getFileContents(string memory fileName) public returns (string memory) {
-      string memory inputDir = string.concat(vm.projectRoot(), "/script/inputs/");
-      string memory filePath = string.concat(fileName);
-      return vm.readFile(string.concat(inputDir, filePath));
-    }
-
-    function test_generateSVG() public {
-        // string memory b64 = renderer.tokenURI(params);
-        // console2.log(b64);
-        // string memory svg = renderer.generateSVG(69);
-        // console2.log(svg);
+        vm.writeFile("index.html", webpage);
     }
 }
