@@ -1,4 +1,12 @@
-## Usage
+# Protocol Usage and Development
+
+## Write Functions: Interacting with the protocol
+
+To best understand the mechanisms of Wave Protocol's write functions, please refer directly to the NatSpec documentation within the external-facing contract interfaces.
+
+These include the [IdeaTokenHub Interface Contract](../technical-reference/interfaces/IIdeaTokenHub.sol/interface.IIdeaTokenHub.md) as well as the [Wave Core Interface Contract.](../technical-reference/interfaces/IWave.sol/interface.IWave.md)
+
+## View Functions: Reading and querying the protocol
 
 The Wave protocol core contract provides numerous convenience functions to improve offchain devX by returning values relevant for developing offchain components.
 
@@ -91,10 +99,60 @@ function getWinningIdeaIds() external view returns (uint256 minRequiredVotes, ui
 function getIdeaInfo(uint256 ideaId) external view returns (IdeaInfo memory);
 ```
 
+### To view information about a Sponsorship
+
+```solidity
+/// @dev Returns the SponsorshipParams struct associated with a given sponsor `address` and `ideaId`
+function getSponsorshipInfo(address sponsor, uint256 ideaId) external view returns (SponsorshipParams memory);
+```
+
 ### To view all ideas which have won previous auctions and have already been proposed
 
 ```solidity
 /// @dev Returns IDs of ideas which have already won waves and been proposed to Nouns governance
 /// @notice Intended for external use for improved devX
 function getOrderedProposedIdeaIds() external view returns (uint96[] memory orderedProposedIds);
+```
+
+### To fetch the next `ideaId` or ERC1155 nonfungible `tokenId`
+
+```solidity
+/// @dev Returns the next ideaId which makes use of the tokenId mechanic from the ERC1155 standard
+function getNextIdeaId() external view returns (uint256);
+```
+
+### To view the finalized yield which is available for claiming by a Nounder address
+
+```solidity
+/// @dev Returns the funds available to claim for a Nounder who has delegated to Wave
+function getClaimableYield(address nounder) external view returns (uint256);
+```
+
+### To view the expected yield that will become available for claim after Wave finalization, determined by current onchain state of Wave Protocol and Nouns delegations
+
+```solidity
+/// @dev Returns an estimate of expected yield for the given Nounder LP who has delegated voting power to Wave
+/// @notice Returned estimate is based on optimistic state and is subject to change until Wave finalization
+function getOptimisticYieldEstimate(address nounder) external view returns (uint256 yieldEstimate);
+```
+
+### To fetch start and end block information about a given Wave
+
+```solidity
+/// @dev Returns information pertaining to the given Wave ID as a WaveInfo struct
+function getWaveInfo(uint256 waveId) external view returns (WaveInfo memory);
+```
+
+### To fetch start and end block information about the current ongoing Wave
+
+```solidity
+/// @dev Returns information pertaining to the current Wave as a WaveInfo struct
+function getCurrentWaveInfo() external view returns (uint256 currentWaveId, WaveInfo memory currentWaveInfo);
+```
+
+### To fetch the "parent" Wave in which a given `ideaId` was created
+
+```solidity
+/// @dev Returns the waveId representing the parent Wave during which the given ideaId was created
+function getParentWaveId(uint256 ideaId) external view returns (uint256 waveId);
 ```

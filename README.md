@@ -1,209 +1,47 @@
-<div align="center">
+<div align="center" style="font-size: 2em;">
 
 # Wave Protocol
 
 </div>
 
-Wave Protocol is a decentralized system built on top of the Nouns Governance ecosystem to noncustodially and permissionlessly democratize access to the Nouns sphere and lower the barrier of entry so that anyone with a worthy Nouns governance idea may participate and make a difference.
+Wave Protocol is an onchain crowdfunding system built upon the Nouns Governance ecosystem to permissionlessly and meritocratically democratize access to Nouns contributions in the form of proposals.
+
+At its heart, the protocol offers Nouns governance proposals as a service to the Nouns peripheral community who may not be capitalized enough to afford the 2 Nouns NFTs required to push their proposal onchain. The result is democratization of access to the Nouns sphere by lowering the barrier of entry for anyone with a worthy idea and desire to contribute.
+
+The protocol makes use of currently unproductive Nouns token voting power to engender a competitive idea machine powered by the untapped market of non-tokenholder mindshare.
+
+Economic incentives for each type of protocol participant (Nounders, Idea Creators, and Sponsors) are aligned by compensating Nouns token delegators with yield, granting Idea Creators competitive access to pushing Nouns proposals onchain, and Idea Sponsors with scouting provenance and lobbying opportunities.
 
 ## Table of Contents
 
-- [Why Extend Nouns Governance?](#why-extend-nouns-governance)
-- [On Security](#on-security)
-- [Architecture Overview](#architecture-overview)
-- [User Flow](#user-flow)
-- [Fuzz Tests](#to-run-fuzz-tests)
-- [Usage](#usage)
-- [Live Deployments](#live-deployments)
+- [Wave Protocol](#wave-protocol)
+  - [Table of Contents](#table-of-contents)
+  - [Protocol Overview](#protocol-overview)
+  - [Security Considerations](#security-considerations)
+  - [Why extend Nouns governance?](#why-extend-nouns-governance)
+  - [To run fuzz tests](#to-run-fuzz-tests)
+  - [Live Deployments](#live-deployments)
+
+## Protocol Overview
+
+Wave Protocol accepts Nouns token voting power noncustodially via delegation, leveraging optimistic state to compensate registered Noun delegators with yield in exchange for delegating their voting power. The yield comprises the total funds raised by each Wave's winning ideas, which are represented as ERC1155 tokens.
+
+Idea tokens that amass the highest capital from Sponsors are selected as winners at the conclusion of each Wave, the crowdfunding period during which ideas can be created and sponsored. The Wave Core contract determines the number of winning ideas per Wave and validates optimistic state at finalization based on its available "liquidity" (ie voting power) which it uses to push onchain proposals to the Nouns Governor.
+
+## Security Considerations
+
+To run, Wave Protocol is designed to require only noncustodial delegation of the Nouns token's `ERC721CheckPointable` voting power ledger, which is entirely separate from the token's ownership ledger. As a result, Wave Protocol _never_ requires Nouns token approvals, transfers, or custody of any kind.
+
+To provide voting power "liquidity" in exchange for yield, Nounder token holders need only lend their voting power by delegating and registering using the Wave UI and can rest assured that Wave Protocol does not ever touch the Nouns token's custodial ledger.
 
 ## Why extend Nouns governance?
 
 The Wave protocol introduces numerous benefits to all parties involved. It provides Nouns NFT holders with a way to earn yield on their Nouns tokens by noncustodially lending their voting power to the Wave protocol via delegation. Delegating to Wave thereby extends the right to make onchain proposals to addresses that don't hold Nouns tokens but would like to submit proposal ideas.
 
-### On security
-
-The protocol is designed with maximal attention to security; since voting power is simply delegated noncustodially to Wave contracts, there is no requirement for any kind of approval, transfer, or other action which could compromise the ownership of the Nouns NFTs. Only the voting power of the Nouns token's `ERC721Checkpointable` ledger is ever required to participate in Wave and earn yield.
-
-## Architecture Overview
-
-Wave consists of three major parts: the IdeaTokenHub ERC1155 auction mechanism, the Wave Core contract, and Delegates which are used to push winning proposals to Nouns governance contracts.
-
-- **IdeaTokenHub**
-- **Wave Core**
-- **Delegates**
-
-### IdeaTokenHub
-
-The IdeaTokenHub handles tokenization and crowdfunding of permissionlessly submitted ideas for new Nouns governance proposals. Each idea is represented as a unique ERC1155 tokenId, which enables permissionless on-chain minting. Competition for pushing an idea token through to Nouns governance is introduced through a crowdfunding auction called a "wave". Tokenized ideas with the most funding at the end of each auction are officially proposed into the Nouns governance system by leveraging proposal power lent/delegated to Wave by Nouns tokenholders.
-
-### Wave Core
-
-To perform official onchain proposals to Nouns governance, the Wave Core contract manages a set of deterministically derived Delegate contracts. These Delegate contracts are designed for a single function: to non-custodially receive delegation from Noun token holders and push onchain proposals to the Nouns governance ecosystem. Nouns NFT holders who delegate to Wave are compensated for granting the protocol the ability to create proposals on their behalf in the form of earning yield.
-
-One caveat worth noting is that since Nouns voting power delegation is all-or-nothing on an address basis, Noun token holders can only delegate (and earn yield) on Nouns token balances up to the proposal threshold per wallet address. Furthermore, registered delegations are handled optimistically and resolved at proposal time due to the fact that delegations can be revoked directly on the Nouns token contract.
-
-### Delegates
-
-All Wave Protocol Delegate contracts are managed by the Wave Core. They are designed to receive Nouns token delegation non-custodially so they can be used as proxies to push onchain proposals to Nouns governance.
-
-For utmost security, Delegates never custody Nouns tokens and can only push proposals.
-
-## User Flow
-
-### Nouns holders
-
-Nouns tokenholders must delegate their voting power to Wave via a call to the Nouns token contract using either the `delegate()` or `delegateBySig()` function, while providing a valid Delegate address. Functions for selecting a suitable delegate for a Nouns holder can be referenced in the "Usage" section below.
-
-Once voting power has been delegated to Wave, the tokenholder must register their delegation with Wave and thus their intent to provide proposal power. Registration updates this contract's storage to optimistically expect the registered voting power. Since delegation is performed directly on the Nouns token contract, this may change and is validated at the conclusion of each auction.
-
-```solidity
-/// @dev Updates this contract's storage to reflect delegations performed directly on the Nouns token contract
-function registerDelegation(address nounder, uint256 delegateId, uint256 numNouns) external;
-```
-
-Using ECDSA signatures, Nouns tokenholders can simultaneously create a delegate (if it doesn't yet exist) and grant voting power to the delegate in a single function call. Because the Nouns ERC721Checkpointable implementation only supports standard EOA ECDSA signatures, it thus does not support smart contract signatures. In that case, smart contract wallets holding Nouns NFTs must call `delegate()` on the Nouns contract directly.
-
-```solidity
-/// @dev Simultaneously creates a delegate if it doesn't yet exist and grants voting power to the delegate
-function delegateBySig(WaveSignature calldata waveSig) external;
-```
-
-At the end of each wave, delegations deemed to have violated their optimistic registration are cleared and the remaining delegators whose voting power was legitimately provided to the protocol are marked eligible to claim their yield:
-
-```solidity
-/// @dev Provides a way to collect the yield earned by Nounders who have delegated to Wave
-function claim() external returns (uint256 claimAmt);
-```
-
-### Idea proposers
-
-Those who wish to submit a Nouns proposal idea for crowdfunding need simply to mint a new ERC1155 tokenId and provide a minimum funding amount.
-
-```solidity
-/// @dev Creates a new ERC1155 token referred to by its token ID, ie its `ideaId` identifier
-/// @notice To combat spam and low-quality proposals, idea token creation requires a small minimum payment
-/// The Ether amount paid to create the idea will be reflected in the creator's ERC1155 balance in a 1:1 ratio
-function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description)
-    external
-    payable
-    returns (uint96 newIdeaId);
-```
-
-Those who wish to sponsor an existing Nouns proposal idea to improve its chances of winning the wave's auction and be pushed to the Nouns governance contracts onchain may do so by providing a funding amount greater than the minimum:
-
-```solidity
-/// @dev Sponsors the existing ERC1155 tokenized idea specified by its ID. The Ether amount paid
-/// to create the idea will be reflected in the creator's ERC1155 balance in a 1:1 ratio
-/// @notice To incentivize smooth protocol transitions and continued rollover of auction waves,
-/// sponsorship attempts are reverted if the wave period has passed and `finalizeWave()` has not been executed
-function sponsorIdea(uint256 ideaId) external payable;
-```
-
 ## To run fuzz tests
 
 ```shell
 $ forge test
-```
-
-## Usage
-
-The Wave protocol core contract provides numerous convenience functions to improve offchain devX by returning values relevant for developing offchain components.
-
-### To view the current minimum votes required to submit an onchain proposal to Nouns governance
-
-```solidity
-function getCurrentMinRequiredVotes() external view returns (uint256 minRequiredVotes);
-```
-
-### To fetch the `delegateId` for a given delegate address
-
-```solidity
-function getDelegateId(address delegate) external view returns (uint256 delegateId);
-```
-
-### To fetch a suitable Wave delegate for a given user based on their Nouns token voting power. This is the address the tokenholder should delegate to, using the Nouns token contract `delegate()` function.
-
-```solidity
-/// @dev Returns a suitable delegate address for an account based on its voting power
-function getSuitableDelegateFor(address nounder)
-    external
-    view
-    returns (address delegate, uint256 minRequiredVotes);
-```
-
-### To search for an available delegate of a given type:
-
-```solidity
-/// @dev Returns either an existing delegate ID if one meets the given parameters, otherwise returns the next delegate ID
-/// @param isSupplementary Whether or not to search for a Delegate that doesn't meet the current proposal threshold
-/// @param minRequiredVotes Minimum votes to make a proposal. Must be more than current proposal threshold which is based on Nouns token supply
-/// @return delegateId The ID of a delegate that matches the given criteria
-function getDelegateIdByType(uint256 minRequiredVotes, bool isSupplementary)
-    external
-    view
-    returns (uint256 delegateId);
-```
-
-### To view all existing "partial" Delegates, ie ones with voting power below the minimum required to make a proposal
-
-```solidity
-function getAllPartialDelegates()
-    external
-    view
-    returns (uint256 minRequiredVotes, address[] memory partialDelegates);
-```
-
-### To get the number of currently expected winning ideas- ie the number of Delegates that are currently eligible to propose
-
-```solidity
-/// @dev Returns the number of existing Delegates currently eligible to make a proposal
-function numEligibleProposerDelegates()
-    external
-    view
-    returns (uint256 minRequiredVotes, uint256 numEligibleProposers);
-```
-
-### To view all existing Delegates that currently possess enough delegated voting power to push a Nouns proposal
-
-```solidity
-/// @dev Returns all existing Delegates currently eligible for making a proposal
-function getAllEligibleProposerDelegates()
-    external
-    view
-    returns (uint256 minRequiredVotes, uint256[] memory eligibleProposerIds);
-```
-
-The IdeaTokenHub likewise provides several convenience functions, some of which are listed below:
-
-### To view all existing IdeaIds that are eligible for proposal sorted by funding
-
-```solidity
-/// @param optLimiter An optional limiter used to define the number of desired `ideaIds`, for example the number of
-/// eligible proposers or winning ids. If provided, it will be used to define the length of the returned array
-function getOrderedEligibleIdeaIds(uint256 optLimiter) external view returns (uint96[] memory orderedEligibleIds);
-```
-
-### To view the leading IdeaIds which are expected to win this wave and be proposed to Nouns governance
-
-```solidity
-/// @dev Returns an array of the current wave's leading IdeaIds where the array length is determined
-/// by the protocol's number of available proposer delegates, fetched from the WaveCore contract
-function getWinningIdeaIds() external view returns (uint256 minRequiredVotes, uint256 numEligibleProposers, uint96[] memory winningIds);
-```
-
-### To view information about an IdeaId
-
-```solidity
-/// @dev Returns the IdeaInfo struct associated with a given `ideaId`
-function getIdeaInfo(uint256 ideaId) external view returns (IdeaInfo memory);
-```
-
-### To view all ideas which have won previous auctions and have already been proposed
-
-```solidity
-/// @dev Returns IDs of ideas which have already won waves and been proposed to Nouns governance
-/// @notice Intended for external use for improved devX
-function getOrderedProposedIdeaIds() external view returns (uint96[] memory orderedProposedIds);
 ```
 
 ## Live Deployments

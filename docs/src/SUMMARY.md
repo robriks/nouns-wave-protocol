@@ -11,16 +11,16 @@
   - [Wave Core](src/technical-reference/Wave.sol/contract.Wave.md)
   - [Delegate](src/technical-reference/Delegate.sol/contract.Delegate.md)
 
-- [❱ Interfaces](src/interfaces/README.md)
+  - [❱ Interfaces](src/technical-reference/interfaces/README.md)
 
-  - [IERC721Checkpointable](src/interfaces/IERC721Checkpointable.sol/interface.IERC721Checkpointable.md)
-  - [IIdeaTokenHub](src/interfaces/IIdeaTokenHub.sol/interface.IIdeaTokenHub.md)
-  - [INounsDAOLogicV3](src/interfaces/INounsDAOLogicV3.sol/interface.INounsDAOLogicV3.md)
-  - [IWave](src/interfaces/IWave.sol/interface.IWave.md)
+    - [IERC721Checkpointable](src/technical-reference/interfaces/IERC721Checkpointable.sol/interface.IERC721Checkpointable.md)
+    - [IIdeaTokenHub](src/technical-reference/interfaces/IIdeaTokenHub.sol/interface.IIdeaTokenHub.md)
+    - [INounsDAOLogicV3](src/technical-reference/interfaces/INounsDAOLogicV3.sol/interface.INounsDAOLogicV3.md)
+    - [IWave](src/technical-reference/interfaces/IWave.sol/interface.IWave.md)
 
-- [❱ Tutorials](src/tutorials/Development.md)
+- [❱ Guides](src/guides/Development.md)
 
-  - [Development](src/tutorials/Development.md)
-  - [Wave LP Voting](src/tutorials/Wave-LP-Voting.md)
+  - [Development](src/guides/Development.md)
+  - [Wave LP Voting](src/guides/Wave-LP-Voting.md)
 
 - [❱ Deployments](src/deployments/Deployments.md)
