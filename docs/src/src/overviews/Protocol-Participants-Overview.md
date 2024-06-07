@@ -2,6 +2,12 @@
 
 ## User Flow
 
+Wave Protocol participants can be split into three categories:
+
+- Nouns Token LPs, who provide voting power liquidity to the protocol using the Nouns token's delegation ledger
+- Idea Creators, who wish to contribute to the Nouns ecosystem with a worthy idea but lack the Nouns NFTs required to push a proposal onchain
+- Idea Sponsors, who support existing ideas with funding in hopes that they win a Wave and are pushed onchain as a Nouns proposal (akin to lobbying)
+
 ### Nouns holders
 
 Nouns tokenholders must delegate their voting power to Wave via a call to the Nouns token contract using either the `delegate()` or `delegateBySig()` function, while providing a valid Delegate address. Functions for selecting a suitable delegate for a Nouns holder can be referenced in the "Usage" section below.
@@ -27,7 +33,7 @@ At the end of each wave, delegations deemed to have violated their optimistic re
 function claim() external returns (uint256 claimAmt);
 ```
 
-### Idea proposers
+### Idea Creators
 
 Those who wish to submit a Nouns proposal idea for crowdfunding need simply to mint a new ERC1155 tokenId and provide a minimum funding amount.
 
@@ -41,7 +47,9 @@ function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string cal
     returns (uint96 newIdeaId);
 ```
 
-Those who wish to sponsor an existing Nouns proposal idea to improve its chances of winning the wave's auction and be pushed to the Nouns governance contracts onchain may do so by providing a funding amount greater than the minimum:
+### Idea Sponsors
+
+Those who wish to sponsor (ie lobby for) an existing Nouns proposal idea to improve its chances of winning the wave's auction and be pushed to the Nouns governance contracts onchain may do so by providing a funding amount greater than the minimum:
 
 ```solidity
 /// @dev Sponsors the existing ERC1155 tokenized idea specified by its ID. The Ether amount paid
