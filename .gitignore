@@ -16,3 +16,5 @@ docs/
 
 # Dotenv file
 .env
+dist/
+.parcel-cache/

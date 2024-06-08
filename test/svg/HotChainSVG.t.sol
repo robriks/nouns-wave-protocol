@@ -40,7 +40,7 @@ contract HotChainSVG is Test {
         string memory webpage = string.concat(
             "<html>",
             "<title>Hot Chain SVG</title>",
-            r.generateSVG(4),
+            r.generateSVG(442),
             "</html>"
         );
 
