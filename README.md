@@ -1,6 +1,6 @@
 <div align="center" style="font-size: 2em;">
 
-# Wave Protocol
+# ![](https://raw.githubusercontent.com/robriks/robriks/main/assets/wave.svg) Wave Protocol
 
 </div>
 
@@ -12,9 +12,23 @@ The protocol makes use of currently unproductive Nouns token voting power to eng
 
 Economic incentives for each type of protocol participant (Nounders, Idea Creators, and Sponsors) are aligned by compensating Nouns token delegators with yield, granting Idea Creators competitive access to pushing Nouns proposals onchain, and Idea Sponsors with scouting provenance and lobbying opportunities.
 
+<div align="center" style="font-size: 1.5em;">
+
+📚 Protocol Documentation
+
+</div>
+
+> For comprehensive discussion of protocol architecture, technical reference, and developer/user guides, visit the [official Wave Protocol documentation](https://nouns-wave-protocol.vercel.app/).
+
+<div align="center">
+  <a href="https://nouns-wave-protocol.vercel.app/" style="text-decoration: none;">
+    <img src="https://img.shields.io/badge/mdBook-Documentation-blue?style=for-the-badge&logo=book" alt="mdBook Documentation">
+  </a>
+</div>
+
 ## Table of Contents
 
-- [Wave Protocol](#wave-protocol)
+- [ Wave Protocol](#-wave-protocol)
   - [Table of Contents](#table-of-contents)
   - [Protocol Overview](#protocol-overview)
   - [Security Considerations](#security-considerations)
@@ -25,6 +39,8 @@ Economic incentives for each type of protocol participant (Nounders, Idea Creato
 ## Protocol Overview
 
 Wave Protocol accepts Nouns token voting power noncustodially via delegation, leveraging optimistic state to compensate registered Noun delegators with yield in exchange for delegating their voting power. The yield comprises the total funds raised by each Wave's winning ideas, which are represented as ERC1155 tokens.
+
+![](https://github.com/robriks/nouns-wave-protocol/assets/80549215/227c7ceb-25e8-4db3-84a2-a6345c62e353)
 
 Idea tokens that amass the highest capital from Sponsors are selected as winners at the conclusion of each Wave, the crowdfunding period during which ideas can be created and sponsored. The Wave Core contract determines the number of winning ideas per Wave and validates optimistic state at finalization based on its available "liquidity" (ie voting power) which it uses to push onchain proposals to the Nouns Governor.
 
