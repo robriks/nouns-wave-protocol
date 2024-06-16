@@ -3,11 +3,9 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import { Renderer } from "../../src/SVG/Renderer.sol";
-import { PolymathDisplayBold } from "../../src/SVG/fonts/PolymathDisplayBold.sol";
 import { PolymathTextRegular } from "../../src/SVG/fonts/PolymathTextRegular.sol";
 
 contract HotChainSVG is Test {
-    PolymathDisplayBold public displayBold;
     PolymathTextRegular public textRegular;
     Renderer public r;
     uint256 fork = vm.createFork("https://eth-mainnet.g.alchemy.com/v2/gbbxbIHNfMbHaJFe0d5XdfNITz9s7057");
