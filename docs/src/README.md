@@ -1,6 +1,6 @@
 <div align="center" style="font-size: 2em;">
 
-# Wave Protocol
+# ![](https://raw.githubusercontent.com/robriks/robriks/main/assets/wave.svg) Wave Protocol
 
 </div>
 
@@ -14,7 +14,7 @@ Economic incentives for each type of protocol participant (Nounders, Idea Creato
 
 ## Table of Contents
 
-- [Wave Protocol](#wave-protocol)
+- [ Wave Protocol](#-wave-protocol)
   - [Table of Contents](#table-of-contents)
   - [Protocol Overview](#protocol-overview)
   - [Security Considerations](#security-considerations)
