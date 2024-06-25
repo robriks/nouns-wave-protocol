@@ -2,9 +2,8 @@
 
 - [Introduction](README.md)
 
-- [❱ Overview](src/overviews/Protocol-Overview.md)
-  - [Protocol Overview](src/overviews/Protocol-Overview.md)
-  - [Protocol Participants Overview](src/overviews/Protocol-Participants-Overview.md)
+- [Protocol Overview](src/overviews/Protocol-Overview.md)
+- [Protocol Participants Overview](src/overviews/Protocol-Participants-Overview.md)
 - [❱ Technical Reference](src/technical-reference/IdeaTokenHub.sol/contract.IdeaTokenHub.md)
 
   - [IdeaTokenHub ERC1155](src/technical-reference/IdeaTokenHub.sol/contract.IdeaTokenHub.md)

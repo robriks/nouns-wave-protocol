@@ -10,7 +10,9 @@ Wave Protocol participants can be split into three categories:
 
 ### Nouns holders
 
-Nouns tokenholders must delegate their voting power to Wave via a call to the Nouns token contract using either the `delegate()` or `delegateBySig()` function, while providing a valid Delegate address. Functions for selecting a suitable delegate for a Nouns holder can be referenced in the "Usage" section below.
+Nouns tokenholders must delegate and then register their voting power to Wave via a call to the Nouns token contract using either the `delegate()` or `delegateBySig()` function, while providing a valid Delegate address.
+
+Note: Identifying a suitable delegate for a given Nounder based on their Nouns NFT token balance and based on Wave's current liquidity can be achieved using the Wave Core contract's `getSuitableDelegateFor(address nounder)` view function.
 
 Once voting power has been delegated to Wave, the tokenholder must register their delegation with Wave and thus their intent to provide proposal power. Registration updates this contract's storage to optimistically expect the registered voting power. Since delegation is performed directly on the Nouns token contract, this may change and is validated at the conclusion of each auction.
 
