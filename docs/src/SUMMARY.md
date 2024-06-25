@@ -19,6 +19,7 @@
 
 - [❱ Guides](src/guides/Development.md)
 
+  - [Blog Post](blog/introducing-wave.md)
   - [Development](src/guides/Development.md)
   - [Wave LP Voting](src/guides/Wave-LP-Voting.md)
 

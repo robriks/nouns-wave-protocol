@@ -68,6 +68,8 @@ Wave Protocol accepts Nouns token voting power **noncustodially via delegation**
 
 Idea tokens that amass the highest capital from Sponsors are selected as winners at the conclusion of each Wave, the crowdfunding period during which ideas can be created and sponsored. The Wave Core contract determines the number of winning ideas per Wave and validates optimistic state at finalization based on its available "liquidity" (ie voting power) which it uses to push onchain proposals to the Nouns Governor.
 
+![](https://github.com/robriks/nouns-wave-protocol/assets/80549215/227c7ceb-25e8-4db3-84a2-a6345c62e353)
+
 In short, Wave Protocol opens a new participation layer that protocolizes the evaluation of ideas' merit before they are passed up to the upper echelon of the Nouns institution for voting.
 
 ### The Nouns token's delegation ledger
