@@ -32,6 +32,6 @@ contract HotChainSVG is Test {
             "</html>"
         );
 
-        vm.writeFile("index.html", webpage);
+        vm.writeFile("src/SVG/output/index.html", webpage);
     }
 }
