@@ -10,3 +10,6 @@
 [submodule "lib/solady"]
 	path = lib/solady
 	url = https://github.com/vectorized/solady
+[submodule "lib/FontRegistry"]
+	path = lib/FontRegistry
+	url = https://github.com/0xBeans/FontRegistry
