@@ -252,7 +252,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 sponsor,
                 uint96(pseudoRandomIdeaId),
                 IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
-                ''
+                ""
             );
 
             vm.prank(sponsor);
@@ -408,7 +408,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 sponsor,
                 uint96(pseudoRandomIdeaId),
                 IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
-                ''
+                ""
             );
 
             vm.prank(sponsor);
@@ -595,7 +595,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 sponsor,
                 uint96(pseudoRandomIdeaId),
                 IIdeaTokenHub.SponsorshipParams(uint216(pseudoRandomSponsorValue), false),
-                ''
+                ""
             );
 
             vm.prank(sponsor);

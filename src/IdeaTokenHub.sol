@@ -106,7 +106,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         _sponsorIdea(ideaId);
         SponsorshipParams storage params = sponsorships[msg.sender][ideaId];
 
-        emit Sponsorship(msg.sender, ideaId, params, '');
+        emit Sponsorship(msg.sender, ideaId, params, "");
     }
 
     /// @inheritdoc IIdeaTokenHub
