@@ -5,8 +5,10 @@ import "forge-std/Script.sol";
 import {Test, console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {FontRegistry} from "FontRegistry/src/FontRegistry.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Wave} from "src/Wave.sol";
+import {Renderer} from "src/SVG/Renderer.sol";
 import {WaveHarness} from "test/harness/WaveHarness.sol";
 
 /// Usage:
@@ -21,15 +23,22 @@ contract UpgradeDeploymentScript is Script {
 
     IdeaTokenHub newIdeaTokenHubImpl;
     WaveHarness newWaveCoreImpl;
+    FontRegistry fontRegistry;
+    Renderer renderer;
 
     function run() external {
         vm.startBroadcast();
 
         // deploy new impls
+        fontRegistry = new FontRegistry();
+        renderer = new Renderer(address(fontRegistry));
         newIdeaTokenHubImpl = new IdeaTokenHub();
-        newWaveCoreImpl = new WaveHarness();
+        // newWaveCoreImpl = new WaveHarness();
 
         ideaTokenHubProxy.upgradeTo(address(newIdeaTokenHubImpl));
-        waveCoreProxy.upgradeTo(address(newWaveCoreImpl));
+        // waveCoreProxy.upgradeTo(address(newWaveCoreImpl));
+
+        // for when proxy has already been initialized without renderer
+        IdeaTokenHub(address(ideaTokenHubProxy)).setRenderer(address(renderer));
     }
 }
