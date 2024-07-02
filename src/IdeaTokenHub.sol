@@ -8,7 +8,7 @@ import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
 import {IWave} from "./interfaces/IWave.sol";
-import {Wave} from "./Wave.sol";
+import {IRenderer} from "./SVG/IRenderer.sol";
 
 /// @title Wave Protocol IdeaTokenHub
 /// @author 📯📯📯.eth
@@ -33,6 +33,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
     IWave private __waveCore;
     INounsDAOLogicV3 private __nounsGovernor;
+    IRenderer private __renderer;
 
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
     uint256 public minSponsorshipAmount;
@@ -60,6 +61,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         address nounsGovernor_,
         uint256 minSponsorshipAmount_,
         uint256 waveLength_,
+        address renderer_,
         string memory uri_
     ) external virtual initializer {
         _transferOwnership(owner_);
@@ -67,6 +69,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
         __waveCore = IWave(msg.sender);
         __nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
+        _setRenderer(renderer_);
 
         waveInfos[_currentWaveId].startBlock = uint32(block.number);
         minSponsorshipAmount = minSponsorshipAmount_;
@@ -376,8 +379,31 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     }
 
     /*
+      Metadata URI 
+    */
+    
+    /// @dev Returns dynamically generated SVG metadata, rendered according to onchain state
+    function uri(uint256 ideaTokenId) public view virtual override returns (string memory) {
+        return __renderer.generateSVG(ideaTokenId);
+    }
+
+    /// @inheritdoc IIdeaTokenHub
+    function setRenderer(address newRenderer) external onlyOwner {
+        _setRenderer(newRenderer);
+    }
+
+    /// @inheritdoc IIdeaTokenHub
+    function setStaticURI(string memory newURI) external onlyOwner {
+        _setURI(newURI);
+    }
+
+    /*
       Internals
     */
+
+    function _setRenderer(address newRenderer) internal {
+        __renderer = IRenderer(newRenderer);
+    }
 
     function _validateIdeaCreation(NounsDAOV3Proposals.ProposalTxs calldata _ideaTxs, string calldata _description)
         internal
