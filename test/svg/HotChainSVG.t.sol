@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "forge-std/StdJson.sol";
+import {FontRegistry} from "FontRegistry/src/FontRegistry.sol";
 import {Renderer} from "../../src/SVG/Renderer.sol";
 import {PolymathTextRegular} from "../../src/SVG/fonts/PolymathTextRegular.sol";
 
@@ -14,6 +15,7 @@ contract HotChainSVG is Test {
     using stdJson for string;
 
     PolymathTextRegular public textRegular;
+    FontRegistry public fontRegistry;
     Renderer public r;
 
     string mainnetRPC = vm.envString("MAINNET_RPC_URL");
@@ -29,7 +31,9 @@ contract HotChainSVG is Test {
         string memory polyText = polyFont.data;
 
         textRegular = new PolymathTextRegular(polyText);
-        r = new Renderer(address(textRegular));
+        fontRegistry = new FontRegistry();
+        fontRegistry.addFontToRegistry(address(textRegular));
+        r = new Renderer(address(fontRegistry));
     }
 
     function test_HotChainSVG() public {

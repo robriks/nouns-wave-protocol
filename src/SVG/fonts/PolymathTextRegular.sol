@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IFont} from "../interfaces/IFont.sol";
+import {IFont} from "FontRegistry/src/interfaces/IFont.sol";
 import {SSTORE2} from "solady/utils/SSTORE2.sol";
 
 /// @title Polymath text regular font
