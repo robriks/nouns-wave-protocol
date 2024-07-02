@@ -9,10 +9,9 @@ import "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 contract Renderer {
     using Strings for uint256;
 
-    address public descriptor = 0x6229c811D04501523C6058bfAAc29c91bb586268;
-    address public svgRenderer = 0x81d94554A4b072BFcd850205f0c79e97c92aab56;
-    address public tokenAddress;
-    address public polyText;
+    address public constant nounsDescriptor = 0x6229c811D04501523C6058bfAAc29c91bb586268;
+    address public constant nounsSVGRenderer = 0x81d94554A4b072BFcd850205f0c79e97c92aab56;
+    address public immutable fontRegistry; 
 
     struct BadgeConfig {
         string hexString;
@@ -21,8 +20,8 @@ contract Renderer {
 
     BadgeConfig[] public badgeConfigs;
 
-    constructor(address _polyText) {
-        polyText = _polyText;
+    constructor(address fontRegistry_) {
+        fontRegistry = fontRegistry_;
 
         badgeConfigs.push(BadgeConfig("#2B83F6", 212)); // ufo
         badgeConfigs.push(BadgeConfig("#EAB118", 168)); // queen
@@ -57,7 +56,7 @@ contract Renderer {
             "<svg width='280' height='280' viewBox='0 0 280 280' xmlns='http://www.w3.org/2000/svg' shape-rendering='crispEdges'"
             " xmlns:xlink='http://www.w3.org/1999/xlink'>",
             "<style type='text/css'>" "@font-face {" "font-family: 'PolyText';" "font-style: normal;" "src:url(",
-            IFont(polyText).getFont(),
+            IFont(fontRegistry).getFont(),
             ");}" ".polyText {" "font-family: 'PolyText';" "}" "</style>",
             addDefs()
         );
@@ -83,9 +82,9 @@ contract Renderer {
     }
 
     function addBadgeIcon(uint256 headId) private view returns (string memory) {
-        bytes memory palette = INounsDescriptorV2(descriptor).palettes(0);
-        bytes memory head = INounsDescriptorV2(descriptor).heads(headId);
-        string memory headSVG = ISVGRenderer(svgRenderer).generateSVGPart(ISVGRenderer.Part(head, palette));
+        bytes memory palette = INounsDescriptorV2(nounsDescriptor).palettes(0);
+        bytes memory head = INounsDescriptorV2(nounsDescriptor).heads(headId);
+        string memory headSVG = ISVGRenderer(nounsSVGRenderer).generateSVGPart(ISVGRenderer.Part(head, palette));
 
         return string.concat("<g transform='translate(61, 87) scale(.20) rotate(-20)'>", headSVG, "</g>");
     }
