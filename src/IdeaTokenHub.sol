@@ -33,7 +33,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
     IWave private __waveCore;
     INounsDAOLogicV3 private __nounsGovernor;
-    IRenderer private __renderer;
+    IRenderer public renderer;
 
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
     uint256 public minSponsorshipAmount;
@@ -384,7 +384,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     
     /// @dev Returns dynamically generated SVG metadata, rendered according to onchain state
     function uri(uint256 ideaTokenId) public view virtual override returns (string memory) {
-        return __renderer.generateSVG(ideaTokenId);
+        return renderer.generateSVG(ideaTokenId);
     }
 
     /// @inheritdoc IIdeaTokenHub
@@ -402,7 +402,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     */
 
     function _setRenderer(address newRenderer) internal {
-        __renderer = IRenderer(newRenderer);
+        renderer = IRenderer(newRenderer);
     }
 
     function _validateIdeaCreation(NounsDAOV3Proposals.ProposalTxs calldata _ideaTxs, string calldata _description)
