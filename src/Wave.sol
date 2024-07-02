@@ -57,12 +57,12 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         address nounsToken_,
         uint256 minSponsorshipAmount_,
         uint256 waveLength_,
-        string memory uri
+        address renderer_
     ) public virtual initializer {
         _transferOwnership(msg.sender);
 
         ideaTokenHub = IIdeaTokenHub(ideaTokenHub_);
-        ideaTokenHub.initialize(msg.sender, nounsGovernor_, minSponsorshipAmount_, waveLength_, uri);
+        ideaTokenHub.initialize(msg.sender, nounsGovernor_, minSponsorshipAmount_, waveLength_, renderer_, '');
         nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
         nounsToken = IERC721Checkpointable(nounsToken_);
         __creationCodeHash =

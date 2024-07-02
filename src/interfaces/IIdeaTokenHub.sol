@@ -59,6 +59,7 @@ interface IIdeaTokenHub {
         address nounsGovernor_,
         uint256 minSponsorshipAmount_,
         uint256 waveLength_,
+        address renderer_,
         string memory uri_
     ) external;
 
@@ -94,14 +95,6 @@ interface IIdeaTokenHub {
     /// @notice Reentrance prevented via CEI
     function claim() external returns (uint256 claimAmt);
 
-    /// @dev Sets the new minimum funding required to create and sponsor tokenized ideas
-    /// @notice Only callable by the owner
-    function setMinSponsorshipAmount(uint256 newMinSponsorshipAmount) external;
-
-    /// @dev Sets the new length of Wave waves in blocks
-    /// @notice Only callable by the owner
-    function setWaveLength(uint256 newWavelength) external;
-
     /// @dev Returns an array of the current wave's leading IdeaIds where the array length is determined
     /// by the protocol's number of available proposer delegates, fetched from the WaveCore contract
     function getWinningIdeaIds()
@@ -129,4 +122,25 @@ interface IIdeaTokenHub {
 
     /// @dev Returns the next `ideaId` which makes use of the `tokenId` mechanic from the ERC1155 standard
     function getNextIdeaId() external view returns (uint256);
+
+    /*
+      Access-Controlled Functions
+    */
+
+    /// @dev Sets a new Renderer contract to dynamically render SVG metadata onchain
+    /// @notice Only callable by the owner
+    function setRenderer(address newRenderer) external;
+
+    /// @dev Sets the traditional static string-based URI which is not used 
+    /// but is included for backwards compatibility
+    /// @notice Only callable by the owner
+    function setStaticURI(string memory newURI) external;
+
+    /// @dev Sets the new minimum funding required to create and sponsor tokenized ideas
+    /// @notice Only callable by the owner
+    function setMinSponsorshipAmount(uint256 newMinSponsorshipAmount) external;
+
+    /// @dev Sets the new length of Wave waves in blocks
+    /// @notice Only callable by the owner
+    function setWaveLength(uint256 newWavelength) external;
 }
