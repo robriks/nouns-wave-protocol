@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {OwnableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1155Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC1155/ERC1155Upgradeable.sol";
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
 import {IWave} from "./interfaces/IWave.sol";
@@ -79,7 +79,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     }
 
     /// @inheritdoc IIdeaTokenHub
-    function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description)
+    function createIdea(ProposalTxs calldata ideaTxs, string calldata description)
         public
         payable
         returns (uint96 newIdeaId)
@@ -405,7 +405,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         renderer = IRenderer(newRenderer);
     }
 
-    function _validateIdeaCreation(NounsDAOV3Proposals.ProposalTxs calldata _ideaTxs, string calldata _description)
+    function _validateIdeaCreation(ProposalTxs calldata _ideaTxs, string calldata _description)
         internal
     {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);

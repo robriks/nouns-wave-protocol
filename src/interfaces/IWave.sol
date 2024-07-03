@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
 
 /// @dev Interface for interacting with the Wave protocol core contract
 interface IWave {
@@ -33,7 +33,7 @@ interface IWave {
     }
 
     struct Proposal {
-        NounsDAOV3Proposals.ProposalTxs ideaTxs;
+        ProposalTxs ideaTxs;
         string description;
     }
 
@@ -48,6 +48,8 @@ interface IWave {
     error DelegateSaturated(uint256 delegateId);
     error InvalidDelegateId(uint256 delegateId);
     error InvalidDelegateAddress(address delegate);
+    error NotUpdatable(uint256 proposalId);
+    error NotCreator(address caller);
     error InvalidSignature();
     error OnlyDelegatecallContext();
     error Create2Failure();
