@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {ProposalValidatorLib} from "src/lib/ProposalValidatorLib.sol";
 
 /// @title Wave Protocol Delegate
 /// @author 📯📯📯.eth
@@ -11,6 +12,8 @@ import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 /// @notice For utmost security, Delegates never custody Nouns tokens and can only push proposals
 
 contract Delegate {
+    using ProposalValidatorLib for ProposalTxs;
+
     error NotWaveCore(address caller);
 
     address public immutable waveCore;
@@ -37,6 +40,7 @@ contract Delegate {
 
     /// @dev Updates an existing proposal which was made by this contract
     /// @notice May only be invoked through the Wave core contract, given a `proposalId` that is currently updatable 
+    /// TODO: FIX STACK TOO DEEP CALLDATA PARAMS
     function updateProposal(
         INounsDAOLogicV3 governor, 
         uint256 nounsProposalId,
@@ -44,12 +48,12 @@ contract Delegate {
         string calldata updatedDescription, 
         string calldata updateMessage
     ) external onlyWaveCore {
-        _validateProposalArity(updatedTxs);
+        updatedTxs._validateProposalArity();
 
         // switch case to delineate calls to the granular functions offered by NounsDAOProposals.sol
-
-        // if `updatedDescription` is empty:
         if (keccak256(bytes(updatedDescription)) == keccak256("")) {
+            // if `updatedDescription` is empty, validate and update proposal transactions only
+            ProposalValidatorLib._validateProposalTargetsAndOperations(updatedTxs, governor);
             governor.updateProposalTransactions(
                 nounsProposalId, 
                 updatedTxs.targets, 
@@ -58,28 +62,13 @@ contract Delegate {
                 updatedTxs.calldatas, 
                 updateMessage
             );
-        } else if () // if `updatedTxs.targets.length == 0` _validateProposalTargetsAndOperations() and updateDescription only
-        
-        governor.updateProposalDescription(proposalId, description, updateMessage);
-
-        // else () `updatedTxs.targets.length != 0 && updatedDescription != ""` so update both
-        governor.updateProposal(proposalId, targets, values, signatures, calldatas, description, updateMessage);
-    }
-
-    // todo: move internal validation functiosn and IdeaTokenHub::_validateIdeaCreation into separate ProposalValidator library
-    function _validateProposalTargetsAndOperations(ProposalTxs calldata txs) internal pure {
-        // To account for Nouns governor contract upgradeability, `PROPOSAL_MAX_OPERATIONS` must be read dynamically
-        uint256 maxOperations = __nounsGovernor.proposalMaxOperations();
-        if (_ideaTxs.targets.length == 0 || _ideaTxs.targets.length > maxOperations) {
-            revert InvalidActionsCount(_ideaTxs.targets.length);
+        } else if (updatedTxs.targets.length == 0) {
+            // if `updatedTxs.targets` is empty, update description only
+            governor.updateProposalDescription(nounsProposalId, updatedDescription, updateMessage);
+        } else {
+            // update both the proposal's transactions and description
+            ProposalValidatorLib._validateProposalTargetsAndOperations(updatedTxs, governor);
+            governor.updateProposal(nounsProposalId, updatedTxs.targets, updatedTxs.values, updatedTxs.signatures, updatedTxs.calldatas, updatedDescription, updateMessage);
         }
-    }
-
-    // todo: move into library 
-    function _validateProposalArity(ProposalTxs calldata txs) internal pure {
-        if (
-            _ideaTxs.targets.length != _ideaTxs.values.length || _ideaTxs.targets.length != _ideaTxs.signatures.length
-                || _ideaTxs.targets.length != _ideaTxs.calldatas.length
-        ) revert ProposalInfoArityMismatch();
     }
 }

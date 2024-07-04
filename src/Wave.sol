@@ -26,7 +26,7 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
 
     INounsDAOLogicV3 public nounsGovernor;
     IERC721Checkpointable public nounsToken;
-    bytes32 private immutable __creationCodeHash;
+    bytes32 private __creationCodeHash;
 
     /*
       Storage
@@ -185,12 +185,6 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
     }
 
     /// @inheritdoc IWave
-    /// @dev To the granularity of the NounsDAOProposals contract's functions, this function uses a switch case
-    /// to offer options for either updating only the proposal's `ProposalTxs` struct, only the `description` string, 
-    /// or both the transactions and description string simultaneously. To update only the proposal transactions,
-    /// provide an empty `description` string. To update only the description, provide empty `ProposalTxs` arrays
-    /// An empty string value for `updateMessage` is disallowed- all updates should be documented onchain.
-    /// @notice Checks ensuring the specified proposal's updatable state will be handled by the Nouns governor
     function updatePushedProposal(
         address proposerDelegate,
         uint256 ideaId,
@@ -205,12 +199,13 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         if (delegateId == 0) revert InvalidDelegateAddress(proposerDelegate);
 
         // check msg.sender is creator
-        IIdeaTokenHub.SponsorshipParams params = ideaTokenHub.getSponsorshipInfo(msg.sender, ideaId);
+        IIdeaTokenHub.SponsorshipParams memory params = ideaTokenHub.getSponsorshipInfo(msg.sender, ideaId);
         if (!params.isCreator) revert NotCreator(msg.sender);
 
         Delegate(proposerDelegate).updateProposal(nounsGovernor, nounsProposalId, updatedProposal.ideaTxs, updatedProposal.description, updateMessage);
     }
 
+    // TODO:
     // function cancelPushedProposal(address proposerDelegate, uint256 ideaId, uint256 nounsProposalId)
 
     /*
@@ -371,13 +366,12 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
 
     /// @notice Unchecked return value: returns an invalid delegate ID of `0` if no match is found. This behavior
     /// allows for non-reverting behavior but must be accounted for when invoked by higher-order functions
-    function _findDelegateIdMatch(address _delegate) internal pure returns (uint256 _delegateId) {
+    function _findDelegateIdMatch(address _delegate) internal view returns (uint256 _delegateId) {
         uint256 nextDelegateId = getNextDelegateId();
         // since 0 is an invalid delegate ID, start iterations at 1 and return `_delegateId == 0` if none is found
         for (uint256 i = 1; i <= nextDelegateId; ++i) {
-            if (_simulateCreate2(bytes32(uint256(i)), __creationCodeHash) == delegate) {
-                _delegateId = i;
-                return;
+            if (_simulateCreate2(bytes32(uint256(i)), __creationCodeHash) == _delegate) {
+                return i;
             }
         }
     }

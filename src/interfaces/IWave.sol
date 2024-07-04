@@ -49,6 +49,7 @@ interface IWave {
     error InvalidDelegateId(uint256 delegateId);
     error InvalidDelegateAddress(address delegate);
     error NotUpdatable(uint256 proposalId);
+    error InvalidUpdateMessage();
     error NotCreator(address caller);
     error InvalidSignature();
     error OnlyDelegatecallContext();
@@ -78,6 +79,20 @@ interface IWave {
         external
         payable
         returns (Delegation[] memory delegations, uint256[] memory nounsProposalIds);
+
+    /// @dev To the granularity of the NounsDAOProposals contract's functions, this function uses a switch case
+    /// to offer options for either updating only the proposal's `ProposalTxs` struct, only the `description` string, 
+    /// or both the transactions and description string simultaneously. To update only the proposal transactions,
+    /// provide an empty `description` string. To update only the description, provide empty `ProposalTxs` arrays
+    /// An empty string value for `updateMessage` is disallowed- all updates should be documented onchain.
+    /// @notice Checks ensuring the specified proposal's updatable state will be handled by the Nouns governor
+    function updatePushedProposal(
+        address proposerDelegate,
+        uint256 ideaId,
+        uint256 nounsProposalId,
+        Proposal calldata updatedProposal,
+        string calldata updateMessage
+    ) external;
 
     /// @dev Simultaneously creates a delegate if it doesn't yet exist and grants voting power to the delegate
     /// in a single function call. This is the most convenient option for standard wallets using EOA private keys

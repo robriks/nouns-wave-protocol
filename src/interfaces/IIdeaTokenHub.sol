@@ -35,10 +35,7 @@ interface IIdeaTokenHub {
     }
 
     error BelowMinimumSponsorshipAmount(uint256 value);
-    error InvalidActionsCount(uint256 count);
-    error ProposalInfoArityMismatch();
     error InvalidOffchainDataProvided();
-    error InvalidDescription();
     error NonexistentIdeaId(uint256 ideaId);
     error AlreadyProposed(uint256 ideaId);
     error WaveIncomplete();
