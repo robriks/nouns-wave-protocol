@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
@@ -33,7 +33,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
     uint256 waveLength;
     uint256 minSponsorshipAmount;
     string uri;
-    NounsDAOV3Proposals.ProposalTxs txs;
+    ProposalTxs txs;
     string description;
     // for fuzzing purposes, should remain empty until `numEligibleProposers` is known
     IWave.Proposal[] proposals;
