@@ -86,10 +86,7 @@ contract NounsEnvSetup is Test {
         nounsTimelockImpl = new NounsDAOExecutorV2();
         nounsTimelockProxy =
             NounsDAOExecutorV2(payable(address(new NounsDAOExecutorProxy(address(nounsTimelockImpl), ""))));
-        nounsTimelockAdmin_ = 0x6f3E6272A167e8AcCb32072d08E0957F9c79223d;
-        nounsTimelockDelay_ = 172800;
-        nounsTimelockProxy.initialize(nounsTimelockAdmin_, nounsTimelockDelay_);
-
+    
         // setup Nouns Governor (harness)
         vetoer_ = vm.addr(0xdeadbeef); // gnosis safe on mainnet
         votingPeriod_ = 28800;
@@ -114,6 +111,11 @@ contract NounsEnvSetup is Test {
                 )
             )
         );
+
+        nounsTimelockAdmin_ = address(nounsGovernorProxy);
+        nounsTimelockDelay_ = 172800;
+        nounsTimelockProxy.initialize(nounsTimelockAdmin_, nounsTimelockDelay_);
+
         nounsGovernorV3Impl = new NounsDAOLogicV3Harness();
 
         nounsForkEscrow_ = new NounsDAOForkEscrow(nounsDAOSafe_, address(nounsTokenHarness));
@@ -121,6 +123,16 @@ contract NounsEnvSetup is Test {
         vm.startPrank(address(nounsTimelockProxy));
         NounsDAOProxy(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
         nounsGovernorProxy._setForkEscrow(address(nounsForkEscrow_));
+        
         vm.stopPrank();
+    }
+
+    function mintMirrorBalances() public {
+        // mint balances to roughly mirror mainnet
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 308);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
     }
 }

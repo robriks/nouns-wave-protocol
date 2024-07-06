@@ -85,12 +85,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
         // provide funds for `txs` value
         vm.deal(address(this), 1 ether);
 
-        // balances to roughly mirror mainnet
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 308);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
+        super.mintMirrorBalances();
 
         // mint 1 token to nounderSupplement
         nounderSupplementPK = 0xc0ffeebabe;
