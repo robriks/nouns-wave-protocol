@@ -414,8 +414,8 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
         if (keccak256(bytes(_description)) == keccak256("")) revert ProposalValidatorLib.InvalidDescription();
 
+        ProposalValidatorLib._validateProposalArity(_ideaTxs);
         ProposalValidatorLib._validateProposalTargetsAndOperations(_ideaTxs, __nounsGovernor);
-        _ideaTxs._validateProposalArity();
     }
 
     function _sponsorIdea(uint96 _ideaId) internal {

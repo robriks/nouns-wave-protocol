@@ -15,14 +15,14 @@ library ProposalValidatorLib {
     error InvalidActionsCount(uint256 exceedsMaxOperations);
 
     /// @notice To account for Nouns governor contract upgradeability, `PROPOSAL_MAX_OPERATIONS` must be read dynamically
-    function _validateProposalTargetsAndOperations(ProposalTxs calldata txs, INounsDAOLogicV3 governor) internal pure {
+    function _validateProposalTargetsAndOperations(ProposalTxs memory txs, INounsDAOLogicV3 governor) internal pure {
         uint256 maxOperations = governor.proposalMaxOperations();
         if (txs.targets.length == 0 || txs.targets.length > maxOperations) {
             revert InvalidActionsCount(txs.targets.length);
         }
     }
 
-    function _validateProposalArity(ProposalTxs calldata txs) internal pure {
+    function _validateProposalArity(ProposalTxs memory txs) internal pure {
         if (
             txs.targets.length != txs.values.length || txs.targets.length != txs.signatures.length
                 || txs.targets.length != txs.calldatas.length

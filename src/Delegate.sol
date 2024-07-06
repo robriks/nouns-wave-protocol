@@ -40,15 +40,14 @@ contract Delegate {
 
     /// @dev Updates an existing proposal which was made by this contract
     /// @notice May only be invoked through the Wave core contract, given a `proposalId` that is currently updatable 
-    /// TODO: FIX STACK TOO DEEP CALLDATA PARAMS
     function updateProposal(
         INounsDAOLogicV3 governor, 
         uint256 nounsProposalId,
-        ProposalTxs calldata updatedTxs, 
+        ProposalTxs memory updatedTxs,
         string calldata updatedDescription, 
         string calldata updateMessage
     ) external onlyWaveCore {
-        updatedTxs._validateProposalArity();
+        ProposalValidatorLib._validateProposalArity(updatedTxs);
 
         // switch case to delineate calls to the granular functions offered by NounsDAOProposals.sol
         if (keccak256(bytes(updatedDescription)) == keccak256("")) {
@@ -68,7 +67,15 @@ contract Delegate {
         } else {
             // update both the proposal's transactions and description
             ProposalValidatorLib._validateProposalTargetsAndOperations(updatedTxs, governor);
-            governor.updateProposal(nounsProposalId, updatedTxs.targets, updatedTxs.values, updatedTxs.signatures, updatedTxs.calldatas, updatedDescription, updateMessage);
+            governor.updateProposal(
+                nounsProposalId, 
+                updatedTxs.targets, 
+                updatedTxs.values, 
+                updatedTxs.signatures, 
+                updatedTxs.calldatas, 
+                updatedDescription, 
+                updateMessage
+            );
         }
     }
 }
