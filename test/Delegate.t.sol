@@ -127,4 +127,11 @@ function setUp() public {
         vm.prank(address(waveCore));
         delegate.updateProposal(nounsGovernor, nounsProposalId, badTxs, updatedDescription, updateMessage);
     }
+
+    function test_cancelProposal() public {
+        vm.expectEmit();
+        emit NounsDAOV3Proposals.ProposalCanceled(nounsProposalId);
+        vm.prank(address(waveCore));
+        delegate.cancelProposal(nounsGovernor, nounsProposalId);
+    }
 }

@@ -80,12 +80,12 @@ interface IWave {
         payable
         returns (Delegation[] memory delegations, uint256[] memory nounsProposalIds);
 
-    /// @dev To the granularity of the NounsDAOProposals contract's functions, this function uses a switch case
-    /// to offer options for either updating only the proposal's `ProposalTxs` struct, only the `description` string, 
-    /// or both the transactions and description string simultaneously. To update only the proposal transactions,
+    /// @dev To support the granularity of the NounsDAOProposals contract's functions, this function uses a switch
+    /// case to either 1. update only the proposal's `ProposalTxs` struct, 2. only the `description` string, 
+    /// or 3. both the transactions and description string simultaneously. To update only the proposal transactions,
     /// provide an empty `description` string. To update only the description, provide empty `ProposalTxs` arrays
     /// An empty string value for `updateMessage` is disallowed- all updates should be documented onchain.
-    /// @notice Checks ensuring the specified proposal's updatable state will be handled by the Nouns governor
+    /// @notice Checks ensuring the specified proposal is in an updatable state is handled by the Nouns governor
     function updatePushedProposal(
         address proposerDelegate,
         uint256 ideaId,
@@ -93,6 +93,11 @@ interface IWave {
         Proposal calldata updatedProposal,
         string calldata updateMessage
     ) external;
+
+    /// @dev Cancels an existing proposal which was pushed to the Nouns contracts after winning a Wave.
+    /// @dev May only be called by the original creator of the `ideaId`
+    /// @notice Checks ensuring the specified proposal is in a cancellable state is handled by the Nouns governor
+    function cancelPushedProposal(address proposerDelegate, uint256 ideaId, uint256 nounsProposalId) external;
 
     /// @dev Simultaneously creates a delegate if it doesn't yet exist and grants voting power to the delegate
     /// in a single function call. This is the most convenient option for standard wallets using EOA private keys

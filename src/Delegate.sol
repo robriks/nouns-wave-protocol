@@ -78,4 +78,10 @@ contract Delegate {
             );
         }
     }
+
+    /// @dev Cancels an existing proposal which was made by this contract
+    /// @notice May only be invoked through the Wave core contract, given a `proposalId` that is currently cancelable
+    function cancelProposal(INounsDAOLogicV3 governor, uint256 nounsProposalId) external onlyWaveCore {
+        governor.cancel(nounsProposalId);
+    }
 }

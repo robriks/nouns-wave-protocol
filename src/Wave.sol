@@ -205,8 +205,19 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         Delegate(proposerDelegate).updateProposal(nounsGovernor, nounsProposalId, updatedProposal.ideaTxs, updatedProposal.description, updateMessage);
     }
 
-    // TODO:
-    // function cancelPushedProposal(address proposerDelegate, uint256 ideaId, uint256 nounsProposalId)
+    /// @inheritdoc IWave
+    function cancelPushedProposal(address proposerDelegate, uint256 ideaId, uint256 nounsProposalId) external {
+        // check proposer address is a Wave delegate; reverts if no match is found
+        uint256 delegateId = _findDelegateIdMatch(proposerDelegate);
+        if (delegateId == 0) revert InvalidDelegateAddress(proposerDelegate);
+
+        // check msg.sender is creator
+        IIdeaTokenHub.SponsorshipParams memory params = ideaTokenHub.getSponsorshipInfo(msg.sender, ideaId);
+        if (!params.isCreator) revert NotCreator(msg.sender);
+
+        Delegate(proposerDelegate).cancelProposal(nounsGovernor, nounsProposalId);
+
+    }
 
     /*
       Views
