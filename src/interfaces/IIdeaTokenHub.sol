@@ -124,10 +124,10 @@ interface IIdeaTokenHub {
     function getOptimisticYieldEstimate(address nounder) external view returns (uint256 yieldEstimate);
 
     /// @dev Returns information pertaining to the given Wave ID as a `WaveInfo` struct
-    function getWaveInfo(uint256 waveId) external view returns (WaveInfo memory);
+    function getWaveInfo(uint96 waveId) external view returns (WaveInfo memory);
 
     /// @dev Returns information pertaining to the current Wave as a `WaveInfo` struct
-    function getCurrentWaveInfo() external view returns (uint256 currentWaveId, WaveInfo memory currentWaveInfo);
+    function getCurrentWaveInfo() external view returns (uint96 currentWaveId, WaveInfo memory currentWaveInfo);
 
     /// @dev Returns the `waveId` representing the parent Wave during which the given `ideaId` was created
     function getParentWaveId(uint256 ideaId) external view returns (uint256 waveId);

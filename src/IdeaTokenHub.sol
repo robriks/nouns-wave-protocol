@@ -39,12 +39,12 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     uint256 public minSponsorshipAmount;
     /// @dev The length of time for a wave in blocks, marking the block number where winning ideas are chosen
     uint256 public waveLength;
-    uint256 private _currentWaveId;
+    uint96 private _currentWaveId;
     uint96 private _nextIdeaId;
 
     /// @notice `type(uint96).max` size provides a large buffer for tokenIds, overflow is unrealistic
     mapping(uint96 => IdeaInfo) internal ideaInfos;
-    mapping(uint256 => WaveInfo) internal waveInfos;
+    mapping(uint96 => WaveInfo) internal waveInfos;
     mapping(address => mapping(uint96 => SponsorshipParams)) internal sponsorships;
     mapping(address => uint256) internal claimableYield;
 
@@ -127,7 +127,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         returns (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
     {
         // transition contract state to next Wave
-        uint256 previousWaveId = _updateWaveState();
+        uint96 previousWaveId = _updateWaveState();
 
         // determine winners from ordered list if there are any
         uint256 minRequiredVotes;
@@ -308,11 +308,11 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         if (ideaId >= _nextIdeaId || ideaId == 0) revert NonexistentIdeaId(ideaId);
 
         // binary search for parent Wave
-        uint256 left;
-        uint256 right = _currentWaveId;
+        uint96 left;
+        uint96 right = _currentWaveId;
         uint32 blockCreated = ideaInfos[uint96(ideaId)].blockCreated;
         while (left <= right) {
-            uint256 middle = left + (right - left) / 2;
+            uint96 middle = left + (right - left) / 2;
             WaveInfo storage currentWave = waveInfos[middle];
 
             // catch case where `ideaId` was created in the same block as Wave finalization
@@ -363,12 +363,12 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     }
 
     /// @inheritdoc IIdeaTokenHub
-    function getWaveInfo(uint256 waveId) public view returns (WaveInfo memory) {
+    function getWaveInfo(uint96 waveId) public view returns (WaveInfo memory) {
         return waveInfos[waveId];
     }
 
     /// @inheritdoc IIdeaTokenHub
-    function getCurrentWaveInfo() external view returns (uint256 currentWaveId, WaveInfo memory currentWaveInfo) {
+    function getCurrentWaveInfo() external view returns (uint96 currentWaveId, WaveInfo memory currentWaveInfo) {
         currentWaveId = _currentWaveId;
         currentWaveInfo = getWaveInfo(currentWaveId);
     }
@@ -441,7 +441,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         _mint(msg.sender, _ideaId, msg.value, "");
     }
 
-    function _updateWaveState() internal returns (uint256 previousWaveId) {
+    function _updateWaveState() internal returns (uint96 previousWaveId) {
         // cache & advance waveId using post-increment
         previousWaveId = _currentWaveId++;
         WaveInfo storage previousWaveInfo = waveInfos[previousWaveId];
@@ -452,7 +452,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         // both `endBlock` of previous Wave and `startBlock` of current Wave are updated for better offchain readability
         uint32 currentBlock = uint32(block.number);
         previousWaveInfo.endBlock = currentBlock;
-        uint256 currentWaveId = previousWaveId + 1;
+        uint96 currentWaveId = previousWaveId + 1;
         waveInfos[currentWaveId].startBlock = currentBlock;
     }
 

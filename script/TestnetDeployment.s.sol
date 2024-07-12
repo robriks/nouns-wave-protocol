@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 import {Test, console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Inflator} from "nouns-monorepo/Inflator.sol";
-import {SVGRenderer} from "nouns-monorepo/SVGRenderer.sol";
+import {SVGRenderer} from "nosuns-monorepo/SVGRenderer.sol";
 import {NounsArt} from "nouns-monorepo/NounsArt.sol";
 import {NounsDescriptorV2} from "nouns-monorepo/NounsDescriptorV2.sol";
 import {NounsSeeder} from "nouns-monorepo/NounsSeeder.sol";
@@ -26,6 +26,8 @@ import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {Renderer} from "src/SVG/Renderer.sol";
+import {FontRegistry} from "FontRegistry/src/FontRegistry.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
 import {IWave} from "src/interfaces/IWave.sol";
@@ -49,13 +51,15 @@ contract Deploy is Script {
     address frog = 0x65A3870F48B5237f27f674Ec42eA1E017E111D63;
     address vanity = 0xFFFFfFfFA2eC6F66a22017a0Deb0191e5F8cBc35;
     uint256 minSponsorshipAmount = 1 wei; // TESTNET ONLY
-    uint256 waveLength = 50; // TESTNET ONLY
+    uint256 waveLength = 150; // TESTNET ONLY
 
     /// @notice Harness contract is used on testnet ONLY
     WaveHarness waveCoreImpl;
     WaveHarness waveCore;
     IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
+    FontRegistry fontRegistry;
+    Renderer renderer;
 
     // nouns ecosystem
     NounsDAOLogicV1Harness nounsGovernorV1Impl;
@@ -90,7 +94,9 @@ contract Deploy is Script {
         _deployNounsInfra(deployerPrivateKey);
 
         // setup Wave contracts
-        string memory uri = "someURI";
+        fontRegistry = new FontRegistry();
+        renderer = new Renderer(address(fontRegistry));
+
         ideaTokenHubImpl = new IdeaTokenHub();
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), "")));
         waveCoreImpl = new WaveHarness();
@@ -101,13 +107,17 @@ contract Deploy is Script {
             address(nounsTokenHarness),
             minSponsorshipAmount,
             waveLength,
-            uri
+            address(renderer)
         );
         waveCore = WaveHarness(address(new ERC1967Proxy(address(waveCoreImpl), initData)));
 
+        require(address(fontRegistry).code.length > 0);
+        require(address(renderer).code.length > 0);
         require(address(ideaTokenHub).code.length > 0);
         require(address(waveCore).code.length > 0);
         require(address(nounsTokenHarness).code.length > 0);
+        console2.logAddress(address(fontRegistry));
+        console2.logAddress(address(renderer));
         console2.logAddress(address(ideaTokenHub));
         console2.logAddress(address(waveCore));
         console2.logAddress(address(nounsTokenHarness));
