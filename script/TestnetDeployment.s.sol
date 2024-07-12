@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 import {Test, console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Inflator} from "nouns-monorepo/Inflator.sol";
-import {SVGRenderer} from "nosuns-monorepo/SVGRenderer.sol";
+import {SVGRenderer} from "nouns-monorepo/SVGRenderer.sol";
 import {NounsArt} from "nouns-monorepo/NounsArt.sol";
 import {NounsDescriptorV2} from "nouns-monorepo/NounsDescriptorV2.sol";
 import {NounsSeeder} from "nouns-monorepo/NounsSeeder.sol";
@@ -42,7 +42,7 @@ import {NounsDAOExecutorV2Testnet} from "test/harness/NounsDAOExecutorV2Testnet.
 /* 
 `forge verify-contract <ideaTokenHub> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY src/IdeaTokenHub.sol:IdeaTokenHub`
 `forge verify-contract <waveCore> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY test/harness/WaveHarness.sol:WaveHarness`
-`forge verify-contract <nounsToken> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY lib/nouns-monorepo/nouns-contracts/contracts/test/NounsTokenHarness.sol`
+`forge verify-contract <nounsToken> --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --watch --etherscan-api-key $BASESCAN_API_KEY lib/nouns-monorepo/packages/nouns-contracts/contracts/test/NounsTokenHarness.sol`
 */
 
 contract Deploy is Script {
