@@ -10,6 +10,7 @@ import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Wave} from "src/Wave.sol";
 import {Renderer} from "src/SVG/Renderer.sol";
 import {WaveHarness} from "test/harness/WaveHarness.sol";
+import {IdeaTokenHubHarness} from "test/harness/IdeaTokenHubHarness.sol";
 
 /// Usage:
 /// `forge script script/UpgradeDeployment.s.sol --fork-url $BASE_SEPOLIA_RPC_URL --private-key $PK --with-gas-price 1000000 --verify --etherscan-api-key $BASESCAN_API_KEY --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --broadcast`
@@ -22,6 +23,7 @@ contract UpgradeDeploymentScript is Script {
     UUPSUpgradeable waveCoreProxy = UUPSUpgradeable(payable(0x55C7c4ADEd315FF29a336cAE5671a4B0A69ae348));
 
     IdeaTokenHub newIdeaTokenHubImpl;
+    IdeaTokenHubHarness ideaTokenHubHarness;
     WaveHarness newWaveCoreImpl;
     FontRegistry fontRegistry;
     Renderer renderer;
@@ -30,15 +32,23 @@ contract UpgradeDeploymentScript is Script {
         vm.startBroadcast();
 
         // deploy new impls
-        fontRegistry = new FontRegistry();
-        renderer = new Renderer(address(fontRegistry));
+        // fontRegistry = new FontRegistry();
+        // renderer = new Renderer(address(fontRegistry));
         newIdeaTokenHubImpl = new IdeaTokenHub();
         // newWaveCoreImpl = new WaveHarness();
+
+        // harness can be used to resolve storage collisions
+        ideaTokenHubHarness = new IdeaTokenHubHarness();
+        ideaTokenHubProxy.upgradeTo(address(ideaTokenHubHarness));
+        IdeaTokenHubHarness(address(ideaTokenHubProxy)).setNextIdeaId(10);
+        IdeaTokenHubHarness(address(ideaTokenHubProxy)).setCurrentWaveId(18);
 
         ideaTokenHubProxy.upgradeTo(address(newIdeaTokenHubImpl));
         // waveCoreProxy.upgradeTo(address(newWaveCoreImpl));
 
         // for when proxy has already been initialized without renderer
-        IdeaTokenHub(address(ideaTokenHubProxy)).setRenderer(address(renderer));
+        // IdeaTokenHub(address(ideaTokenHubProxy)).setRenderer(address(renderer));
+
+        vm.stopBroadcast();
     }
 }
