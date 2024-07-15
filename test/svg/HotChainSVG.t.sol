@@ -21,6 +21,11 @@ contract HotChainSVG is Test {
     string mainnetRPC = vm.envString("MAINNET_RPC_URL");
     uint256 fork = vm.createFork(mainnetRPC);
 
+    // mainnet nouns infra
+    address public nounsDescriptor = 0x6229c811D04501523C6058bfAAc29c91bb586268;
+    address public nounsSVGRenderer = 0x81d94554A4b072BFcd850205f0c79e97c92aab56;
+
+
     function setUp() public {
         vm.selectFork(fork);
 
@@ -33,7 +38,7 @@ contract HotChainSVG is Test {
         textRegular = new PolymathTextRegular(polyText);
         fontRegistry = new FontRegistry();
         fontRegistry.addFontToRegistry(address(textRegular));
-        r = new Renderer(address(fontRegistry));
+        r = new Renderer(address(fontRegistry), nounsDescriptor, nounsSVGRenderer);
     }
 
     function test_HotChainSVG() public {
