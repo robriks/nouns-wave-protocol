@@ -431,7 +431,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         }
 
         // get values for assertions
-        (uint256 previousWaveId, IIdeaTokenHub.WaveInfo memory preWaveInfo) = ideaTokenHub.getCurrentWaveInfo();
+        (uint96 previousWaveId, IIdeaTokenHub.WaveInfo memory preWaveInfo) = ideaTokenHub.getCurrentWaveInfo();
 
         // fast forward to wave completion block and finalize
         vm.roll(block.number + waveLength);
@@ -444,7 +444,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds) =
             ideaTokenHub.finalizeWave(winningIds, descriptions);
 
-        (uint256 currentWaveId, IIdeaTokenHub.WaveInfo memory postWaveInfo) = ideaTokenHub.getCurrentWaveInfo();
+        (uint96 currentWaveId, IIdeaTokenHub.WaveInfo memory postWaveInfo) = ideaTokenHub.getCurrentWaveInfo();
         assertTrue(currentWaveId == previousWaveId + 1);
         assertTrue(postWaveInfo.startBlock > preWaveInfo.startBlock);
 

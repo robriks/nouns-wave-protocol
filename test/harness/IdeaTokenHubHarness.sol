@@ -6,9 +6,9 @@ import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/
 import {ERC1155Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC1155/ERC1155Upgradeable.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
-import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
-import {IWave} from "./interfaces/IWave.sol";
-import {IRenderer} from "./SVG/IRenderer.sol";
+import {IIdeaTokenHub} from "src/interfaces/IIdeaTokenHub.sol";
+import {IWave} from "src/interfaces/IWave.sol";
+import {IRenderer} from "src/SVG/IRenderer.sol";
 
 /// @title Wave Protocol IdeaTokenHub
 /// @author 📯📯📯.eth
@@ -20,7 +20,7 @@ import {IRenderer} from "./SVG/IRenderer.sol";
 /// of each auction, the winning tokenized ideas (with the most funding) are officially proposed into the Nouns governance system
 /// via the use of lent Nouns proposal power, provided by token holders who have delegated to the protocol.
 
-contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable, IIdeaTokenHub {
+contract IdeaTokenHubHarness is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable, IIdeaTokenHub {
     /*
       Constants
     */
@@ -33,7 +33,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
     IWave private __waveCore;
     INounsDAOLogicV3 private __nounsGovernor;
-    IRenderer public renderer;
+    IRenderer private __renderer;
 
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
     uint256 public minSponsorshipAmount;
@@ -384,7 +384,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     
     /// @dev Returns dynamically generated SVG metadata, rendered according to onchain state
     function uri(uint256 ideaTokenId) public view virtual override returns (string memory) {
-        return renderer.generateSVG(ideaTokenId);
+        return __renderer.generateSVG(ideaTokenId);
     }
 
     /// @inheritdoc IIdeaTokenHub
@@ -402,7 +402,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     */
 
     function _setRenderer(address newRenderer) internal {
-        renderer = IRenderer(newRenderer);
+        __renderer = IRenderer(newRenderer);
     }
 
     function _validateIdeaCreation(NounsDAOV3Proposals.ProposalTxs calldata _ideaTxs, string calldata _description)
@@ -501,5 +501,13 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
     function _authorizeUpgrade(address /*newImplementation*/ ) internal virtual override {
         if (msg.sender != owner()) revert IWave.Unauthorized();
+    }
+
+    function setCurrentWaveId(uint96 waveId) external onlyOwner {
+        _currentWaveId = waveId;
+    }
+
+    function setNextIdeaId(uint96 ideaId) external onlyOwner {
+        _nextIdeaId = ideaId;
     }
 }
