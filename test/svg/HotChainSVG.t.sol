@@ -25,7 +25,6 @@ contract HotChainSVG is Test {
     address public nounsDescriptor = 0x6229c811D04501523C6058bfAAc29c91bb586268;
     address public nounsSVGRenderer = 0x81d94554A4b072BFcd850205f0c79e97c92aab56;
 
-
     function setUp() public {
         vm.selectFork(fork);
 
