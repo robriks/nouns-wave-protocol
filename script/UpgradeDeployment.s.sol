@@ -6,6 +6,8 @@ import {Test, console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {FontRegistry} from "FontRegistry/src/FontRegistry.sol";
+import {NounsDescriptorV2} from "nouns-monorepo/NounsDescriptorV2.sol";
+import {SVGRenderer} from "nouns-monorepo/SVGRenderer.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Wave} from "src/Wave.sol";
 import {Renderer} from "src/SVG/Renderer.sol";
@@ -19,35 +21,30 @@ import {IdeaTokenHubHarness} from "test/harness/IdeaTokenHubHarness.sol";
 /// @notice Must be called by the owner address
 contract UpgradeDeploymentScript is Script {
     /// @notice Double check below config is correct!
-    UUPSUpgradeable ideaTokenHubProxy = UUPSUpgradeable(payable(0x54a488958D1f7e90aC1a9C7eE5a450d1E2170789));
-    UUPSUpgradeable waveCoreProxy = UUPSUpgradeable(payable(0x55C7c4ADEd315FF29a336cAE5671a4B0A69ae348));
+    UUPSUpgradeable ideaTokenHubProxy = UUPSUpgradeable(payable(0xAFFED3815a60aACeACDA3aE53425f053eD6Efc4d));
+    UUPSUpgradeable waveCoreProxy = UUPSUpgradeable(payable(0x443f1F80fBB72Fa40cA70A93a0139852b0563961));
+    FontRegistry fontRegistry = FontRegistry(0x765EeF8b5dD7af8FC7Aa03C76aFFd23AbcE7a3Bb);
+    NounsDescriptorV2 nounsDescriptor = NounsDescriptorV2(0x6cd473673A73150C8ff9Edc160262EBac3C882c0);
+    SVGRenderer nounsSVGRenderer = SVGRenderer(0x09A80D276a4dBb6a400aF1c8663ed0cC2073cFE7);
 
     IdeaTokenHub newIdeaTokenHubImpl;
     IdeaTokenHubHarness ideaTokenHubHarness;
     WaveHarness newWaveCoreImpl;
-    FontRegistry fontRegistry;
     Renderer renderer;
 
     function run() external {
         vm.startBroadcast();
 
         // deploy new impls
-        // fontRegistry = new FontRegistry();
-        // renderer = new Renderer(address(fontRegistry));
+        renderer = new Renderer(address(fontRegistry), address(nounsDescriptor), address(nounsSVGRenderer));
         newIdeaTokenHubImpl = new IdeaTokenHub();
         // newWaveCoreImpl = new WaveHarness();
-
-        // harness can be used to resolve storage collisions
-        ideaTokenHubHarness = new IdeaTokenHubHarness();
-        ideaTokenHubProxy.upgradeTo(address(ideaTokenHubHarness));
-        IdeaTokenHubHarness(address(ideaTokenHubProxy)).setNextIdeaId(10);
-        IdeaTokenHubHarness(address(ideaTokenHubProxy)).setCurrentWaveId(18);
 
         ideaTokenHubProxy.upgradeTo(address(newIdeaTokenHubImpl));
         // waveCoreProxy.upgradeTo(address(newWaveCoreImpl));
 
-        // for when proxy has already been initialized without renderer
-        // IdeaTokenHub(address(ideaTokenHubProxy)).setRenderer(address(renderer));
+        // for new renderer deployments
+        IdeaTokenHub(address(ideaTokenHubProxy)).setRenderer(address(renderer));
 
         vm.stopBroadcast();
     }

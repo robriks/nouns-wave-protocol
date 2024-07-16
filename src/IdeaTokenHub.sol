@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import {OwnableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1155Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC1155/ERC1155Upgradeable.sol";
+import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
+import {Base64} from "lib/openzeppelin-contracts/contracts/utils/Base64.sol";
 import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
@@ -21,6 +23,7 @@ import {IRenderer} from "./SVG/IRenderer.sol";
 /// via the use of lent Nouns proposal power, provided by token holders who have delegated to the protocol.
 
 contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable, IIdeaTokenHub {
+    
     /*
       Constants
     */
@@ -383,8 +386,18 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     */
     
     /// @dev Returns dynamically generated SVG metadata, rendered according to onchain state
-    function uri(uint256 ideaTokenId) public view virtual override returns (string memory) {
-        return renderer.generateSVG(ideaTokenId);
+    function uri(uint256 ideaTokenId) public view virtual override returns (string memory json) {
+        bytes memory svg = bytes(__renderer.generateSVG(ideaTokenId));
+
+        string memory stringified = Base64.encode(bytes(string.concat(
+            '{'
+                '"name": "Wave Protocol IdeaToken ', Strings.toString(ideaTokenId), '",', 
+                '"description": "Tokenized idea competing for proposal to Nouns governance through Wave Protocol. To view the description for a specific idea, consult the Wave Protocol UI.",',
+                '"external_url": "https://wave-monorepo-app.vercel.app",'
+                '"image": "data:image/svg+xml;base64,', Base64.encode(svg), '"', 
+            '}'
+        )));
+        json = string.concat('data:application/json;base64,', stringified);
     }
 
     /// @inheritdoc IIdeaTokenHub
