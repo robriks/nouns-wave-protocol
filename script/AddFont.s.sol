@@ -21,7 +21,7 @@ import {Renderer} from "src/SVG/Renderer.sol";
 import {NounsConfigData} from "test/helpers/NounsEnvSetup.sol";
 import {WaveHarness} from "test/harness/WaveHarness.sol";
 
-/// @dev Adds the polymath-text font to the FontRegistry on testnet
+/// @dev Deploys and adds the polymath-text font to an existing FontRegistry on testnet
 contract AddFont is Script {
     PolymathTextRegular polymathTextRegular;
     Renderer renderer;
@@ -32,7 +32,7 @@ contract AddFont is Script {
     // nounsToken = IERC721Checkpointable(0x9B786579B3d4372d54DFA212cc8B1589Aaf6DcF3);
 
     /// @notice Harness contract is used on testnet ONLY
-    // >= v1.6 testnet config for mock nouns infra
+    /// @dev >= v1.6 testnet config for mock nouns infra
     WaveHarness waveCore = WaveHarness(0x443f1F80fBB72Fa40cA70A93a0139852b0563961);
     IdeaTokenHub ideaTokenHub = IdeaTokenHub(address(waveCore.ideaTokenHub()));
     IERC721Checkpointable nounsToken = IERC721Checkpointable(0xE8b46D16107e1d562B62B5aA8d4bF9A60e6c51b4);
@@ -57,8 +57,10 @@ contract AddFont is Script {
         nounsDescriptor.addHeads(configData.encodedCompressedHeadsData, uint40(configData.decompressedLengthOfHeadBytes), uint16(configData.imageCountOfHeads));
 
         renderer = new Renderer(address(fontRegistry), address(nounsDescriptor), address(nounsSVGRenderer));
+        // needs to be set since initializer can't be accessed
         ideaTokenHub.setRenderer(address(renderer));
 
+        // add font to registry
         string memory fontPath = string.concat(root, "/test/helpers/font.json");
         string memory fontJson = vm.readFile(fontPath);
         Font memory polyFont = abi.decode(vm.parseJson(fontJson), (Font));

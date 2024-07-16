@@ -10,9 +10,7 @@ import {NounsArt} from "nouns-monorepo/NounsArt.sol";
 import {NounsDescriptorV2} from "nouns-monorepo/NounsDescriptorV2.sol";
 import {NounsSeeder} from "nouns-monorepo/NounsSeeder.sol";
 import {IInflator} from "nouns-monorepo/interfaces/IInflator.sol";
-import {ISVGRenderer} from "nouns-monorepo/interfaces/ISVGRenderer.sol";
 import {INounsArt} from "nouns-monorepo/interfaces/INounsArt.sol";
-import {INounsDescriptorMinimal} from "nouns-monorepo/interfaces/INounsDescriptorMinimal.sol";
 import {INounsSeeder} from "nouns-monorepo/interfaces/INounsSeeder.sol";
 import {IProxyRegistry} from "nouns-monorepo/external/opensea/IProxyRegistry.sol";
 import {ProxyRegistryMock} from "nouns-monorepo/../test/foundry/helpers/ProxyRegistryMock.sol";
@@ -28,12 +26,15 @@ import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {Renderer} from "src/SVG/Renderer.sol";
 import {FontRegistry} from "FontRegistry/src/FontRegistry.sol";
+import {PolymathTextRegular} from "src/SVG/fonts/PolymathTextRegular.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
 import {IWave} from "src/interfaces/IWave.sol";
 import {Wave} from "src/Wave.sol";
 import {WaveHarness} from "test/harness/WaveHarness.sol";
 import {NounsDAOExecutorV2Testnet} from "test/harness/NounsDAOExecutorV2Testnet.sol";
+import {NounsConfigData} from "test/helpers/NounsEnvSetup.sol";
+import {Font} from "test/svg/HotChainSVG.t.sol";
 
 /// Usage:
 /// `forge script script/TestnetDeployment.s.sol:Deploy --fork-url $BASE_SEPOLIA_RPC_URL --private-key $PK --with-gas-price 1000000 --verify --etherscan-api-key $BASESCAN_API_KEY --verifier-url $BASESCAN_SEPOLIA_ENDPOINT --broadcast`
@@ -58,8 +59,9 @@ contract Deploy is Script {
     WaveHarness waveCore;
     IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
-    FontRegistry fontRegistry;
     Renderer renderer;
+    FontRegistry fontRegistry;
+    PolymathTextRegular polymathTextRegular;
 
     // nouns ecosystem
     NounsDAOLogicV1Harness nounsGovernorV1Impl;
@@ -68,10 +70,10 @@ contract Deploy is Script {
     NounsDAOExecutorV2Testnet nounsTimelockImpl;
     NounsDAOExecutorV2Testnet nounsTimelockProxy;
     IERC721Checkpointable nounsTokenHarness;
+    SVGRenderer nounsRenderer;
+    NounsDescriptorV2 nounsDescriptor;
     IInflator inflator_;
     INounsArt nounsArt_;
-    ISVGRenderer nounsRenderer_;
-    INounsDescriptorMinimal nounsDescriptor_;
     INounsSeeder nounsSeeder_;
     IProxyRegistry nounsProxyRegistry_;
     NounsDAOForkEscrow nounsForkEscrow_;
@@ -91,12 +93,22 @@ contract Deploy is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // setup Nouns env
-        _deployNounsInfra(deployerPrivateKey);
+        string memory root = vm.projectRoot();
+        _deployNounsInfra(deployerPrivateKey, root);
 
-        // setup Wave contracts
+        // setup Wave URI contracts (renderer is set in initializer)
         fontRegistry = new FontRegistry();
-        renderer = new Renderer(address(fontRegistry));
+        renderer = new Renderer(address(fontRegistry), address(nounsDescriptor), address(nounsRenderer));
 
+        // deploy and add font to registry
+        string memory fontPath = string.concat(root, "/test/helpers/font.json");
+        string memory fontJson = vm.readFile(fontPath);
+        Font memory polyFont = abi.decode(vm.parseJson(fontJson), (Font));
+        string memory polyText = polyFont.data;
+        polymathTextRegular = new PolymathTextRegular(polyText);
+        fontRegistry.addFontToRegistry(address(polymathTextRegular));
+
+        // deploy Wave protocol contracts
         ideaTokenHubImpl = new IdeaTokenHub();
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), "")));
         waveCoreImpl = new WaveHarness();
@@ -113,11 +125,13 @@ contract Deploy is Script {
 
         require(address(fontRegistry).code.length > 0);
         require(address(renderer).code.length > 0);
+        require(address(polymathTextRegular).code.length > 0);
         require(address(ideaTokenHub).code.length > 0);
         require(address(waveCore).code.length > 0);
         require(address(nounsTokenHarness).code.length > 0);
         console2.logAddress(address(fontRegistry));
         console2.logAddress(address(renderer));
+        console2.logAddress(address(polymathTextRegular));
         console2.logAddress(address(ideaTokenHub));
         console2.logAddress(address(waveCore));
         console2.logAddress(address(nounsTokenHarness));
@@ -138,29 +152,37 @@ contract Deploy is Script {
         vm.stopBroadcast();
     }
 
-    function _deployNounsInfra(uint256 _deployerPrivateKey) internal {
+    function _deployNounsInfra(uint256 _deployerPrivateKey, string memory _root) internal {
         nounsDAOSafe_ = nounsSafeMinterVetoerDescriptorAdmin;
         nounsAuctionHouserMinter_ = nounsSafeMinterVetoerDescriptorAdmin;
 
         inflator_ = IInflator(address(new Inflator()));
         // rather than simulate create2, set temporary descriptor address then change to correct one after deployment
         nounsArt_ = INounsArt(address(new NounsArt(vm.addr(_deployerPrivateKey), inflator_)));
-        nounsRenderer_ = ISVGRenderer(address(new SVGRenderer()));
-        nounsDescriptor_ = INounsDescriptorMinimal(address(new NounsDescriptorV2(nounsArt_, nounsRenderer_)));
+        nounsRenderer = new SVGRenderer();
+        nounsDescriptor = new NounsDescriptorV2(nounsArt_, nounsRenderer);
+
+        // testnet descriptor requires palette and head to be set to match mainnet
+        string memory nounsConfigDataPath = string.concat(_root, "/test/helpers/nouns-config-data.json");
+        string memory nounsConfigDataJson = vm.readFile(nounsConfigDataPath);
+        NounsConfigData memory configData = abi.decode(vm.parseJson(nounsConfigDataJson), (NounsConfigData));
+                
+        nounsDescriptor.setPalette(0, configData.palette0);
+        nounsDescriptor.addHeads(configData.encodedCompressedHeadsData, configData.decompressedLengthOfHeadBytes, configData.imageCountOfHeads);
+
         // add dummy art and change descriptor to correct address after deployment
         nounsArt_.addBackground("0x0");
         nounsArt_.addBodies("0x0", uint80(1), uint16(1));
         nounsArt_.addAccessories("0x0", uint80(1), uint16(1));
-        nounsArt_.addHeads("0x0", uint80(1), uint16(1));
         nounsArt_.addGlasses("0x0", uint80(1), uint16(1));
-        nounsArt_.setDescriptor(address(nounsDescriptor_));
+        nounsArt_.setDescriptor(address(nounsDescriptor));
 
         nounsSeeder_ = INounsSeeder(address(new NounsSeeder()));
         nounsProxyRegistry_ = IProxyRegistry(address(new ProxyRegistryMock()));
         nounsTokenHarness = IERC721Checkpointable(
             address(
                 new NounsTokenHarness(
-                    nounsDAOSafe_, nounsAuctionHouserMinter_, nounsDescriptor_, nounsSeeder_, nounsProxyRegistry_
+                    nounsDAOSafe_, nounsAuctionHouserMinter_, nounsDescriptor, nounsSeeder_, nounsProxyRegistry_
                 )
             )
         );

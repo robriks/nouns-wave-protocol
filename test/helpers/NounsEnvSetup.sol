@@ -80,7 +80,7 @@ contract NounsEnvSetup is Test {
         NounsConfigData memory configData = abi.decode(vm.parseJson(nounsConfigDataJson), (NounsConfigData));
                 
         nounsDescriptor_.setPalette(0, configData.palette0);
-        nounsDescriptor_.addHeads(configData.encodedCompressedHeadsData, uint40(configData.decompressedLengthOfHeadBytes), uint16(configData.imageCountOfHeads));
+        nounsDescriptor_.addHeads(configData.encodedCompressedHeadsData, configData.decompressedLengthOfHeadBytes, configData.imageCountOfHeads);
 
         // add dummy art configs as descriptor
         vm.startPrank(address(nounsDescriptor_));
