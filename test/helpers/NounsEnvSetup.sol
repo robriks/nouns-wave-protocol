@@ -26,8 +26,15 @@ import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 
-/// @notice Fuzz iteration params can be increased to larger types to match implementation
-/// They are temporarily set to smaller types for speed only
+/// @dev Clones Nouns infrastructure from mainnet to a testing environment
+
+struct NounsConfigData {
+    uint40 decompressedLengthOfHeadBytes;
+    bytes encodedCompressedHeadsData; 
+    uint16 imageCountOfHeads;
+    bytes palette0;
+}
+
 contract NounsEnvSetup is Test {
     NounsDAOLogicV1Harness nounsGovernorV1Impl;
     NounsDAOLogicV3Harness nounsGovernorV3Impl;
@@ -38,7 +45,7 @@ contract NounsEnvSetup is Test {
     IInflator inflator_;
     INounsArt nounsArt_;
     ISVGRenderer nounsRenderer_;
-    INounsDescriptorMinimal nounsDescriptor_;
+    NounsDescriptorV2 nounsDescriptor_;
     INounsSeeder nounsSeeder_; // 0xCC8a0FB5ab3C7132c1b2A0109142Fb112c4Ce515
     IProxyRegistry nounsProxyRegistry_;
     NounsDAOForkEscrow nounsForkEscrow_;
@@ -59,18 +66,28 @@ contract NounsEnvSetup is Test {
         nounsAuctionHouserMinter_ = 0x830BD73E4184ceF73443C15111a1DF14e495C706;
 
         inflator_ = IInflator(address(new Inflator()));
+        nounsRenderer_ = ISVGRenderer(address(new SVGRenderer()));
         // rather than simulate create2, set temporary descriptor address then change to correct one after deployment
         nounsArt_ = INounsArt(address(new NounsArt(vm.addr(0xd00d00), inflator_)));
-        nounsRenderer_ = ISVGRenderer(address(new SVGRenderer()));
-        nounsDescriptor_ = INounsDescriptorMinimal(address(new NounsDescriptorV2(nounsArt_, nounsRenderer_)));
-        // add dummy art and change descriptor to correct address after deployment
-        vm.startPrank(vm.addr(0xd00d00));
+        nounsDescriptor_ = new NounsDescriptorV2(nounsArt_, nounsRenderer_);
+        vm.prank(vm.addr(0xd00d00));
+        nounsArt_.setDescriptor(address(nounsDescriptor_));
+
+        // testnet descriptor requires palette and head to be set to match mainnet
+        string memory root = vm.projectRoot();
+        string memory nounsConfigDataPath = string.concat(root, "/test/helpers/nouns-config-data.json");
+        string memory nounsConfigDataJson = vm.readFile(nounsConfigDataPath);
+        NounsConfigData memory configData = abi.decode(vm.parseJson(nounsConfigDataJson), (NounsConfigData));
+                
+        nounsDescriptor_.setPalette(0, configData.palette0);
+        nounsDescriptor_.addHeads(configData.encodedCompressedHeadsData, configData.decompressedLengthOfHeadBytes, configData.imageCountOfHeads);
+
+        // add dummy art configs as descriptor
+        vm.startPrank(address(nounsDescriptor_));
         nounsArt_.addBackground("");
         nounsArt_.addBodies("0x0", uint80(1), uint16(1));
         nounsArt_.addAccessories("0x0", uint80(1), uint16(1));
-        nounsArt_.addHeads("0x0", uint80(1), uint16(1));
         nounsArt_.addGlasses("0x0", uint80(1), uint16(1));
-        nounsArt_.setDescriptor(address(nounsDescriptor_));
         vm.stopPrank();
 
         nounsSeeder_ = INounsSeeder(address(new NounsSeeder()));
