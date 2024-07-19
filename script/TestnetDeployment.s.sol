@@ -16,7 +16,6 @@ import {IProxyRegistry} from "nouns-monorepo/external/opensea/IProxyRegistry.sol
 import {ProxyRegistryMock} from "nouns-monorepo/../test/foundry/helpers/ProxyRegistryMock.sol";
 import {NounsDAOForkEscrow} from "nouns-monorepo/governance/fork/NounsDAOForkEscrow.sol";
 import {NounsDAOProxy} from "nouns-monorepo/governance/NounsDAOProxy.sol";
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {NounsDAOExecutorProxy} from "nouns-monorepo/governance/NounsDAOExecutorProxy.sol";
 import {NounsDAOLogicV1Harness} from "nouns-monorepo/test/NounsDAOLogicV1Harness.sol";
 import {NounsDAOLogicV3Harness} from "nouns-monorepo/test/NounsDAOLogicV3Harness.sol";
