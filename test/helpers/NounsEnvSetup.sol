@@ -86,7 +86,7 @@ contract NounsEnvSetup is Test {
         nounsTimelockImpl = new NounsDAOExecutorV2();
         nounsTimelockProxy =
             NounsDAOExecutorV2(payable(address(new NounsDAOExecutorProxy(address(nounsTimelockImpl), ""))));
-    
+
         // setup Nouns Governor (harness)
         vetoer_ = vm.addr(0xdeadbeef); // gnosis safe on mainnet
         votingPeriod_ = 28800;
@@ -123,7 +123,7 @@ contract NounsEnvSetup is Test {
         vm.startPrank(address(nounsTimelockProxy));
         NounsDAOProxy(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
         nounsGovernorProxy._setForkEscrow(address(nounsForkEscrow_));
-        
+
         vm.stopPrank();
     }
 

@@ -140,7 +140,7 @@ interface IIdeaTokenHub {
     /// @notice Only callable by the owner
     function setRenderer(address newRenderer) external;
 
-    /// @dev Sets the traditional static string-based URI which is not used 
+    /// @dev Sets the traditional static string-based URI which is not used
     /// but is included for backwards compatibility
     /// @notice Only callable by the owner
     function setStaticURI(string memory newURI) external;

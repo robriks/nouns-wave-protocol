@@ -13,7 +13,7 @@ contract Renderer is IRenderer {
 
     address public constant nounsDescriptor = 0x6229c811D04501523C6058bfAAc29c91bb586268;
     address public constant nounsSVGRenderer = 0x81d94554A4b072BFcd850205f0c79e97c92aab56;
-    address public immutable fontRegistry; 
+    address public immutable fontRegistry;
 
     BadgeConfig[] public badgeConfigs;
 

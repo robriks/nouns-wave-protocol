@@ -19,7 +19,6 @@ import {TestUtils} from "test/helpers/TestUtils.sol";
 
 /// @dev This IdeaTokenHub test suite inherits from the Nouns governance setup contract to mimic the onchain environment
 contract DelegateTest is NounsEnvSetup, TestUtils {
-    
     INounsDAOLogicV3 nounsGovernor;
     IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
@@ -36,7 +35,7 @@ contract DelegateTest is NounsEnvSetup, TestUtils {
     string updatedDescription;
     string updateMessage;
 
-function setUp() public {
+    function setUp() public {
         // establish clone of onchain Nouns governance environment
         super.setUpNounsGovernance();
         super.mintMirrorBalances();
@@ -45,7 +44,8 @@ function setUp() public {
 
         // setup Wave contracts, Renderer discarded
         ideaTokenHubImpl = new IdeaTokenHub();
-        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), "")));        waveCoreImpl = new WaveHarness();
+        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), "")));
+        waveCoreImpl = new WaveHarness();
         bytes memory initData = abi.encodeWithSelector(
             IWave.initialize.selector,
             address(ideaTokenHub),
@@ -88,21 +88,27 @@ function setUp() public {
     function test_updateProposal() public {
         // update the proposal
         vm.expectEmit(true, true, true, true);
-        emit NounsDAOV3Proposals.ProposalUpdated(nounsProposalId, address(delegate), updatedTxs.targets, updatedTxs.values, updatedTxs.signatures, updatedTxs.calldatas, updatedDescription, updateMessage);
+        emit NounsDAOV3Proposals.ProposalUpdated(
+            nounsProposalId,
+            address(delegate),
+            updatedTxs.targets,
+            updatedTxs.values,
+            updatedTxs.signatures,
+            updatedTxs.calldatas,
+            updatedDescription,
+            updateMessage
+        );
         vm.prank(address(waveCore));
         delegate.updateProposal(nounsGovernor, nounsProposalId, updatedTxs, updatedDescription, updateMessage);
     }
 
     function test_updateProposalDescription() public {
         // update the proposal description only by providing empty txs
-        ProposalTxs memory emptyTxs = ProposalTxs(
-            new address[](0),
-            new uint[](0),
-            new string[](0),
-            new bytes[](0)
-        );
+        ProposalTxs memory emptyTxs = ProposalTxs(new address[](0), new uint256[](0), new string[](0), new bytes[](0));
         vm.expectEmit(true, true, true, true);
-        emit NounsDAOV3Proposals.ProposalDescriptionUpdated(nounsProposalId, address(delegate), updatedDescription, updateMessage);
+        emit NounsDAOV3Proposals.ProposalDescriptionUpdated(
+            nounsProposalId, address(delegate), updatedDescription, updateMessage
+        );
         vm.prank(address(waveCore));
         delegate.updateProposal(nounsGovernor, nounsProposalId, emptyTxs, updatedDescription, updateMessage);
     }
@@ -110,19 +116,22 @@ function setUp() public {
     function test_updateProposalTxs() public {
         // update the proposal txs only by providing description
         vm.expectEmit(true, true, true, true);
-        emit NounsDAOV3Proposals.ProposalTransactionsUpdated(nounsProposalId, address(delegate), updatedTxs.targets, updatedTxs.values, updatedTxs.signatures, updatedTxs.calldatas, updateMessage);
+        emit NounsDAOV3Proposals.ProposalTransactionsUpdated(
+            nounsProposalId,
+            address(delegate),
+            updatedTxs.targets,
+            updatedTxs.values,
+            updatedTxs.signatures,
+            updatedTxs.calldatas,
+            updateMessage
+        );
         vm.prank(address(waveCore));
-        delegate.updateProposal(nounsGovernor, nounsProposalId, updatedTxs, '', updateMessage);
+        delegate.updateProposal(nounsGovernor, nounsProposalId, updatedTxs, "", updateMessage);
     }
 
     function test_revertUpdateProposalArityMismatch() public {
         // revert by providing mismatching arity
-        ProposalTxs memory badTxs = ProposalTxs(
-            new address[](0),
-            new uint[](1),
-            new string[](2),
-            new bytes[](3)
-        );
+        ProposalTxs memory badTxs = ProposalTxs(new address[](0), new uint256[](1), new string[](2), new bytes[](3));
         vm.expectRevert(ProposalValidatorLib.ProposalInfoArityMismatch.selector);
         vm.prank(address(waveCore));
         delegate.updateProposal(nounsGovernor, nounsProposalId, badTxs, updatedDescription, updateMessage);

@@ -22,29 +22,29 @@ contract Delegate {
         waveCore = waveCore_;
     }
 
-    modifier onlyWaveCore {
+    modifier onlyWaveCore() {
         if (msg.sender != waveCore) revert NotWaveCore(msg.sender);
         _;
     }
 
     /// @dev Pushes a proposal to the Nouns governor, kickstarting the Nouns proposal process
     /// @notice May only be invoked by the Wave core contract as a part of the `IdeaTokenHub::finalizeWave()` flow
-    function pushProposal(
-        INounsDAOLogicV3 governor,
-        ProposalTxs calldata txs,
-        string calldata description
-    ) external onlyWaveCore returns (uint256 nounsProposalId) {
+    function pushProposal(INounsDAOLogicV3 governor, ProposalTxs calldata txs, string calldata description)
+        external
+        onlyWaveCore
+        returns (uint256 nounsProposalId)
+    {
         nounsProposalId =
             INounsDAOLogicV3(governor).propose(txs.targets, txs.values, txs.signatures, txs.calldatas, description);
     }
 
     /// @dev Updates an existing proposal which was made by this contract
-    /// @notice May only be invoked through the Wave core contract, given a `proposalId` that is currently updatable 
+    /// @notice May only be invoked through the Wave core contract, given a `proposalId` that is currently updatable
     function updateProposal(
-        INounsDAOLogicV3 governor, 
+        INounsDAOLogicV3 governor,
         uint256 nounsProposalId,
         ProposalTxs memory updatedTxs,
-        string calldata updatedDescription, 
+        string calldata updatedDescription,
         string calldata updateMessage
     ) external onlyWaveCore {
         ProposalValidatorLib._validateProposalArity(updatedTxs);
@@ -54,11 +54,11 @@ contract Delegate {
             // if `updatedDescription` is empty, validate and update proposal transactions only
             ProposalValidatorLib._validateProposalTargetsAndOperations(updatedTxs, governor);
             governor.updateProposalTransactions(
-                nounsProposalId, 
-                updatedTxs.targets, 
-                updatedTxs.values, 
-                updatedTxs.signatures, 
-                updatedTxs.calldatas, 
+                nounsProposalId,
+                updatedTxs.targets,
+                updatedTxs.values,
+                updatedTxs.signatures,
+                updatedTxs.calldatas,
                 updateMessage
             );
         } else if (updatedTxs.targets.length == 0) {
@@ -68,12 +68,12 @@ contract Delegate {
             // update both the proposal's transactions and description
             ProposalValidatorLib._validateProposalTargetsAndOperations(updatedTxs, governor);
             governor.updateProposal(
-                nounsProposalId, 
-                updatedTxs.targets, 
-                updatedTxs.values, 
-                updatedTxs.signatures, 
-                updatedTxs.calldatas, 
-                updatedDescription, 
+                nounsProposalId,
+                updatedTxs.targets,
+                updatedTxs.values,
+                updatedTxs.signatures,
+                updatedTxs.calldatas,
+                updatedDescription,
                 updateMessage
             );
         }
