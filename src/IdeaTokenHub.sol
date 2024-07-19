@@ -163,13 +163,12 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
         emit WaveFinalized(proposedIdeas, waveInfos[previousWaveId]);
 
-        // calculate yield for returned valid delegations
+        // calculate and record yield for returned valid delegations
+        uint256 yieldPerVotingPower = _calculateYieldPerVotingPower(delegations, winningProposalsTotalFunding);
         for (uint256 j; j < delegations.length; ++j) {
-            uint256 denominator = 10_000 * minRequiredVotes / delegations[j].votingPower;
-            uint256 yield = (winningProposalsTotalFunding / delegations.length) / denominator / 10_000;
-
-            // enable claiming of yield calculated as total revenue split between all delegations, proportional to delegated voting power
+            uint256 yield = yieldPerVotingPower * delegations[j].votingPower;
             address currentDelegator = delegations[j].delegator;
+            // enable claiming of yield calculated as total revenue split between all delegations, proportional to delegated voting power
             claimableYield[currentDelegator] += yield;
         }
     }
@@ -384,7 +383,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     /*
       Metadata URI 
     */
-    
+
     /// @dev Returns dynamically generated SVG metadata, rendered according to onchain state
     function uri(uint256 ideaTokenId) public view virtual override returns (string memory) {
         return renderer.generateSVG(ideaTokenId);
@@ -408,9 +407,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         renderer = IRenderer(newRenderer);
     }
 
-    function _validateIdeaCreation(ProposalTxs calldata _ideaTxs, string calldata _description)
-        internal
-    {
+    function _validateIdeaCreation(ProposalTxs calldata _ideaTxs, string calldata _description) internal {
         if (msg.value < minSponsorshipAmount) revert BelowMinimumSponsorshipAmount(msg.value);
         if (keccak256(bytes(_description)) == keccak256("")) revert ProposalValidatorLib.InvalidDescription();
 
@@ -479,6 +476,17 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
             // use placeholder value since `nounsProposalId` is not known and will be assigned by Nouns Governor
             proposedIdeas[i] = ProposalInfo(0, uint256(currentWinnerId), winner.totalFunding, winner.blockCreated);
         }
+    }
+
+    function _calculateYieldPerVotingPower(
+        IWave.Delegation[] memory _delegations,
+        uint256 _winningProposalsTotalFunding
+    ) internal pure returns (uint256 yieldPerVotingPower) {
+        uint256 totalVotingPower;
+        for (uint256 j; j < _delegations.length; ++j) {
+            totalVotingPower += _delegations[j].votingPower;
+        }
+        yieldPerVotingPower = _winningProposalsTotalFunding / totalVotingPower;
     }
 
     function _beforeTokenTransfer(
