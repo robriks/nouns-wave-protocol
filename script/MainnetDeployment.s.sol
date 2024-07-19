@@ -47,12 +47,12 @@ contract Deploy is Script {
         renderer = new Renderer(address(fontRegistry));
         require(address(fontRegistry).code.length > 0);
         require(address(renderer).code.length > 0);
-        // deploy Wave contract implementations 
+        // deploy Wave contract implementations
         ideaTokenHubImpl = new IdeaTokenHub();
         waveCoreImpl = new Wave();
 
         // use create2crunch to identify suitable salt for gas-efficient proxy addresses with leading zero bytes
-        
+
         // deploy proxies pointed at impls
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy{salt: ideaTokenHubSalt}(address(ideaTokenHubImpl), "")));
         bytes memory initData = abi.encodeWithSelector(
