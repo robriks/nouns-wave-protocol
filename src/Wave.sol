@@ -61,7 +61,7 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         _transferOwnership(msg.sender);
 
         ideaTokenHub = IIdeaTokenHub(ideaTokenHub_);
-        ideaTokenHub.initialize(msg.sender, nounsGovernor_, minSponsorshipAmount_, waveLength_, renderer_, '');
+        ideaTokenHub.initialize(msg.sender, nounsGovernor_, minSponsorshipAmount_, waveLength_, renderer_, "");
         nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
         nounsToken = IERC721Checkpointable(nounsToken_);
         __creationCodeHash =
@@ -202,7 +202,12 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         IIdeaTokenHub.SponsorshipParams memory params = ideaTokenHub.getSponsorshipInfo(msg.sender, ideaId);
         if (!params.isCreator) revert NotCreator(msg.sender);
 
-        Delegate(proposerDelegate).updateProposal(nounsGovernor, nounsProposalId, updatedProposal.ideaTxs, updatedProposal.description, updateMessage);
+        Delegate(proposerDelegate).updateProposal(
+            nounsGovernor, nounsProposalId, updatedProposal.ideaTxs, updatedProposal.description, updateMessage
+        );
+
+        // emit only the `ideaId` since proposer and proposal data are available via NounsGovernor::ProposalUpdated event
+        emit ProposedIdeaUpdated(ideaId);
     }
 
     /// @inheritdoc IWave
@@ -217,6 +222,8 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
 
         Delegate(proposerDelegate).cancelProposal(nounsGovernor, nounsProposalId);
 
+        // emit only the `ideaId` since `nounsProposalId` data are available via NounsGovernor::ProposalUpdated event
+        emit ProposedIdeaCanceled(ideaId);
     }
 
     /*
@@ -386,7 +393,7 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
             }
         }
     }
-    
+
     /// @dev Returns the id of the first delegate ID found to meet the given parameters
     /// To save gas by minimizing costly SLOADs, terminates as soon as a delegate meeting the critera is found
     /// @param _minRequiredVotes The votes needed to make a proposal, dynamic based on Nouns token supply

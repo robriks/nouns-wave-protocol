@@ -58,6 +58,8 @@ interface IWave {
     event DelegateCreated(address delegate, uint256 id);
     event DelegationRegistered(Delegation optimisticDelegation);
     event DelegationDeleted(Delegation disqualifiedDelegation);
+    event ProposedIdeaUpdated(uint256 ideaId);
+    event ProposedIdeaCanceled(uint256 ideaId);
 
     /*
       IWave
@@ -81,7 +83,7 @@ interface IWave {
         returns (Delegation[] memory delegations, uint256[] memory nounsProposalIds);
 
     /// @dev To support the granularity of the NounsDAOProposals contract's functions, this function uses a switch
-    /// case to either 1. update only the proposal's `ProposalTxs` struct, 2. only the `description` string, 
+    /// case to either 1. update only the proposal's `ProposalTxs` struct, 2. only the `description` string,
     /// or 3. both the transactions and description string simultaneously. To update only the proposal transactions,
     /// provide an empty `description` string. To update only the description, provide empty `ProposalTxs` arrays
     /// An empty string value for `updateMessage` is disallowed- all updates should be documented onchain.
