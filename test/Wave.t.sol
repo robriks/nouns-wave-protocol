@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
-import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {NounsTokenLike, NounsDAOEventsV3} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {NounsDAOProposals} from "nouns-monorepo/governance/NounsDAOProposals.sol";
 import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
@@ -1543,7 +1543,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
 
         // expect events from nounsGovernor & from Wave core contract
         vm.expectEmit(true, true, true, true);
-        emit NounsDAOProposals.ProposalUpdated(
+        emit NounsDAOEventsV3.ProposalUpdated(
             nounsProposalId,
             address(proposerDelegate),
             updatedTxs.targets,
