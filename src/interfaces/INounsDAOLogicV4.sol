@@ -5,7 +5,6 @@ pragma solidity ^0.8.24;
 
 import {
     NounsDAOStorage,
-    NounsDAOTypes,
     INounsDAOExecutor,
     NounsTokenLike,
     INounsDAOForkEscrow,
@@ -121,7 +120,7 @@ interface INounsDAOLogicV4 {
     /// dropped below proposal threshold
     function cancel(uint256 proposalId) external;
     /// @notice Gets the state of a proposal
-    function state(uint256 proposalId) external view returns (NounsDAOTypes.ProposalState);
+    function state(uint256 proposalId) external view returns (NounsDAOStorage.ProposalState);
     /// @notice Gets actions of a proposal
 
     function getActions(uint256 proposalId)
@@ -137,9 +136,9 @@ interface INounsDAOLogicV4 {
     /// @notice Gets the receipt for a voter on a given proposal
     function getReceipt(uint256 proposalId, address voter) external view returns (NounsDAOStorage.Receipt memory);
     /// @notice Returns the proposal details given a proposal id.
-    function proposals(uint256 proposalId) external view returns (NounsDAOTypes.ProposalCondensedV3 memory);
+    function proposals(uint256 proposalId) external view returns (NounsDAOStorage.ProposalCondensedV3 memory);
     /// @notice Returns the proposal details given a proposal id.
-    function proposalsV3(uint256 proposalId) external view returns (NounsDAOTypes.ProposalCondensedV3 memory);
+    function proposalsV3(uint256 proposalId) external view returns (NounsDAOStorage.ProposalCondensedV3 memory);
     /// @notice Current proposal threshold using Noun Total Supply
     function proposalThreshold() external view returns (uint256);
 

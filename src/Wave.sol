@@ -5,7 +5,7 @@ import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ECDSA} from "nouns-monorepo/external/openzeppelin/ECDSA.sol";
 import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
-import {NounsDAOStorage, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {NounsDAOStorage, NounsDAOTypes, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
 import {IWave} from "./interfaces/IWave.sol";
 import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
