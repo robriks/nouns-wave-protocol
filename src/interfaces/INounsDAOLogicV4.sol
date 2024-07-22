@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-/// @dev Interface for interacting with the NounsDAOLogicV3 governor contract with minimal deployment bytecode overhead
+/// @dev Interface for interacting with the NounsDAOLogicV4 governor contract with minimal deployment bytecode overhead
 pragma solidity ^0.8.24;
 
 import {
-    NounsDAOStorageV3,
-    NounsDAOStorageV2,
+    NounsDAOStorage,
+    NounsDAOTypes,
     INounsDAOExecutor,
     NounsTokenLike,
     INounsDAOForkEscrow,
     IForkDAODeployer
 } from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 
-interface INounsDAOLogicV3 {
+interface INounsDAOLogicV4 {
     /// @notice The minimum setable proposal threshold
     function MIN_PROPOSAL_THRESHOLD_BPS() external pure returns (uint256);
     /// @notice The maximum setable proposal threshold
@@ -35,8 +35,8 @@ interface INounsDAOLogicV3 {
         address forkEscrow_,
         address forkDAODeployer_,
         address vetoer_,
-        NounsDAOStorageV3.NounsDAOParams calldata daoParams_,
-        NounsDAOStorageV3.DynamicQuorumParams calldata dynamicQuorumParams_
+        NounsDAOStorage.NounsDAOParams calldata daoParams_,
+        NounsDAOStorage.DynamicQuorumParams calldata dynamicQuorumParams_
     ) external;
 
     /// @notice Function used to propose a new proposal. Sender must have delegates above the proposal threshold
@@ -62,7 +62,7 @@ interface INounsDAOLogicV3 {
     /// @notice Function used to propose a new proposal. Sender and signers must have delegates above the proposal threshold
     /// Signers are regarded as co-proposers, and therefore have the ability to cancel the proposal at any time.
     function proposeBySigs(
-        NounsDAOStorageV3.ProposerSignature[] memory proposerSignatures,
+        NounsDAOStorage.ProposerSignature[] memory proposerSignatures,
         address[] memory targets,
         uint256[] memory values,
         string[] memory signatures,
@@ -102,7 +102,7 @@ interface INounsDAOLogicV3 {
     /// @notice Update a proposal's transactions and description that was created with proposeBySigs.
     function updateProposalBySigs(
         uint256 proposalId,
-        NounsDAOStorageV3.ProposerSignature[] memory proposerSignatures,
+        NounsDAOStorage.ProposerSignature[] memory proposerSignatures,
         address[] memory targets,
         uint256[] memory values,
         string[] memory signatures,
@@ -121,7 +121,7 @@ interface INounsDAOLogicV3 {
     /// dropped below proposal threshold
     function cancel(uint256 proposalId) external;
     /// @notice Gets the state of a proposal
-    function state(uint256 proposalId) external view returns (NounsDAOStorageV3.ProposalState);
+    function state(uint256 proposalId) external view returns (NounsDAOTypes.ProposalState);
     /// @notice Gets actions of a proposal
 
     function getActions(uint256 proposalId)
@@ -135,11 +135,11 @@ interface INounsDAOLogicV3 {
         );
 
     /// @notice Gets the receipt for a voter on a given proposal
-    function getReceipt(uint256 proposalId, address voter) external view returns (NounsDAOStorageV3.Receipt memory);
+    function getReceipt(uint256 proposalId, address voter) external view returns (NounsDAOStorage.Receipt memory);
     /// @notice Returns the proposal details given a proposal id.
-    function proposals(uint256 proposalId) external view returns (NounsDAOStorageV2.ProposalCondensed memory);
+    function proposals(uint256 proposalId) external view returns (NounsDAOTypes.ProposalCondensedV3 memory);
     /// @notice Returns the proposal details given a proposal id.
-    function proposalsV3(uint256 proposalId) external view returns (NounsDAOStorageV3.ProposalCondensed memory);
+    function proposalsV3(uint256 proposalId) external view returns (NounsDAOTypes.ProposalCondensedV3 memory);
     /// @notice Current proposal threshold using Noun Total Supply
     function proposalThreshold() external view returns (uint256);
 
@@ -255,14 +255,14 @@ interface INounsDAOLogicV3 {
     function dynamicQuorumVotes(
         uint256 againstVotes,
         uint256 adjustedTotalSupply_,
-        NounsDAOStorageV3.DynamicQuorumParams memory params
+        NounsDAOStorage.DynamicQuorumParams memory params
     ) external pure returns (uint256);
 
     /// @notice returns the dynamic quorum parameters values at a certain block number
     function getDynamicQuorumParamsAt(uint256 blockNumber_)
         external
         view
-        returns (NounsDAOStorageV3.DynamicQuorumParams memory);
+        returns (NounsDAOStorage.DynamicQuorumParams memory);
     /// @notice Current min quorum votes using Nouns adjusted total supply
     function minQuorumVotes() external view returns (uint256);
     /// @notice Current max quorum votes using Nouns adjusted total supply
@@ -271,12 +271,12 @@ interface INounsDAOLogicV3 {
     function quorumParamsCheckpoints()
         external
         view
-        returns (NounsDAOStorageV3.DynamicQuorumParamsCheckpoint[] memory);
+        returns (NounsDAOStorage.DynamicQuorumParamsCheckpoint[] memory);
     /// @notice Get a quorum params checkpoint by its index
     function quorumParamsCheckpoints(uint256 index)
         external
         view
-        returns (NounsDAOStorageV3.DynamicQuorumParamsCheckpoint memory);
+        returns (NounsDAOStorage.DynamicQuorumParamsCheckpoint memory);
     function vetoer() external view returns (address);
     function pendingVetoer() external view returns (address);
     function votingDelay() external view returns (uint256);

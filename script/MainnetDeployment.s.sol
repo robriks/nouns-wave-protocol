@@ -7,7 +7,7 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 import {NounsDescriptorV2} from "nouns-monorepo/NounsDescriptorV2.sol";
 import {SVGRenderer} from "nouns-monorepo/SVGRenderer.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
 import {PolymathTextRegular} from "src/SVG/fonts/PolymathTextRegular.sol";
 import {IPolymathTextRegular} from "src/SVG/fonts/IPolymathTextRegular.sol";
 import {Renderer} from "src/SVG/Renderer.sol";

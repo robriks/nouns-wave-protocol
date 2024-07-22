@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
 import {ProposalValidatorLib} from "src/lib/ProposalValidatorLib.sol";
 
 /// @title Wave Protocol Delegate
@@ -29,19 +29,19 @@ contract Delegate {
 
     /// @dev Pushes a proposal to the Nouns governor, kickstarting the Nouns proposal process
     /// @notice May only be invoked by the Wave core contract as a part of the `IdeaTokenHub::finalizeWave()` flow
-    function pushProposal(INounsDAOLogicV3 governor, ProposalTxs calldata txs, string calldata description)
+    function pushProposal(INounsDAOLogicV4 governor, ProposalTxs calldata txs, string calldata description)
         external
         onlyWaveCore
         returns (uint256 nounsProposalId)
     {
         nounsProposalId =
-            INounsDAOLogicV3(governor).propose(txs.targets, txs.values, txs.signatures, txs.calldatas, description);
+            INounsDAOLogicV4(governor).propose(txs.targets, txs.values, txs.signatures, txs.calldatas, description);
     }
 
     /// @dev Updates an existing proposal which was made by this contract
     /// @notice May only be invoked through the Wave core contract, given a `proposalId` that is currently updatable
     function updateProposal(
-        INounsDAOLogicV3 governor,
+        INounsDAOLogicV4 governor,
         uint256 nounsProposalId,
         ProposalTxs memory updatedTxs,
         string calldata updatedDescription,
@@ -81,7 +81,7 @@ contract Delegate {
 
     /// @dev Cancels an existing proposal which was made by this contract
     /// @notice May only be invoked through the Wave core contract, given a `proposalId` that is currently cancelable
-    function cancelProposal(INounsDAOLogicV3 governor, uint256 nounsProposalId) external onlyWaveCore {
+    function cancelProposal(INounsDAOLogicV4 governor, uint256 nounsProposalId) external onlyWaveCore {
         governor.cancel(nounsProposalId);
     }
 }

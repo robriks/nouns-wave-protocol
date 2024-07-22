@@ -15,14 +15,14 @@ import {INounsSeeder} from "nouns-monorepo/interfaces/INounsSeeder.sol";
 import {IProxyRegistry} from "nouns-monorepo/external/opensea/IProxyRegistry.sol";
 import {ProxyRegistryMock} from "nouns-monorepo/../test/foundry/helpers/ProxyRegistryMock.sol";
 import {NounsDAOForkEscrow} from "nouns-monorepo/governance/fork/NounsDAOForkEscrow.sol";
-import {NounsDAOProxy} from "nouns-monorepo/governance/NounsDAOProxy.sol";
+import {NounsDAOProxyV3} from "nouns-monorepo/governance/NounsDAOProxyV3.sol";
 import {NounsDAOExecutorProxy} from "nouns-monorepo/governance/NounsDAOExecutorProxy.sol";
-import {NounsDAOLogicV1Harness} from "nouns-monorepo/test/NounsDAOLogicV1Harness.sol";
+import {NounsDAOLogicV3Harness} from "nouns-monorepo/test/NounsDAOLogicV3Harness.sol";
 import {NounsDAOLogicV3Harness} from "nouns-monorepo/test/NounsDAOLogicV3Harness.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
 import {Renderer} from "src/SVG/Renderer.sol";
 import {PolymathTextRegular} from "src/SVG/fonts/PolymathTextRegular.sol";
 import {IPolymathTextRegular} from "src/SVG/fonts/IPolymathTextRegular.sol";
@@ -63,7 +63,7 @@ contract Deploy is Script {
     IPolymathTextRegular polymathTextRegular;
 
     // nouns ecosystem
-    NounsDAOLogicV1Harness nounsGovernorV1Impl;
+    NounsDAOLogicV3Harness nounsGovernorV1Impl;
     NounsDAOLogicV3Harness nounsGovernorV3Impl;
     NounsDAOLogicV3Harness nounsGovernorProxy;
     NounsDAOExecutorV2Testnet nounsTimelockImpl;
@@ -198,11 +198,11 @@ contract Deploy is Script {
         votingDelay_ = 1; // 12 second voting delay in blocks
         proposalThresholdBPS_ = 25;
         quorumVotesBPS_ = 1000;
-        nounsGovernorV1Impl = new NounsDAOLogicV1Harness(); // will be upgraded to v3
+        nounsGovernorV1Impl = new NounsDAOLogicV3Harness(); // will be upgraded to v3
         nounsGovernorProxy = NounsDAOLogicV3Harness(
             payable(
                 address(
-                    new NounsDAOProxy(
+                    new NounsDAOProxyV3(
                         address(nounsTimelockProxy),
                         address(nounsTokenHarness),
                         vetoer_,
@@ -220,7 +220,7 @@ contract Deploy is Script {
 
         nounsForkEscrow_ = new NounsDAOForkEscrow(nounsDAOSafe_, address(nounsTokenHarness));
         // upgrade to NounsDAOLogicV3Harness and set nounsForkEscrow
-        NounsDAOProxy(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
+        NounsDAOProxyV3(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
         nounsGovernorProxy._setForkEscrow(address(nounsForkEscrow_));
     }
 }

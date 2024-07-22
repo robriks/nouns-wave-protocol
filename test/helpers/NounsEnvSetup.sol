@@ -15,15 +15,15 @@ import {INounsSeeder} from "nouns-monorepo/interfaces/INounsSeeder.sol";
 import {IProxyRegistry} from "nouns-monorepo/external/opensea/IProxyRegistry.sol";
 import {ProxyRegistryMock} from "nouns-monorepo/../test/foundry/helpers/ProxyRegistryMock.sol";
 import {NounsDAOForkEscrow} from "nouns-monorepo/governance/fork/NounsDAOForkEscrow.sol";
-import {NounsDAOProxy} from "nouns-monorepo/governance/NounsDAOProxy.sol";
+import {NounsDAOProxyV3} from "nouns-monorepo/governance/NounsDAOProxyV3.sol";
 import {NounsDAOExecutorV2} from "nouns-monorepo/governance/NounsDAOExecutorV2.sol";
 import {NounsDAOExecutorProxy} from "nouns-monorepo/governance/NounsDAOExecutorProxy.sol";
-import {NounsDAOLogicV1Harness} from "nouns-monorepo/test/NounsDAOLogicV1Harness.sol";
+import {NounsDAOLogicV3Harness} from "nouns-monorepo/test/NounsDAOLogicV3Harness.sol";
 import {NounsDAOLogicV3Harness} from "nouns-monorepo/test/NounsDAOLogicV3Harness.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
 
 /// @dev Clones Nouns infrastructure from mainnet to a testing environment
 
@@ -35,7 +35,7 @@ struct NounsConfigData {
 }
 
 contract NounsEnvSetup is Test {
-    NounsDAOLogicV1Harness nounsGovernorV1Impl;
+    NounsDAOLogicV3Harness nounsGovernorV1Impl;
     NounsDAOLogicV3Harness nounsGovernorV3Impl;
     NounsDAOLogicV3Harness nounsGovernorProxy;
     NounsDAOExecutorV2 nounsTimelockImpl;
@@ -110,11 +110,11 @@ contract NounsEnvSetup is Test {
         votingDelay_ = 3600;
         proposalThresholdBPS_ = 25;
         quorumVotesBPS_ = 1000;
-        nounsGovernorV1Impl = new NounsDAOLogicV1Harness(); // will be upgraded to v3
+        nounsGovernorV1Impl = new NounsDAOLogicV3Harness(); // will be upgraded to v3
         nounsGovernorProxy = NounsDAOLogicV3Harness(
             payable(
                 address(
-                    new NounsDAOProxy(
+                    new NounsDAOProxyV3(
                         address(nounsTimelockProxy),
                         address(nounsTokenHarness),
                         vetoer_,
@@ -138,7 +138,7 @@ contract NounsEnvSetup is Test {
         nounsForkEscrow_ = new NounsDAOForkEscrow(nounsDAOSafe_, address(nounsTokenHarness));
         // upgrade to NounsDAOLogicV3Harness and set nounsForkEscrow
         vm.startPrank(address(nounsTimelockProxy));
-        NounsDAOProxy(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
+        NounsDAOProxyV3(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
         nounsGovernorProxy._setForkEscrow(address(nounsForkEscrow_));
 
         vm.stopPrank();

@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ECDSA} from "nouns-monorepo/external/openzeppelin/ECDSA.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
-import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
+import {NounsDAOStorage, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
 import {IWave} from "./interfaces/IWave.sol";
 import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
@@ -24,7 +24,7 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
       Constants
     */
 
-    INounsDAOLogicV3 public nounsGovernor;
+    INounsDAOLogicV4 public nounsGovernor;
     IERC721Checkpointable public nounsToken;
     bytes32 private __creationCodeHash;
 
@@ -62,7 +62,7 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
 
         ideaTokenHub = IIdeaTokenHub(ideaTokenHub_);
         ideaTokenHub.initialize(msg.sender, nounsGovernor_, minSponsorshipAmount_, waveLength_, renderer_, "");
-        nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
+        nounsGovernor = INounsDAOLogicV4(nounsGovernor_);
         nounsToken = IERC721Checkpointable(nounsToken_);
         __creationCodeHash =
             keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(address(this))))));
@@ -524,12 +524,12 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
 
     /// @dev References the Nouns governor contract to determine whether a proposal is in a disqualifying state
     function _isEligibleProposalState(uint256 _latestProposal) internal view returns (bool) {
-        NounsDAOStorageV3.ProposalState delegatesLatestProposalState = nounsGovernor.state(_latestProposal);
+        NounsDAOTypes.ProposalState delegatesLatestProposalState = nounsGovernor.state(_latestProposal);
         if (
-            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod
-                || delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Active
-                || delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Pending
-                || delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Updatable
+            delegatesLatestProposalState == NounsDAOTypes.ProposalState.ObjectionPeriod
+                || delegatesLatestProposalState == NounsDAOTypes.ProposalState.Active
+                || delegatesLatestProposalState == NounsDAOTypes.ProposalState.Pending
+                || delegatesLatestProposalState == NounsDAOTypes.ProposalState.Updatable
         ) return false;
 
         return true;

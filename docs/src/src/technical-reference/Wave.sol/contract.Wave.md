@@ -13,7 +13,7 @@ Ownable, UUPSUpgradeable, [IWave](/src/interfaces/IWave.sol/interface.IWave.md)
 ### nounsGovernor
 
 ```solidity
-INounsDAOLogicV3 public nounsGovernor;
+INounsDAOLogicV4 public nounsGovernor;
 ```
 
 ### nounsToken

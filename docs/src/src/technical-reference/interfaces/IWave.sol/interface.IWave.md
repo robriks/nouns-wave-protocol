@@ -319,7 +319,7 @@ struct WaveSignature {
 
 ```solidity
 struct Proposal {
-    NounsDAOV3Proposals.ProposalTxs ideaTxs;
+    NounsDAOProposals.ProposalTxs ideaTxs;
     string description;
 }
 ```

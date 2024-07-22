@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-/// @title Sole `ProposalTxs` struct from the NounsDAOV3Proposals contract to save on imported bytecode
+/// @title Sole `ProposalTxs` struct from the NounsDAOProposals contract to save on imported bytecode
 
 /// @dev Wave Protocol's IdeaTokenHub and Delegate contracts only rely on a single struct
-/// from the NounsDAOV3Proposals dependency so it is made available here without bytecode overhead
+/// from the NounsDAOProposals dependency so it is made available here without bytecode overhead
 struct ProposalTxs {
     address[] targets;
     uint256[] values;
