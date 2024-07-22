@@ -388,7 +388,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
     /// @dev Returns dynamically generated SVG metadata, rendered according to onchain state
     function uri(uint256 ideaTokenId) public view virtual override returns (string memory json) {
-        bytes memory svg = bytes(__renderer.generateSVG(ideaTokenId));
+        bytes memory svg = bytes(renderer.generateSVG(ideaTokenId));
 
         string memory stringified = Base64.encode(bytes(string.concat(
             '{'

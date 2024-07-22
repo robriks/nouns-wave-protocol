@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import {console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
+import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
-import {FontRegistry} from "FontRegistry/src/FontRegistry.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {IIdeaTokenHub} from "src/interfaces/IIdeaTokenHub.sol";
@@ -14,6 +14,7 @@ import {Delegate} from "src/Delegate.sol";
 import {IWave} from "src/interfaces/IWave.sol";
 import {Renderer} from "src/SVG/Renderer.sol";
 import {PolymathTextRegular} from "src/SVG/fonts/PolymathTextRegular.sol";
+import {IPolymathTextRegular} from "src/SVG/fonts/IPolymathTextRegular.sol";
 import {Font} from "test/svg/HotChainSVG.t.sol";
 import {WaveTest} from "test/Wave.t.sol";
 import {WaveHarness} from "test/harness/WaveHarness.sol";
@@ -26,14 +27,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     WaveHarness waveCore;
     IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
-    FontRegistry fontRegistry;
-    PolymathTextRegular polymathTextRegular;
+    IPolymathTextRegular polymathTextRegular;
     Renderer renderer;
 
     uint256 waveLength;
     uint256 minSponsorshipAmount;
     uint256 decimals;
-    NounsDAOV3Proposals.ProposalTxs txs;
+    ProposalTxs txs;
     string description;
     // singular proposal stored for easier referencing against `IdeaInfo` struct member
     IWave.Proposal proposal;
@@ -50,18 +50,16 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         // roll to block number of at least `waveLength` to prevent underflow within current Wave `startBlock`
         vm.roll(waveLength);
         
-        // deploy and add font to registry
-        fontRegistry = new FontRegistry();
+        // deploy PolymathText font and provide it to Renderer constructor on deployment
         string memory root = vm.projectRoot();
         string memory fontPath = string.concat(root, "/test/helpers/font.json");
         string memory json = vm.readFile(fontPath);
         Font memory polyFont = abi.decode(vm.parseJson(json), (Font));
         string memory polyText = polyFont.data;
-        polymathTextRegular = new PolymathTextRegular(polyText);
-        fontRegistry.addFontToRegistry(address(polymathTextRegular));
+        polymathTextRegular = IPolymathTextRegular(address(new PolymathTextRegular(polyText)));
 
         // deploy Wave infra
-        renderer = new Renderer(address(fontRegistry), address(nounsDescriptor_), address(nounsRenderer_));
+        renderer = new Renderer(polymathTextRegular, address(nounsDescriptor_), address(nounsRenderer_));
         ideaTokenHubImpl = new IdeaTokenHub();
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), "")));
         waveCoreImpl = new WaveHarness();

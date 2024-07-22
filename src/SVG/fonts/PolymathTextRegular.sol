@@ -1,18 +1,20 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IFont} from "FontRegistry/src/interfaces/IFont.sol";
+import {IPolymathTextRegular} from "src/SVG/fonts/IPolymathTextRegular.sol";
 import {SSTORE2} from "solady/utils/SSTORE2.sol";
 
 /// @title Polymath text regular font
 /// @author modified @0x_beans code by @frog (warpcast)
-/// @notice This font fits into a single contract's bytecode with plenty of room to spare.
-/// As a result it doesn't actually need to be split into multiple chunks via SSTORE2 and
-/// could instead be put in conventional contract storage. However, since this font will be
-/// rendered for free in a view context for Wave Protocol, we choose to maintain consistency
-/// of the SSTORE2 pattern (which other larger fonts will require) so this font may serve
-/// as an example implementation for future fonts that follow
-contract PolymathTextRegular is IFont {
+/// @notice This font is forward-compatible with the FontRegistry project designed by 0xbeans
+/// which is hosted and documented here: https://github.com/0xBeans/FontRegistry 
+/// Since the FontRegistry project is not yet finalized and deployed to mainnet, Wave does not
+/// rely on it as a dependency but wrote this contract to comply with the standard so it may
+/// easily be added in the future when the FontRegistry is launched.
+/// @dev Uses the Solady SSTORE2 mechanic rather than conventional contract storage despite
+/// comfortably fitting within a single contract's bytecode (or storage) to maintain consistency
+/// of the SSTORE2 pattern which other larger fonts will require.
+contract PolymathTextRegular is IPolymathTextRegular {
     constructor(string memory fontData_) {
         // PolymathText font is 12kb which fits in a single contract's bytecode (using Solady's SSTORE2)
         _saveFile(FONT_PARTITION, fontData_);

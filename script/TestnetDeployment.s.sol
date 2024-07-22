@@ -24,8 +24,8 @@ import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
 import {Renderer} from "src/SVG/Renderer.sol";
-import {FontRegistry} from "FontRegistry/src/FontRegistry.sol";
 import {PolymathTextRegular} from "src/SVG/fonts/PolymathTextRegular.sol";
+import {IPolymathTextRegular} from "src/SVG/fonts/IPolymathTextRegular.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
 import {IWave} from "src/interfaces/IWave.sol";
@@ -52,6 +52,7 @@ contract Deploy is Script {
     address vanity = 0xFFFFfFfFA2eC6F66a22017a0Deb0191e5F8cBc35;
     uint256 minSponsorshipAmount = 1 wei; // TESTNET ONLY
     uint256 waveLength = 150; // TESTNET ONLY
+    string polyText;
 
     /// @notice Harness contract is used on testnet ONLY
     WaveHarness waveCoreImpl;
@@ -59,8 +60,7 @@ contract Deploy is Script {
     IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
     Renderer renderer;
-    FontRegistry fontRegistry;
-    PolymathTextRegular polymathTextRegular;
+    IPolymathTextRegular polymathTextRegular;
 
     // nouns ecosystem
     NounsDAOLogicV1Harness nounsGovernorV1Impl;
@@ -95,17 +95,14 @@ contract Deploy is Script {
         string memory root = vm.projectRoot();
         _deployNounsInfra(deployerPrivateKey, root);
 
-        // setup Wave URI contracts (renderer is set in initializer)
-        fontRegistry = new FontRegistry();
-        renderer = new Renderer(address(fontRegistry), address(nounsDescriptor), address(nounsRenderer));
-
-        // deploy and add font to registry
+        // deploy PolymathText font and provide it to Renderer constructor on deployment
         string memory fontPath = string.concat(root, "/test/helpers/font.json");
         string memory fontJson = vm.readFile(fontPath);
         Font memory polyFont = abi.decode(vm.parseJson(fontJson), (Font));
-        string memory polyText = polyFont.data;
-        polymathTextRegular = new PolymathTextRegular(polyText);
-        fontRegistry.addFontToRegistry(address(polymathTextRegular));
+        polyText = polyFont.data;
+        polymathTextRegular = IPolymathTextRegular(address(new PolymathTextRegular(polyText)));
+
+        renderer = new Renderer(polymathTextRegular, address(nounsDescriptor), address(nounsRenderer));
 
         // deploy Wave protocol contracts
         ideaTokenHubImpl = new IdeaTokenHub();
@@ -122,13 +119,13 @@ contract Deploy is Script {
         );
         waveCore = WaveHarness(address(new ERC1967Proxy(address(waveCoreImpl), initData)));
 
-        require(address(fontRegistry).code.length > 0);
+        require(address(polymathTextRegular).code.length > 0);
         require(address(renderer).code.length > 0);
         require(address(polymathTextRegular).code.length > 0);
         require(address(ideaTokenHub).code.length > 0);
         require(address(waveCore).code.length > 0);
         require(address(nounsTokenHarness).code.length > 0);
-        console2.logAddress(address(fontRegistry));
+        console2.logAddress(address(polymathTextRegular));
         console2.logAddress(address(renderer));
         console2.logAddress(address(polymathTextRegular));
         console2.logAddress(address(ideaTokenHub));
