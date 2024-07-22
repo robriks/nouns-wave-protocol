@@ -2,8 +2,8 @@
 pragma solidity ^0.8.19;
 
 import {ECDSA} from "nouns-monorepo/external/openzeppelin/ECDSA.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
-import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
+import {NounsDAOStorage, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
 import {Delegate} from "src/Delegate.sol";
 import {Wave} from "src/Wave.sol";

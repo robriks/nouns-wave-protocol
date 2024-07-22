@@ -1,7 +1,7 @@
-# INounsDAOLogicV3
-[Git Source](https://github.com/robriks/nouns-wave-protocol/blob/8e36481686ac36e51e7081db34b4cbe80e8add3b/src/interfaces/INounsDAOLogicV3.sol)
+# INounsDAOLogicV4
+[Git Source](https://github.com/robriks/nouns-wave-protocol/blob/8e36481686ac36e51e7081db34b4cbe80e8add3b/src/interfaces/INounsDAOLogicV4.sol)
 
-*Interface for interacting with the NounsDAOLogicV3 governor contract with minimal deployment bytecode overhead*
+*Interface for interacting with the NounsDAOLogicV4 governor contract with minimal deployment bytecode overhead*
 
 
 ## Functions
@@ -80,8 +80,8 @@ function initialize(
     address forkEscrow_,
     address forkDAODeployer_,
     address vetoer_,
-    NounsDAOStorageV3.NounsDAOParams calldata daoParams_,
-    NounsDAOStorageV3.DynamicQuorumParams calldata dynamicQuorumParams_
+    NounsDAOStorage.NounsDAOParams calldata daoParams_,
+    NounsDAOStorage.DynamicQuorumParams calldata dynamicQuorumParams_
 ) external;
 ```
 
@@ -125,7 +125,7 @@ Signers are regarded as co-proposers, and therefore have the ability to cancel t
 
 ```solidity
 function proposeBySigs(
-    NounsDAOStorageV3.ProposerSignature[] memory proposerSignatures,
+    NounsDAOStorage.ProposerSignature[] memory proposerSignatures,
     address[] memory targets,
     uint256[] memory values,
     string[] memory signatures,
@@ -195,7 +195,7 @@ Update a proposal's transactions and description that was created with proposeBy
 ```solidity
 function updateProposalBySigs(
     uint256 proposalId,
-    NounsDAOStorageV3.ProposerSignature[] memory proposerSignatures,
+    NounsDAOStorage.ProposerSignature[] memory proposerSignatures,
     address[] memory targets,
     uint256[] memory values,
     string[] memory signatures,
@@ -248,7 +248,7 @@ Gets the state of a proposal
 
 
 ```solidity
-function state(uint256 proposalId) external view returns (NounsDAOStorageV3.ProposalState);
+function state(uint256 proposalId) external view returns (NounsDAOTypes.ProposalState);
 ```
 
 ### getActions
@@ -269,7 +269,7 @@ Gets the receipt for a voter on a given proposal
 
 
 ```solidity
-function getReceipt(uint256 proposalId, address voter) external view returns (NounsDAOStorageV3.Receipt memory);
+function getReceipt(uint256 proposalId, address voter) external view returns (NounsDAOStorage.Receipt memory);
 ```
 
 ### proposals
@@ -278,7 +278,7 @@ Returns the proposal details given a proposal id.
 
 
 ```solidity
-function proposals(uint256 proposalId) external view returns (NounsDAOStorageV2.ProposalCondensed memory);
+function proposals(uint256 proposalId) external view returns (NounsDAOTypes.ProposalCondensedV3 memory);
 ```
 
 ### proposalsV3
@@ -287,7 +287,7 @@ Returns the proposal details given a proposal id.
 
 
 ```solidity
-function proposalsV3(uint256 proposalId) external view returns (NounsDAOStorageV3.ProposalCondensed memory);
+function proposalsV3(uint256 proposalId) external view returns (NounsDAOTypes.ProposalCondensedV3 memory);
 ```
 
 ### proposalThreshold
@@ -678,7 +678,7 @@ Calculates the required quorum of for-votes based on the amount of against-votes
 function dynamicQuorumVotes(
     uint256 againstVotes,
     uint256 adjustedTotalSupply_,
-    NounsDAOStorageV3.DynamicQuorumParams memory params
+    NounsDAOStorage.DynamicQuorumParams memory params
 ) external pure returns (uint256);
 ```
 
@@ -691,7 +691,7 @@ returns the dynamic quorum parameters values at a certain block number
 function getDynamicQuorumParamsAt(uint256 blockNumber_)
     external
     view
-    returns (NounsDAOStorageV3.DynamicQuorumParams memory);
+    returns (NounsDAOStorage.DynamicQuorumParams memory);
 ```
 
 ### minQuorumVotes
@@ -718,7 +718,7 @@ Get all quorum params checkpoints
 
 
 ```solidity
-function quorumParamsCheckpoints() external view returns (NounsDAOStorageV3.DynamicQuorumParamsCheckpoint[] memory);
+function quorumParamsCheckpoints() external view returns (NounsDAOStorage.DynamicQuorumParamsCheckpoint[] memory);
 ```
 
 ### quorumParamsCheckpoints
@@ -730,7 +730,7 @@ Get a quorum params checkpoint by its index
 function quorumParamsCheckpoints(uint256 index)
     external
     view
-    returns (NounsDAOStorageV3.DynamicQuorumParamsCheckpoint memory);
+    returns (NounsDAOStorage.DynamicQuorumParamsCheckpoint memory);
 ```
 
 ### vetoer

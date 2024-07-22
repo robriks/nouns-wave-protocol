@@ -6,9 +6,8 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
-import {NounsDAOStorageV3} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
+import {NounsDAOStorage, NounsDAOEventsV3} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
 import {IWave} from "src/interfaces/IWave.sol";
@@ -19,7 +18,7 @@ import {TestUtils} from "test/helpers/TestUtils.sol";
 
 /// @dev This IdeaTokenHub test suite inherits from the Nouns governance setup contract to mimic the onchain environment
 contract DelegateTest is NounsEnvSetup, TestUtils {
-    INounsDAOLogicV3 nounsGovernor;
+    INounsDAOLogicV4 nounsGovernor;
     IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
     WaveHarness waveCoreImpl;
@@ -40,7 +39,7 @@ contract DelegateTest is NounsEnvSetup, TestUtils {
         super.setUpNounsGovernance();
         super.mintMirrorBalances();
 
-        nounsGovernor = INounsDAOLogicV3(address(nounsGovernorProxy));
+        nounsGovernor = INounsDAOLogicV4(address(nounsGovernorProxy));
 
         // setup Wave contracts, Renderer discarded
         ideaTokenHubImpl = new IdeaTokenHub();
@@ -88,7 +87,7 @@ contract DelegateTest is NounsEnvSetup, TestUtils {
     function test_updateProposal() public {
         // update the proposal
         vm.expectEmit(true, true, true, true);
-        emit NounsDAOV3Proposals.ProposalUpdated(
+        emit NounsDAOEventsV3.ProposalUpdated(
             nounsProposalId,
             address(delegate),
             updatedTxs.targets,
@@ -106,7 +105,7 @@ contract DelegateTest is NounsEnvSetup, TestUtils {
         // update the proposal description only by providing empty txs
         ProposalTxs memory emptyTxs = ProposalTxs(new address[](0), new uint256[](0), new string[](0), new bytes[](0));
         vm.expectEmit(true, true, true, true);
-        emit NounsDAOV3Proposals.ProposalDescriptionUpdated(
+        emit NounsDAOEventsV3.ProposalDescriptionUpdated(
             nounsProposalId, address(delegate), updatedDescription, updateMessage
         );
         vm.prank(address(waveCore));
@@ -116,7 +115,7 @@ contract DelegateTest is NounsEnvSetup, TestUtils {
     function test_updateProposalTxs() public {
         // update the proposal txs only by providing description
         vm.expectEmit(true, true, true, true);
-        emit NounsDAOV3Proposals.ProposalTransactionsUpdated(
+        emit NounsDAOEventsV3.ProposalTransactionsUpdated(
             nounsProposalId,
             address(delegate),
             updatedTxs.targets,
@@ -139,7 +138,7 @@ contract DelegateTest is NounsEnvSetup, TestUtils {
 
     function test_cancelProposal() public {
         vm.expectEmit();
-        emit NounsDAOV3Proposals.ProposalCanceled(nounsProposalId);
+        emit NounsDAOEventsV3.ProposalCanceled(nounsProposalId);
         vm.prank(address(waveCore));
         delegate.cancelProposal(nounsGovernor, nounsProposalId);
     }

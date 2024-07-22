@@ -31,8 +31,8 @@ constructor(address waveCore_);
 
 ```solidity
 function pushProposal(
-    INounsDAOLogicV3 governor,
-    NounsDAOV3Proposals.ProposalTxs calldata txs,
+    INounsDAOLogicV4 governor,
+    NounsDAOProposals.ProposalTxs calldata txs,
     string calldata description
 ) external returns (uint256 nounsProposalId);
 ```

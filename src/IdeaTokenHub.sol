@@ -8,7 +8,7 @@ import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {Base64} from "lib/openzeppelin-contracts/contracts/utils/Base64.sol";
 import {ProposalValidatorLib} from "src/lib/ProposalValidatorLib.sol";
 import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
 import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
 import {IWave} from "./interfaces/IWave.sol";
 import {IRenderer} from "./SVG/IRenderer.sol";
@@ -37,7 +37,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
     */
 
     IWave private __waveCore;
-    INounsDAOLogicV3 private __nounsGovernor;
+    INounsDAOLogicV4 private __nounsGovernor;
     IRenderer public renderer;
 
     /// @dev ERC1155 balance recordkeeping directly mirrors Ether values
@@ -73,7 +73,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
         __ERC1155_init(uri_);
 
         __waveCore = IWave(msg.sender);
-        __nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
+        __nounsGovernor = INounsDAOLogicV4(nounsGovernor_);
         _setRenderer(renderer_);
 
         waveInfos[_currentWaveId].startBlock = uint32(block.number);
@@ -388,7 +388,7 @@ contract IdeaTokenHub is OwnableUpgradeable, UUPSUpgradeable, ERC1155Upgradeable
 
     /// @dev Returns dynamically generated SVG metadata, rendered according to onchain state
     function uri(uint256 ideaTokenId) public view virtual override returns (string memory json) {
-        bytes memory svg = bytes(__renderer.generateSVG(ideaTokenId));
+        bytes memory svg = bytes(renderer.generateSVG(ideaTokenId));
 
         string memory stringified = Base64.encode(bytes(string.concat(
             '{'

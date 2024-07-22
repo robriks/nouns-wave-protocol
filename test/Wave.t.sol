@@ -4,11 +4,11 @@ pragma solidity ^0.8.24;
 import {console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
-import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {NounsTokenLike, NounsDAOEventsV3} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {NounsDAOProposals} from "nouns-monorepo/governance/NounsDAOProposals.sol";
 import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
 import {IWave} from "src/interfaces/IWave.sol";
@@ -268,7 +268,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
         vm.prank(address(waveCore));
         bytes memory err = abi.encodeWithSignature("VotesBelowProposalThreshold()");
         vm.expectRevert(err);
-        Delegate(delegate).pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
+        Delegate(delegate).pushProposal(INounsDAOLogicV4(address(nounsGovernorProxy)), txs, description);
     }
 
     function test_registerDelegationSolo() public {
@@ -336,7 +336,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
         // proposal can now be pushed using the first delegate after 1 block (simple POC)
         vm.roll(block.number + 1);
         vm.prank(address(waveCore));
-        Delegate(delegate).pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
+        Delegate(delegate).pushProposal(INounsDAOLogicV4(address(nounsGovernorProxy)), txs, description);
     }
 
     function test_delegateBySig(uint8 numSigners, uint8 fuzzDelegateId, uint8 expiryOffset) public {
@@ -634,7 +634,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
 
         bytes memory err = abi.encodeWithSelector(Delegate.NotWaveCore.selector, address(this));
         vm.expectRevert(err);
-        firstDelegate.pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
+        firstDelegate.pushProposal(INounsDAOLogicV4(address(nounsGovernorProxy)), txs, description);
     }
 
     function test_getDelegateIdByType(uint8 numSupplementaryDelegates, uint8 numFullDelegates) public {
@@ -1543,7 +1543,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
 
         // expect events from nounsGovernor & from Wave core contract
         vm.expectEmit(true, true, true, true);
-        emit NounsDAOV3Proposals.ProposalUpdated(
+        emit NounsDAOEventsV3.ProposalUpdated(
             nounsProposalId,
             address(proposerDelegate),
             updatedTxs.targets,
@@ -1628,7 +1628,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
 
         // update the proposal providing the wrong delegate address
         address wrongDelegate = waveCore.createDelegate();
-        vm.expectRevert(abi.encodeWithSelector(NounsDAOV3Proposals.OnlyProposerCanEdit.selector));
+        vm.expectRevert(abi.encodeWithSelector(NounsDAOProposals.OnlyProposerCanEdit.selector));
         vm.prank(address(creator));
         waveCore.updatePushedProposal(wrongDelegate, ideaId, nounsProposalId, updatedProposal, updateMessage);
     }
