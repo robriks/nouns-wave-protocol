@@ -15,16 +15,14 @@ import {INounsSeeder} from "nouns-monorepo/interfaces/INounsSeeder.sol";
 import {IProxyRegistry} from "nouns-monorepo/external/opensea/IProxyRegistry.sol";
 import {ProxyRegistryMock} from "nouns-monorepo/../test/foundry/helpers/ProxyRegistryMock.sol";
 import {NounsDAOForkEscrow} from "nouns-monorepo/governance/fork/NounsDAOForkEscrow.sol";
-import {NounsDAOProxy} from "nouns-monorepo/governance/NounsDAOProxy.sol";
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {NounsDAOProxyV3} from "nouns-monorepo/governance/NounsDAOProxyV3.sol";
 import {NounsDAOExecutorV2} from "nouns-monorepo/governance/NounsDAOExecutorV2.sol";
 import {NounsDAOExecutorProxy} from "nouns-monorepo/governance/NounsDAOExecutorProxy.sol";
-import {NounsDAOLogicV1Harness} from "nouns-monorepo/test/NounsDAOLogicV1Harness.sol";
 import {NounsDAOLogicV3Harness} from "nouns-monorepo/test/NounsDAOLogicV3Harness.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
-import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {NounsTokenLike, NounsDAOTypes} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
 
 /// @dev Clones Nouns infrastructure from mainnet to a testing environment
 
@@ -36,9 +34,8 @@ struct NounsConfigData {
 }
 
 contract NounsEnvSetup is Test {
-    NounsDAOLogicV1Harness nounsGovernorV1Impl;
     NounsDAOLogicV3Harness nounsGovernorV3Impl;
-    NounsDAOLogicV3Harness nounsGovernorProxy;
+    INounsDAOLogicV4 nounsGovernorProxy;
     NounsDAOExecutorV2 nounsTimelockImpl;
     NounsDAOExecutorV2 nounsTimelockProxy;
     IERC721Checkpointable nounsTokenHarness;
@@ -58,7 +55,13 @@ contract NounsEnvSetup is Test {
     uint256 votingDelay_;
     uint256 votingPeriod_;
     uint256 proposalThresholdBPS_;
-    uint256 quorumVotesBPS_;
+    uint32 lastMinuteWindowInBlocks_;
+    uint32 objectionPeriodDurationInBlocks_;
+    uint32 proposalUpdatablePeriodInBlocks_;
+    uint32 fromBlock_;
+    uint16 minQuorumVotesBPS_;
+    uint16 maxQuorumVotesBPS_;
+    uint32 quorumCoefficient_;
 
     function setUpNounsGovernance() public virtual {
         // setup Nouns token (harness)
@@ -104,41 +107,66 @@ contract NounsEnvSetup is Test {
         nounsTimelockImpl = new NounsDAOExecutorV2();
         nounsTimelockProxy =
             NounsDAOExecutorV2(payable(address(new NounsDAOExecutorProxy(address(nounsTimelockImpl), ""))));
-        nounsTimelockAdmin_ = 0x6f3E6272A167e8AcCb32072d08E0957F9c79223d;
-        nounsTimelockDelay_ = 172800;
-        nounsTimelockProxy.initialize(nounsTimelockAdmin_, nounsTimelockDelay_);
 
         // setup Nouns Governor (harness)
         vetoer_ = vm.addr(0xdeadbeef); // gnosis safe on mainnet
         votingPeriod_ = 28800;
         votingDelay_ = 3600;
         proposalThresholdBPS_ = 25;
-        quorumVotesBPS_ = 1000;
-        nounsGovernorV1Impl = new NounsDAOLogicV1Harness(); // will be upgraded to v3
-        nounsGovernorProxy = NounsDAOLogicV3Harness(
+        lastMinuteWindowInBlocks_ = 0;
+        objectionPeriodDurationInBlocks_ = 0;
+        proposalUpdatablePeriodInBlocks_ = 18000;
+        fromBlock_ = 20000000; // recentish block
+        minQuorumVotesBPS_ = 1000;
+        maxQuorumVotesBPS_ = 1500;
+        quorumCoefficient_ = 1000000;
+
+        nounsGovernorV3Impl = new NounsDAOLogicV3Harness();
+        nounsGovernorProxy = INounsDAOLogicV4(
             payable(
                 address(
-                    new NounsDAOProxy(
+                    new NounsDAOProxyV3(
                         address(nounsTimelockProxy),
                         address(nounsTokenHarness),
+                        address(nounsForkEscrow_),
+                        nounsDAOSafe_, // `forkDAODeployer` not used, set to filler address
                         vetoer_,
                         address(nounsTimelockProxy), // admin == timelock
-                        address(nounsGovernorV1Impl),
-                        votingPeriod_,
-                        votingDelay_,
-                        proposalThresholdBPS_,
-                        quorumVotesBPS_
+                        address(nounsGovernorV3Impl),
+                        NounsDAOTypes.NounsDAOParams(
+                            votingPeriod_,
+                            votingDelay_,
+                            proposalThresholdBPS_,
+                            lastMinuteWindowInBlocks_,
+                            objectionPeriodDurationInBlocks_,
+                            proposalUpdatablePeriodInBlocks_
+                        ),
+                        NounsDAOTypes.DynamicQuorumParams(
+                            minQuorumVotesBPS_,
+                            maxQuorumVotesBPS_,
+                            quorumCoefficient_
+                        )
                     )
                 )
             )
         );
-        nounsGovernorV3Impl = new NounsDAOLogicV3Harness();
+
+        nounsTimelockAdmin_ = address(nounsGovernorProxy);
+        nounsTimelockDelay_ = 172800;
+        nounsTimelockProxy.initialize(nounsTimelockAdmin_, nounsTimelockDelay_);
 
         nounsForkEscrow_ = new NounsDAOForkEscrow(nounsDAOSafe_, address(nounsTokenHarness));
-        // upgrade to NounsDAOLogicV3Harness and set nounsForkEscrow
-        vm.startPrank(address(nounsTimelockProxy));
-        NounsDAOProxy(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
+        // set nounsForkEscrow
+        vm.prank(address(nounsTimelockProxy));
         nounsGovernorProxy._setForkEscrow(address(nounsForkEscrow_));
-        vm.stopPrank();
+    }
+
+    function mintMirrorBalances() public {
+        // mint balances to roughly mirror mainnet
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 308);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
+        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
     }
 }

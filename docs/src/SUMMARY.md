@@ -14,7 +14,7 @@
 
     - [IERC721Checkpointable](src/technical-reference/interfaces/IERC721Checkpointable.sol/interface.IERC721Checkpointable.md)
     - [IIdeaTokenHub](src/technical-reference/interfaces/IIdeaTokenHub.sol/interface.IIdeaTokenHub.md)
-    - [INounsDAOLogicV3](src/technical-reference/interfaces/INounsDAOLogicV3.sol/interface.INounsDAOLogicV3.md)
+    - [INounsDAOLogicV4](src/technical-reference/interfaces/INounsDAOLogicV4.sol/interface.INounsDAOLogicV4.md)
     - [IWave](src/technical-reference/interfaces/IWave.sol/interface.IWave.md)
 
 - [❱ Guides](src/guides/Development.md)

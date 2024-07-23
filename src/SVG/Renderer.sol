@@ -1,24 +1,23 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {IFontRegistry} from "src/interfaces/tmp/IFontRegistryTEMP.sol";
-import {IFont} from "FontRegistry/src/interfaces/IFont.sol";
+import "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {INounsDescriptorV2} from "nouns-monorepo/interfaces/INounsDescriptorV2.sol";
 import {ISVGRenderer} from "nouns-monorepo/interfaces/ISVGRenderer.sol";
-import "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
-import {IRenderer} from "./IRenderer.sol";
+import {IPolymathTextRegular} from "src/SVG/fonts/IPolymathTextRegular.sol";
+import {IRenderer} from "src/SVG/IRenderer.sol";
 
 contract Renderer is IRenderer {
     using Strings for uint256;
 
+    IPolymathTextRegular public immutable polymathTextRegularFont; 
     address public immutable nounsDescriptor; // eth:0x6229c811D04501523C6058bfAAc29c91bb586268
     address public immutable nounsSVGRenderer; // eth:0x81d94554A4b072BFcd850205f0c79e97c92aab56
-    address public immutable fontRegistry; 
 
     BadgeConfig[] public badgeConfigs;
 
-    constructor(address fontRegistry_, address nounsDescriptor_, address nounsSVGRenderer_) {
-        fontRegistry = fontRegistry_;
+    constructor(IPolymathTextRegular polymathTextRegularFont_, address nounsDescriptor_, address nounsSVGRenderer_) {
+        polymathTextRegularFont = polymathTextRegularFont_;
         nounsDescriptor = nounsDescriptor_;
         nounsSVGRenderer = nounsSVGRenderer_;
 
@@ -59,7 +58,7 @@ contract Renderer is IRenderer {
             "<svg width='280' height='280' viewBox='0 0 280 280' xmlns='http://www.w3.org/2000/svg' shape-rendering='crispEdges'"
             " xmlns:xlink='http://www.w3.org/1999/xlink'>",
             "<style type='text/css'>" "@font-face {" "font-family: 'PolyText';" "font-style: normal;" "src:url(",
-            IFontRegistry(fontRegistry).getFont("polymath-text"),
+            polymathTextRegularFont.getFont(),
             ");}" ".polyText {" "font-family: 'PolyText';" "}" "</style>",
             _addDefs()
         );

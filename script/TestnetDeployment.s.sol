@@ -15,18 +15,16 @@ import {INounsSeeder} from "nouns-monorepo/interfaces/INounsSeeder.sol";
 import {IProxyRegistry} from "nouns-monorepo/external/opensea/IProxyRegistry.sol";
 import {ProxyRegistryMock} from "nouns-monorepo/../test/foundry/helpers/ProxyRegistryMock.sol";
 import {NounsDAOForkEscrow} from "nouns-monorepo/governance/fork/NounsDAOForkEscrow.sol";
-import {NounsDAOProxy} from "nouns-monorepo/governance/NounsDAOProxy.sol";
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {NounsDAOProxyV3} from "nouns-monorepo/governance/NounsDAOProxyV3.sol";
 import {NounsDAOExecutorProxy} from "nouns-monorepo/governance/NounsDAOExecutorProxy.sol";
-import {NounsDAOLogicV1Harness} from "nouns-monorepo/test/NounsDAOLogicV1Harness.sol";
 import {NounsDAOLogicV3Harness} from "nouns-monorepo/test/NounsDAOLogicV3Harness.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
-import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {NounsTokenLike, NounsDAOTypes} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
 import {Renderer} from "src/SVG/Renderer.sol";
-import {FontRegistry} from "FontRegistry/src/FontRegistry.sol";
 import {PolymathTextRegular} from "src/SVG/fonts/PolymathTextRegular.sol";
+import {IPolymathTextRegular} from "src/SVG/fonts/IPolymathTextRegular.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
 import {IWave} from "src/interfaces/IWave.sol";
@@ -53,6 +51,7 @@ contract Deploy is Script {
     address vanity = 0xFFFFfFfFA2eC6F66a22017a0Deb0191e5F8cBc35;
     uint256 minSponsorshipAmount = 1 wei; // TESTNET ONLY
     uint256 waveLength = 150; // TESTNET ONLY
+    string polyText;
 
     /// @notice Harness contract is used on testnet ONLY
     WaveHarness waveCoreImpl;
@@ -60,13 +59,11 @@ contract Deploy is Script {
     IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
     Renderer renderer;
-    FontRegistry fontRegistry;
-    PolymathTextRegular polymathTextRegular;
+    IPolymathTextRegular polymathTextRegular;
 
     // nouns ecosystem
-    NounsDAOLogicV1Harness nounsGovernorV1Impl;
     NounsDAOLogicV3Harness nounsGovernorV3Impl;
-    NounsDAOLogicV3Harness nounsGovernorProxy;
+    INounsDAOLogicV4 nounsGovernorProxy;
     NounsDAOExecutorV2Testnet nounsTimelockImpl;
     NounsDAOExecutorV2Testnet nounsTimelockProxy;
     IERC721Checkpointable nounsTokenHarness;
@@ -86,7 +83,13 @@ contract Deploy is Script {
     uint256 votingDelay_;
     uint256 votingPeriod_;
     uint256 proposalThresholdBPS_;
-    uint256 quorumVotesBPS_;
+    uint32 lastMinuteWindowInBlocks_;
+    uint32 objectionPeriodDurationInBlocks_;
+    uint32 proposalUpdatablePeriodInBlocks_;
+    uint32 fromBlock_;
+    uint16 minQuorumVotesBPS_;
+    uint16 maxQuorumVotesBPS_;
+    uint32 quorumCoefficient_;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -96,17 +99,14 @@ contract Deploy is Script {
         string memory root = vm.projectRoot();
         _deployNounsInfra(deployerPrivateKey, root);
 
-        // setup Wave URI contracts (renderer is set in initializer)
-        fontRegistry = new FontRegistry();
-        renderer = new Renderer(address(fontRegistry), address(nounsDescriptor), address(nounsRenderer));
-
-        // deploy and add font to registry
+        // deploy PolymathText font and provide it to Renderer constructor on deployment
         string memory fontPath = string.concat(root, "/test/helpers/font.json");
         string memory fontJson = vm.readFile(fontPath);
         Font memory polyFont = abi.decode(vm.parseJson(fontJson), (Font));
-        string memory polyText = polyFont.data;
-        polymathTextRegular = new PolymathTextRegular(polyText);
-        fontRegistry.addFontToRegistry(address(polymathTextRegular));
+        polyText = polyFont.data;
+        polymathTextRegular = IPolymathTextRegular(address(new PolymathTextRegular(polyText)));
+
+        renderer = new Renderer(polymathTextRegular, address(nounsDescriptor), address(nounsRenderer));
 
         // deploy Wave protocol contracts
         ideaTokenHubImpl = new IdeaTokenHub();
@@ -123,13 +123,13 @@ contract Deploy is Script {
         );
         waveCore = WaveHarness(address(new ERC1967Proxy(address(waveCoreImpl), initData)));
 
-        require(address(fontRegistry).code.length > 0);
+        require(address(polymathTextRegular).code.length > 0);
         require(address(renderer).code.length > 0);
         require(address(polymathTextRegular).code.length > 0);
         require(address(ideaTokenHub).code.length > 0);
         require(address(waveCore).code.length > 0);
         require(address(nounsTokenHarness).code.length > 0);
-        console2.logAddress(address(fontRegistry));
+        console2.logAddress(address(polymathTextRegular));
         console2.logAddress(address(renderer));
         console2.logAddress(address(polymathTextRegular));
         console2.logAddress(address(ideaTokenHub));
@@ -201,30 +201,46 @@ contract Deploy is Script {
         votingPeriod_ = 5; // 1 minute voting period in blocks
         votingDelay_ = 1; // 12 second voting delay in blocks
         proposalThresholdBPS_ = 25;
-        quorumVotesBPS_ = 1000;
-        nounsGovernorV1Impl = new NounsDAOLogicV1Harness(); // will be upgraded to v3
-        nounsGovernorProxy = NounsDAOLogicV3Harness(
+        lastMinuteWindowInBlocks_ = 0;
+        objectionPeriodDurationInBlocks_ = 0;
+        proposalUpdatablePeriodInBlocks_ = 18000;
+        fromBlock_ = 20000000; // recentish block
+        minQuorumVotesBPS_ = 1000;
+        maxQuorumVotesBPS_ = 1500;
+        quorumCoefficient_ = 1000000;
+
+        nounsGovernorV3Impl = new NounsDAOLogicV3Harness();
+        nounsGovernorProxy = INounsDAOLogicV4(
             payable(
                 address(
-                    new NounsDAOProxy(
+                    new NounsDAOProxyV3(
                         address(nounsTimelockProxy),
                         address(nounsTokenHarness),
+                        address(nounsForkEscrow_),
+                        nounsDAOSafe_, // `forkDAODeployer` not used, set to filler address
                         vetoer_,
-                        nounsSafeMinterVetoerDescriptorAdmin,
-                        address(nounsGovernorV1Impl),
-                        votingPeriod_,
-                        votingDelay_,
-                        proposalThresholdBPS_,
-                        quorumVotesBPS_
+                        address(nounsTimelockProxy), // admin == timelock
+                        address(nounsGovernorV3Impl),
+                        NounsDAOTypes.NounsDAOParams(
+                            votingPeriod_,
+                            votingDelay_,
+                            proposalThresholdBPS_,
+                            lastMinuteWindowInBlocks_,
+                            objectionPeriodDurationInBlocks_,
+                            proposalUpdatablePeriodInBlocks_
+                        ),
+                        NounsDAOTypes.DynamicQuorumParams(
+                            minQuorumVotesBPS_,
+                            maxQuorumVotesBPS_,
+                            quorumCoefficient_
+                        )
                     )
                 )
             )
         );
-        nounsGovernorV3Impl = new NounsDAOLogicV3Harness();
 
         nounsForkEscrow_ = new NounsDAOForkEscrow(nounsDAOSafe_, address(nounsTokenHarness));
-        // upgrade to NounsDAOLogicV3Harness and set nounsForkEscrow
-        NounsDAOProxy(payable(address(nounsGovernorProxy)))._setImplementation(address(nounsGovernorV3Impl));
+        // set nounsForkEscrow
         nounsGovernorProxy._setForkEscrow(address(nounsForkEscrow_));
     }
 }

@@ -3,11 +3,12 @@ pragma solidity ^0.8.24;
 
 import {console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
-import {NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {NounsTokenLike, NounsDAOEventsV3} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {NounsDAOProposals} from "nouns-monorepo/governance/NounsDAOProposals.sol";
+import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
 import {IWave} from "src/interfaces/IWave.sol";
@@ -33,8 +34,10 @@ contract WaveTest is NounsEnvSetup, TestUtils {
     uint256 waveLength;
     uint256 minSponsorshipAmount;
     string uri;
-    NounsDAOV3Proposals.ProposalTxs txs;
+    ProposalTxs txs;
     string description;
+    ProposalTxs updatedTxs;
+    string updatedDescription;
     // for fuzzing purposes, should remain empty until `numEligibleProposers` is known
     IWave.Proposal[] proposals;
     DelegatorInfo[] supplementaryDelegatorsTemp;
@@ -75,22 +78,22 @@ contract WaveTest is NounsEnvSetup, TestUtils {
         );
         waveCore = WaveHarness(address(new ERC1967Proxy(address(waveCoreImpl), initData)));
 
-        // setup mock proposal
+        // setup mock proposals
         txs.targets.push(address(0x0));
         txs.values.push(1);
         txs.signatures.push("");
         txs.calldatas.push("");
         description = "test";
+        updatedTxs.targets.push(address(0x1));
+        updatedTxs.values.push(2);
+        updatedTxs.signatures.push("");
+        updatedTxs.calldatas.push(hex"ff");
+        updatedDescription = "New description";
 
         // provide funds for `txs` value
         vm.deal(address(this), 1 ether);
 
-        // balances to roughly mirror mainnet
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 308);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
+        super.mintMirrorBalances();
 
         // mint 1 token to nounderSupplement
         nounderSupplementPK = 0xc0ffeebabe;
@@ -265,7 +268,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
         vm.prank(address(waveCore));
         bytes memory err = abi.encodeWithSignature("VotesBelowProposalThreshold()");
         vm.expectRevert(err);
-        Delegate(delegate).pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
+        Delegate(delegate).pushProposal(INounsDAOLogicV4(address(nounsGovernorProxy)), txs, description);
     }
 
     function test_registerDelegationSolo() public {
@@ -333,7 +336,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
         // proposal can now be pushed using the first delegate after 1 block (simple POC)
         vm.roll(block.number + 1);
         vm.prank(address(waveCore));
-        Delegate(delegate).pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
+        Delegate(delegate).pushProposal(INounsDAOLogicV4(address(nounsGovernorProxy)), txs, description);
     }
 
     function test_delegateBySig(uint8 numSigners, uint8 fuzzDelegateId, uint8 expiryOffset) public {
@@ -631,7 +634,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
 
         bytes memory err = abi.encodeWithSelector(Delegate.NotWaveCore.selector, address(this));
         vm.expectRevert(err);
-        firstDelegate.pushProposal(INounsDAOLogicV3(address(nounsGovernorProxy)), txs, description);
+        firstDelegate.pushProposal(INounsDAOLogicV4(address(nounsGovernorProxy)), txs, description);
     }
 
     function test_getDelegateIdByType(uint8 numSupplementaryDelegates, uint8 numFullDelegates) public {
@@ -1478,7 +1481,7 @@ contract WaveTest is NounsEnvSetup, TestUtils {
     function test_findDelegateId(uint8 numDelegations, uint8 fuzzedMinRequiredVotes) public {
         vm.assume(numDelegations > 1); // at least one supplementary and one full
         vm.assume(fuzzedMinRequiredVotes >= 2); // current minimum is 2
-        vm.assume(uint(numDelegations) + uint(fuzzedMinRequiredVotes) < 200); // constrain to prevent running out of gas during mints
+        vm.assume(uint256(numDelegations) + uint256(fuzzedMinRequiredVotes) < 200); // constrain to prevent running out of gas during mints
 
         // scope test to find delegate only
         bool isSupplementary;
@@ -1506,5 +1509,227 @@ contract WaveTest is NounsEnvSetup, TestUtils {
         assertEq(expectedFullId, returnedFullId);
         address returnedFullDelegate = waveCore.getDelegateAddress(returnedFullId);
         assertEq(nounsTokenHarness.getCurrentVotes(returnedFullDelegate), 0);
+    }
+
+    function test_updatePushedProposal() public {
+        // roll to realistic block to prevent underflow
+        vm.roll(waveLength);
+
+        // delegate and register `votingPower` liquidity to Wave
+        (address proposerDelegate,) = waveCore.getSuitableDelegateFor(nounsDAOSafe_);
+        uint256 proposerDelegateId = waveCore.getDelegateId(proposerDelegate);
+        vm.startPrank(nounsDAOSafe_);
+        nounsTokenHarness.delegate(proposerDelegate);
+        waveCore.registerDelegation(nounsDAOSafe_, proposerDelegateId);
+        vm.stopPrank();
+
+        // create the ideaId to be proposed
+        address creator = _createNounderEOA(1);
+        vm.deal(creator, minSponsorshipAmount);
+        vm.prank(creator);
+        uint256 ideaId = ideaTokenHub.createIdea{value: minSponsorshipAmount}(txs, description);
+
+        // fast forward to end of Wave, push the proposal
+        vm.roll(block.number + waveLength);
+        uint96[] memory arrayifiedIdeaId = new uint96[](1);
+        arrayifiedIdeaId[0] = uint96(ideaId);
+        string[] memory arrayifiedDesc = new string[](1);
+        arrayifiedDesc[0] = description;
+        (, uint256[] memory nounsIdArray) = ideaTokenHub.finalizeWave(arrayifiedIdeaId, arrayifiedDesc);
+        uint256 nounsProposalId = nounsIdArray[0];
+
+        IWave.Proposal memory updatedProposal = IWave.Proposal(updatedTxs, updatedDescription);
+        string memory updateMessage = "Updated!";
+
+        // expect events from nounsGovernor & from Wave core contract
+        vm.expectEmit(true, true, true, true);
+        emit NounsDAOEventsV3.ProposalUpdated(
+            nounsProposalId,
+            address(proposerDelegate),
+            updatedTxs.targets,
+            updatedTxs.values,
+            updatedTxs.signatures,
+            updatedTxs.calldatas,
+            updatedDescription,
+            updateMessage
+        );
+        vm.expectEmit();
+        emit IWave.ProposedIdeaUpdated(ideaId);
+
+        // update the proposal
+        vm.prank(address(creator));
+        waveCore.updatePushedProposal(proposerDelegate, ideaId, nounsProposalId, updatedProposal, updateMessage);
+    }
+
+    function test_revertUpdatePushedProposalNotCreator() public {
+        // roll to realistic block to prevent underflow
+        vm.roll(waveLength);
+
+        // delegate and register `votingPower` liquidity to Wave
+        (address proposerDelegate,) = waveCore.getSuitableDelegateFor(nounsDAOSafe_);
+        uint256 proposerDelegateId = waveCore.getDelegateId(proposerDelegate);
+        vm.startPrank(nounsDAOSafe_);
+        nounsTokenHarness.delegate(proposerDelegate);
+        waveCore.registerDelegation(nounsDAOSafe_, proposerDelegateId);
+        vm.stopPrank();
+
+        // create the ideaId to be proposed
+        address creator = _createNounderEOA(1);
+        vm.deal(creator, minSponsorshipAmount);
+        vm.prank(creator);
+        uint256 ideaId = ideaTokenHub.createIdea{value: minSponsorshipAmount}(txs, description);
+
+        // fast forward to end of Wave, push the proposal
+        vm.roll(block.number + waveLength);
+        uint96[] memory arrayifiedIdeaId = new uint96[](1);
+        arrayifiedIdeaId[0] = uint96(ideaId);
+        string[] memory arrayifiedDesc = new string[](1);
+        arrayifiedDesc[0] = description;
+        (, uint256[] memory nounsIdArray) = ideaTokenHub.finalizeWave(arrayifiedIdeaId, arrayifiedDesc);
+        uint256 nounsProposalId = nounsIdArray[0];
+
+        IWave.Proposal memory updatedProposal = IWave.Proposal(updatedTxs, updatedDescription);
+        string memory updateMessage = "Updated!";
+
+        // update the proposal as the wrong address (this one)
+        vm.expectRevert(abi.encodeWithSelector(IWave.NotCreator.selector, address(this)));
+        waveCore.updatePushedProposal(proposerDelegate, ideaId, nounsProposalId, updatedProposal, updateMessage);
+    }
+
+    function test_revertUpdatePushedProposalOnlyProposerCanEdit() public {
+        // roll to realistic block to prevent underflow
+        vm.roll(waveLength);
+
+        // delegate and register `votingPower` liquidity to Wave
+        (address proposerDelegate,) = waveCore.getSuitableDelegateFor(nounsDAOSafe_);
+        uint256 proposerDelegateId = waveCore.getDelegateId(proposerDelegate);
+        vm.startPrank(nounsDAOSafe_);
+        nounsTokenHarness.delegate(proposerDelegate);
+        waveCore.registerDelegation(nounsDAOSafe_, proposerDelegateId);
+        vm.stopPrank();
+
+        // create the ideaId to be proposed
+        address creator = _createNounderEOA(1);
+        vm.deal(creator, minSponsorshipAmount);
+        vm.prank(creator);
+        uint256 ideaId = ideaTokenHub.createIdea{value: minSponsorshipAmount}(txs, description);
+
+        // fast forward to end of Wave, push the proposal
+        vm.roll(block.number + waveLength);
+        uint96[] memory arrayifiedIdeaId = new uint96[](1);
+        arrayifiedIdeaId[0] = uint96(ideaId);
+        string[] memory arrayifiedDesc = new string[](1);
+        arrayifiedDesc[0] = description;
+        (, uint256[] memory nounsIdArray) = ideaTokenHub.finalizeWave(arrayifiedIdeaId, arrayifiedDesc);
+        uint256 nounsProposalId = nounsIdArray[0];
+
+        IWave.Proposal memory updatedProposal = IWave.Proposal(updatedTxs, updatedDescription);
+        string memory updateMessage = "Updated!";
+
+        // update the proposal providing the wrong delegate address
+        address wrongDelegate = waveCore.createDelegate();
+        vm.expectRevert(abi.encodeWithSelector(NounsDAOProposals.OnlyProposerCanEdit.selector));
+        vm.prank(address(creator));
+        waveCore.updatePushedProposal(wrongDelegate, ideaId, nounsProposalId, updatedProposal, updateMessage);
+    }
+
+    function test_cancelPushedProposal() public {
+        // roll to realistic block to prevent underflow
+        vm.roll(waveLength);
+
+        // delegate and register `votingPower` liquidity to Wave
+        (address proposerDelegate,) = waveCore.getSuitableDelegateFor(nounsDAOSafe_);
+        uint256 proposerDelegateId = waveCore.getDelegateId(proposerDelegate);
+        vm.startPrank(nounsDAOSafe_);
+        nounsTokenHarness.delegate(proposerDelegate);
+        waveCore.registerDelegation(nounsDAOSafe_, proposerDelegateId);
+        vm.stopPrank();
+
+        // create the ideaId to be proposed
+        address creator = _createNounderEOA(1);
+        vm.deal(creator, minSponsorshipAmount);
+        vm.prank(creator);
+        uint256 ideaId = ideaTokenHub.createIdea{value: minSponsorshipAmount}(txs, description);
+
+        // fast forward to end of Wave, push the proposal
+        vm.roll(block.number + waveLength);
+        uint96[] memory arrayifiedIdeaId = new uint96[](1);
+        arrayifiedIdeaId[0] = uint96(ideaId);
+        string[] memory arrayifiedDesc = new string[](1);
+        arrayifiedDesc[0] = description;
+        (, uint256[] memory nounsIdArray) = ideaTokenHub.finalizeWave(arrayifiedIdeaId, arrayifiedDesc);
+        uint256 nounsProposalId = nounsIdArray[0];
+
+        // expect event and cancel the proposal
+        vm.expectEmit();
+        emit IWave.ProposedIdeaCanceled(ideaId);
+        vm.prank(creator);
+        waveCore.cancelPushedProposal(proposerDelegate, ideaId, nounsProposalId);
+    }
+
+    function test_revertCancelPushedProposalNotCreator() public {
+        // roll to realistic block to prevent underflow
+        vm.roll(waveLength);
+
+        // delegate and register `votingPower` liquidity to Wave
+        (address proposerDelegate,) = waveCore.getSuitableDelegateFor(nounsDAOSafe_);
+        uint256 proposerDelegateId = waveCore.getDelegateId(proposerDelegate);
+        vm.startPrank(nounsDAOSafe_);
+        nounsTokenHarness.delegate(proposerDelegate);
+        waveCore.registerDelegation(nounsDAOSafe_, proposerDelegateId);
+        vm.stopPrank();
+
+        // create the ideaId to be proposed
+        address creator = _createNounderEOA(1);
+        vm.deal(creator, minSponsorshipAmount);
+        vm.prank(creator);
+        uint256 ideaId = ideaTokenHub.createIdea{value: minSponsorshipAmount}(txs, description);
+
+        // fast forward to end of Wave, push the proposal
+        vm.roll(block.number + waveLength);
+        uint96[] memory arrayifiedIdeaId = new uint96[](1);
+        arrayifiedIdeaId[0] = uint96(ideaId);
+        string[] memory arrayifiedDesc = new string[](1);
+        arrayifiedDesc[0] = description;
+        (, uint256[] memory nounsIdArray) = ideaTokenHub.finalizeWave(arrayifiedIdeaId, arrayifiedDesc);
+        uint256 nounsProposalId = nounsIdArray[0];
+
+        // expect revert canceling the proposal from wrong creator address
+        vm.expectRevert(abi.encodeWithSelector(IWave.NotCreator.selector, address(this)));
+        waveCore.cancelPushedProposal(proposerDelegate, ideaId, nounsProposalId);
+    }
+
+    function test_revertCancelPushedProposalInvalidDelegateAddress() public {
+        // roll to realistic block to prevent underflow
+        vm.roll(waveLength);
+
+        // delegate and register `votingPower` liquidity to Wave
+        (address proposerDelegate,) = waveCore.getSuitableDelegateFor(nounsDAOSafe_);
+        uint256 proposerDelegateId = waveCore.getDelegateId(proposerDelegate);
+        vm.startPrank(nounsDAOSafe_);
+        nounsTokenHarness.delegate(proposerDelegate);
+        waveCore.registerDelegation(nounsDAOSafe_, proposerDelegateId);
+        vm.stopPrank();
+
+        // create the ideaId to be proposed
+        address creator = _createNounderEOA(1);
+        vm.deal(creator, minSponsorshipAmount);
+        vm.prank(creator);
+        uint256 ideaId = ideaTokenHub.createIdea{value: minSponsorshipAmount}(txs, description);
+
+        // fast forward to end of Wave, push the proposal
+        vm.roll(block.number + waveLength);
+        uint96[] memory arrayifiedIdeaId = new uint96[](1);
+        arrayifiedIdeaId[0] = uint96(ideaId);
+        string[] memory arrayifiedDesc = new string[](1);
+        arrayifiedDesc[0] = description;
+        (, uint256[] memory nounsIdArray) = ideaTokenHub.finalizeWave(arrayifiedIdeaId, arrayifiedDesc);
+        uint256 nounsProposalId = nounsIdArray[0];
+
+        // expect revert canceling the proposal providing wrong delegate
+        address wrongDelegate = waveCore.createDelegate();
+        vm.expectRevert();
+        vm.prank(creator);
+        waveCore.cancelPushedProposal(wrongDelegate, ideaId, nounsProposalId);
     }
 }

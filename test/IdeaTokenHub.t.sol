@@ -3,17 +3,18 @@ pragma solidity ^0.8.24;
 
 import {console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
+import {NounsDAOProposals} from "nouns-monorepo/governance/NounsDAOProposals.sol";
 import {NounsTokenHarness} from "nouns-monorepo/test/NounsTokenHarness.sol";
-import {FontRegistry} from "FontRegistry/src/FontRegistry.sol";
 import {IERC721Checkpointable} from "src/interfaces/IERC721Checkpointable.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
 import {IIdeaTokenHub} from "src/interfaces/IIdeaTokenHub.sol";
 import {IdeaTokenHub} from "src/IdeaTokenHub.sol";
 import {Delegate} from "src/Delegate.sol";
 import {IWave} from "src/interfaces/IWave.sol";
 import {Renderer} from "src/SVG/Renderer.sol";
 import {PolymathTextRegular} from "src/SVG/fonts/PolymathTextRegular.sol";
+import {IPolymathTextRegular} from "src/SVG/fonts/IPolymathTextRegular.sol";
 import {Font} from "test/svg/HotChainSVG.t.sol";
 import {WaveTest} from "test/Wave.t.sol";
 import {WaveHarness} from "test/harness/WaveHarness.sol";
@@ -26,14 +27,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
     WaveHarness waveCore;
     IdeaTokenHub ideaTokenHubImpl;
     IdeaTokenHub ideaTokenHub;
-    FontRegistry fontRegistry;
-    PolymathTextRegular polymathTextRegular;
+    IPolymathTextRegular polymathTextRegular;
     Renderer renderer;
 
     uint256 waveLength;
     uint256 minSponsorshipAmount;
     uint256 decimals;
-    NounsDAOV3Proposals.ProposalTxs txs;
+    ProposalTxs txs;
     string description;
     // singular proposal stored for easier referencing against `IdeaInfo` struct member
     IWave.Proposal proposal;
@@ -44,24 +44,22 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         super.setUpNounsGovernance();
 
         // setup Wave contracts
-        waveLength = 100800;
+        waveLength = 500400;
         minSponsorshipAmount = 0.00077 ether;
         decimals = 18;
         // roll to block number of at least `waveLength` to prevent underflow within current Wave `startBlock`
         vm.roll(waveLength);
         
-        // deploy and add font to registry
-        fontRegistry = new FontRegistry();
+        // deploy PolymathText font and provide it to Renderer constructor on deployment
         string memory root = vm.projectRoot();
         string memory fontPath = string.concat(root, "/test/helpers/font.json");
         string memory json = vm.readFile(fontPath);
         Font memory polyFont = abi.decode(vm.parseJson(json), (Font));
         string memory polyText = polyFont.data;
-        polymathTextRegular = new PolymathTextRegular(polyText);
-        fontRegistry.addFontToRegistry(address(polymathTextRegular));
+        polymathTextRegular = IPolymathTextRegular(address(new PolymathTextRegular(polyText)));
 
         // deploy Wave infra
-        renderer = new Renderer(address(fontRegistry), address(nounsDescriptor_), address(nounsRenderer_));
+        renderer = new Renderer(polymathTextRegular, address(nounsDescriptor_), address(nounsRenderer_));
         ideaTokenHubImpl = new IdeaTokenHub();
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy(address(ideaTokenHubImpl), "")));
         waveCoreImpl = new WaveHarness();
@@ -86,12 +84,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         // provide funds for `txs` value
         vm.deal(address(this), 1 ether);
 
-        // balances to roughly mirror mainnet
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsForkEscrow_), 265);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(nounsDAOSafe_, 30);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(0xb1a32FC9F9D8b2cf86C068Cae13108809547ef71, 308);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(nounsTokenHarness), 25);
-        NounsTokenHarness(address(nounsTokenHarness)).mintMany(address(0x1), 370); // ~rest of missing supply to dummy address
+        super.mintMirrorBalances();
 
         // continue with IdeaTokenHub configuration
         firstWaveInfo.startBlock = uint32(block.number);
@@ -217,8 +210,8 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         for (uint256 i; i < numCreators; ++i) {
             uint256 currentIdeaId = startId + i;
             assertEq(ideaTokenHub.getNextIdeaId(), currentIdeaId);
-            // targets 10e15 order; not truly random but appropriate for testing
-            uint256 pseudoRandomIdeaValue = uint256(keccak256(abi.encode(i))) / 10e15;
+            // targets 10e22 order; not truly random but up to 1000 ETH
+            uint256 pseudoRandomIdeaValue = uint256(keccak256(abi.encode(i))) % 10e22;
 
             // alternate between simulating EOA and smart contract wallets
             address nounder = eoa ? _createNounderEOA(i) : _createNounderSmartAccount(i);
@@ -251,8 +244,8 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
 
         for (uint256 l; l < numSponsors; ++l) {
             assertEq(ideaTokenHub.getNextIdeaId(), uint256(numCreators) + 1);
-            // targets 10e16 order; not truly random but appropriate for testing
-            uint256 pseudoRandomSponsorValue = uint256(keccak256(abi.encode(l << 2))) / 10e15;
+            // targets 10e16 order; not truly random but up to 1000 ETH
+            uint256 pseudoRandomSponsorValue = uint256(keccak256(abi.encode(l << 2))) % 10e22;
 
             // alternate between simulating EOA and smart contract wallets
             address sponsor = eoa ? _createNounderEOA(numCreators + l) : _createNounderSmartAccount(numCreators + l);
@@ -327,7 +320,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             vm.stopPrank();
 
             // simulate time passing
-            vm.roll(block.number + 200);
+            vm.roll(block.number + 100);
             eoa = !eoa;
         }
 
@@ -352,7 +345,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
             vm.stopPrank();
 
             // simulate time passing
-            vm.roll(block.number + 200);
+            vm.roll(block.number + 1000);
             eoa = !eoa;
         }
 
@@ -364,30 +357,17 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         for (uint256 k; k < numCreators; ++k) {
             uint256 currentIdeaId = startId + k;
             assertEq(ideaTokenHub.getNextIdeaId(), currentIdeaId);
-            // targets 10e15 order; not truly random but appropriate for testing
-            uint256 pseudoRandomIdeaValue = uint256(keccak256(abi.encode(k))) / 10e15;
 
             // alternate between simulating EOA and smart contract wallets
             uint256 collisionOffset = k + numSupplementaryDelegations + numFullDelegations; // prevent collisions
             address nounder = eoa ? _createNounderEOA(collisionOffset) : _createNounderSmartAccount(collisionOffset);
+
+            // targets 10e22 order; not truly random but up to 1000 ETH
+            uint256 pseudoRandomIdeaValue = uint256(keccak256(abi.encode(collisionOffset))) % 10e22;
             vm.deal(nounder, pseudoRandomIdeaValue);
 
-            vm.startPrank(nounder);
-            try ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description) returns (uint96 newIdeaId) {
-                assertEq(newIdeaId, uint96(currentIdeaId));
-            } catch {
-                // wave must first be finalized
-                (,, uint96[] memory winners) = ideaTokenHub.getWinningIdeaIds();
-                string[] memory descs = new string[](winners.length);
-                for (uint256 d; d < winners.length; ++d) {
-                    descs[d] = description;
-                }
-                ideaTokenHub.finalizeWave(winners, descs);
-
-                // then resubmit call to `createIdea()`
-                ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
-            }
-            vm.stopPrank();
+            vm.prank(nounder);
+            ideaTokenHub.createIdea{value: pseudoRandomIdeaValue}(txs, description);
 
             assertEq(ideaTokenHub.balanceOf(nounder, currentIdeaId), pseudoRandomIdeaValue);
 
@@ -406,12 +386,13 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         // sponsor ideas
         for (uint256 l; l < numSponsors; ++l) {
             assertEq(ideaTokenHub.getNextIdeaId(), uint256(numCreators) + 1);
-            // targets 10e16 order; not truly random but appropriate for testing
-            uint256 pseudoRandomSponsorValue = uint256(keccak256(abi.encode(l << 2))) / 10e15;
 
             // alternate between simulating EOA and smart contract wallets
             uint256 collisionOffset = l + numCreators + numSupplementaryDelegations + numFullDelegations;
             address sponsor = eoa ? _createNounderEOA(collisionOffset) : _createNounderSmartAccount(collisionOffset);
+
+            // targets 10e22 order; not truly random but up to 1000 ETH
+            uint256 pseudoRandomSponsorValue = uint256(keccak256(abi.encode(collisionOffset))) % 10e22;
             vm.deal(sponsor, pseudoRandomSponsorValue);
 
             // reduce an entropic hash to the `[0:nextIdeaId]` range via modulo
@@ -469,6 +450,7 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         IIdeaTokenHub.WaveInfo memory finalizedPreviousWaveInfo = ideaTokenHub.getWaveInfo(previousWaveId);
         assertTrue(postWaveInfo.startBlock == finalizedPreviousWaveInfo.endBlock);
 
+        // handle case where `minRequiredVotes` changes during Wave
         uint256 endMinRequiredVotes = waveCore.getCurrentMinRequiredVotes();
         if (delegations.length == 0) {
             assertTrue(startMinRequiredVotes != endMinRequiredVotes);
@@ -487,8 +469,8 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
                 uint256 returnedYield = ideaTokenHub.getClaimableYield(currentDelegator);
                 assertTrue(returnedYield != 0);
 
-                uint256 denominator = 10_000 * endMinRequiredVotes / delegations[o].votingPower;
-                uint256 currentYield = winnersTotalFunding / delegations.length / denominator / 10_000;
+                uint256 yieldPerVotingPower = _calculateYieldPerVotingPower(delegations, winnersTotalFunding);
+                uint256 currentYield = yieldPerVotingPower * delegations[o].votingPower;
                 assertEq(returnedYield, currentYield);
 
                 vm.prank(currentDelegator);
@@ -561,8 +543,8 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         for (uint256 k; k < numCreators; ++k) {
             uint256 currentIdeaId = startId + k;
             assertEq(ideaTokenHub.getNextIdeaId(), currentIdeaId);
-            // targets 10e15 order; not truly random but appropriate for testing
-            uint256 pseudoRandomIdeaValue = uint256(keccak256(abi.encode(k))) / 10e15;
+            // targets 10e22 order; not truly random but up to 1000 ETH
+            uint256 pseudoRandomIdeaValue = uint256(keccak256(abi.encode(k))) % 10e22;
 
             // alternate between simulating EOA and smart contract wallets
             uint256 collisionOffset = k + numSupplementaryDelegations + numFullDelegations; // prevent collisions
@@ -597,8 +579,8 @@ contract IdeaTokenHubTest is NounsEnvSetup, TestUtils {
         // sponsor ideas
         for (uint256 l; l < numSponsors; ++l) {
             assertEq(ideaTokenHub.getNextIdeaId(), uint256(numCreators) + 1);
-            // targets 10e16 order; not truly random but appropriate for testing
-            uint256 pseudoRandomSponsorValue = uint256(keccak256(abi.encode(l << 2))) / 10e15;
+            // targets 10e16 order; not truly random but up to 1000 ETH
+            uint256 pseudoRandomSponsorValue = uint256(keccak256(abi.encode(l << 2))) % 10e22;
 
             // alternate between simulating EOA and smart contract wallets
             uint256 collisionOffset = l + numCreators + numSupplementaryDelegations + numFullDelegations;

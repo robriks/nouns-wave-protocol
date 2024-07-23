@@ -3,9 +3,9 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "forge-std/StdJson.sol";
-import {FontRegistry} from "FontRegistry/src/FontRegistry.sol";
-import {Renderer} from "../../src/SVG/Renderer.sol";
-import {PolymathTextRegular} from "../../src/SVG/fonts/PolymathTextRegular.sol";
+import {Renderer} from "src/SVG/Renderer.sol";
+import {PolymathTextRegular} from "src/SVG/fonts/PolymathTextRegular.sol";
+import {IPolymathTextRegular} from "src/SVG/fonts/IPolymathTextRegular.sol";
 
 struct Font {
     string data;
@@ -14,8 +14,7 @@ struct Font {
 contract HotChainSVG is Test {
     using stdJson for string;
 
-    PolymathTextRegular public textRegular;
-    FontRegistry public fontRegistry;
+    IPolymathTextRegular public textRegular;
     Renderer public r;
 
     string mainnetRPC = vm.envString("MAINNET_RPC_URL");
@@ -34,10 +33,8 @@ contract HotChainSVG is Test {
         Font memory polyFont = abi.decode(vm.parseJson(json), (Font));
         string memory polyText = polyFont.data;
 
-        textRegular = new PolymathTextRegular(polyText);
-        fontRegistry = new FontRegistry();
-        fontRegistry.addFontToRegistry(address(textRegular));
-        r = new Renderer(address(fontRegistry), nounsDescriptor, nounsSVGRenderer);
+        textRegular = IPolymathTextRegular(address(new PolymathTextRegular(polyText)));
+        r = new Renderer(textRegular, nounsDescriptor, nounsSVGRenderer);
     }
 
     function test_HotChainSVG() public {

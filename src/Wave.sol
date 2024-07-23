@@ -4,9 +4,8 @@ pragma solidity ^0.8.24;
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ECDSA} from "nouns-monorepo/external/openzeppelin/ECDSA.sol";
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
-import {INounsDAOLogicV3} from "src/interfaces/INounsDAOLogicV3.sol";
-import {NounsDAOStorageV3, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
+import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
+import {NounsDAOStorage, NounsDAOTypes, NounsTokenLike} from "nouns-monorepo/governance/NounsDAOInterfaces.sol";
 import {IERC721Checkpointable} from "./interfaces/IERC721Checkpointable.sol";
 import {IWave} from "./interfaces/IWave.sol";
 import {IIdeaTokenHub} from "./interfaces/IIdeaTokenHub.sol";
@@ -25,7 +24,7 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
       Constants
     */
 
-    INounsDAOLogicV3 public nounsGovernor;
+    INounsDAOLogicV4 public nounsGovernor;
     IERC721Checkpointable public nounsToken;
     bytes32 private __creationCodeHash;
 
@@ -62,8 +61,8 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         _transferOwnership(msg.sender);
 
         ideaTokenHub = IIdeaTokenHub(ideaTokenHub_);
-        ideaTokenHub.initialize(msg.sender, nounsGovernor_, minSponsorshipAmount_, waveLength_, renderer_, '');
-        nounsGovernor = INounsDAOLogicV3(nounsGovernor_);
+        ideaTokenHub.initialize(msg.sender, nounsGovernor_, minSponsorshipAmount_, waveLength_, renderer_, "");
+        nounsGovernor = INounsDAOLogicV4(nounsGovernor_);
         nounsToken = IERC721Checkpointable(nounsToken_);
         __creationCodeHash =
             keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(address(this))))));
@@ -71,43 +70,6 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         // increment `_nextDelegateId` and deploy initial Delegate contract
         _nextDelegateId++;
         createDelegate();
-    }
-
-    /// @inheritdoc IWave
-    function pushProposals(IWave.Proposal[] calldata winningProposals)
-        public
-        payable
-        returns (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
-    {
-        if (msg.sender != address(ideaTokenHub)) revert Unauthorized();
-
-        // check for external Nouns transfers or rogue redelegations, update state
-        uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices();
-        _deleteDelegations(disqualifiedIndices);
-
-        // instantiate `delegations` array
-        uint256 len = _optimisticDelegations.length;
-        if (len == 0) revert InsufficientDelegations();
-        delegations = new Delegation[](len);
-
-        // get eligible delegates
-        (, uint256[] memory eligibleProposerIds) = getAllEligibleProposerDelegates();
-        // should be impossible to violate, but assert invariant in case of future changes
-        assert(eligibleProposerIds.length >= winningProposals.length);
-
-        nounsProposalIds = new uint256[](winningProposals.length);
-        for (uint256 i; i < winningProposals.length; ++i) {
-            // establish current proposer delegate
-            uint256 currentProposerId = eligibleProposerIds[i];
-            address currentProposer = getDelegateAddress(currentProposerId);
-
-            // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
-            nounsProposalIds[i] = Delegate(currentProposer).pushProposal(
-                nounsGovernor, winningProposals[i].ideaTxs, winningProposals[i].description
-            );
-        }
-
-        delegations = _optimisticDelegations;
     }
 
     /// @inheritdoc IWave
@@ -185,6 +147,85 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         emit DelegateCreated(delegate, nextDelegateId);
     }
 
+    /// @inheritdoc IWave
+    function pushProposals(IWave.Proposal[] calldata winningProposals)
+        public
+        payable
+        returns (IWave.Delegation[] memory delegations, uint256[] memory nounsProposalIds)
+    {
+        if (msg.sender != address(ideaTokenHub)) revert Unauthorized();
+
+        // check for external Nouns transfers or rogue redelegations, update state
+        uint256[] memory disqualifiedIndices = _disqualifiedDelegationIndices();
+        _deleteDelegations(disqualifiedIndices);
+
+        // instantiate `delegations` array
+        uint256 len = _optimisticDelegations.length;
+        if (len == 0) revert InsufficientDelegations();
+        delegations = new Delegation[](len);
+
+        // get eligible delegates
+        (, uint256[] memory eligibleProposerIds) = getAllEligibleProposerDelegates();
+        // should be impossible to violate, but assert invariant in case of future changes
+        assert(eligibleProposerIds.length >= winningProposals.length);
+
+        nounsProposalIds = new uint256[](winningProposals.length);
+        for (uint256 i; i < winningProposals.length; ++i) {
+            // establish current proposer delegate
+            uint256 currentProposerId = eligibleProposerIds[i];
+            address currentProposer = getDelegateAddress(currentProposerId);
+
+            // no event emitted to save gas since NounsGovernor already emits `ProposalCreated`
+            nounsProposalIds[i] = Delegate(currentProposer).pushProposal(
+                nounsGovernor, winningProposals[i].ideaTxs, winningProposals[i].description
+            );
+        }
+
+        delegations = _optimisticDelegations;
+    }
+
+    /// @inheritdoc IWave
+    function updatePushedProposal(
+        address proposerDelegate,
+        uint256 ideaId,
+        uint256 nounsProposalId,
+        IWave.Proposal calldata updatedProposal,
+        string calldata updateMessage
+    ) external {
+        if (keccak256(bytes(updateMessage)) == keccak256("")) revert InvalidUpdateMessage();
+
+        // check proposer address is a Wave delegate; reverts if no match is found
+        uint256 delegateId = _findDelegateIdMatch(proposerDelegate);
+        if (delegateId == 0) revert InvalidDelegateAddress(proposerDelegate);
+
+        // check msg.sender is creator
+        IIdeaTokenHub.SponsorshipParams memory params = ideaTokenHub.getSponsorshipInfo(msg.sender, ideaId);
+        if (!params.isCreator) revert NotCreator(msg.sender);
+
+        Delegate(proposerDelegate).updateProposal(
+            nounsGovernor, nounsProposalId, updatedProposal.ideaTxs, updatedProposal.description, updateMessage
+        );
+
+        // emit only the `ideaId` since proposer and proposal data are available via NounsGovernor::ProposalUpdated event
+        emit ProposedIdeaUpdated(ideaId);
+    }
+
+    /// @inheritdoc IWave
+    function cancelPushedProposal(address proposerDelegate, uint256 ideaId, uint256 nounsProposalId) external {
+        // check proposer address is a Wave delegate; reverts if no match is found
+        uint256 delegateId = _findDelegateIdMatch(proposerDelegate);
+        if (delegateId == 0) revert InvalidDelegateAddress(proposerDelegate);
+
+        // check msg.sender is creator
+        IIdeaTokenHub.SponsorshipParams memory params = ideaTokenHub.getSponsorshipInfo(msg.sender, ideaId);
+        if (!params.isCreator) revert NotCreator(msg.sender);
+
+        Delegate(proposerDelegate).cancelProposal(nounsGovernor, nounsProposalId);
+
+        // emit only the `ideaId` since `nounsProposalId` data are available via NounsGovernor::ProposalUpdated event
+        emit ProposedIdeaCanceled(ideaId);
+    }
+
     /*
       Views
     */
@@ -197,12 +238,9 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
 
     /// @inheritdoc IWave
     function getDelegateId(address delegate) external view returns (uint256 delegateId) {
-        uint256 nextDelegateId = getNextDelegateId();
-        for (uint256 i = 1; i <= nextDelegateId; ++i) {
-            if (_simulateCreate2(bytes32(uint256(i)), __creationCodeHash) == delegate) return i;
-        }
+        delegateId = _findDelegateIdMatch(delegate);
 
-        revert InvalidDelegateAddress(delegate);
+        if (delegateId == 0) revert InvalidDelegateAddress(delegate);
     }
 
     /// @inheritdoc IWave
@@ -344,6 +382,18 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
       Internals
     */
 
+    /// @notice Unchecked return value: returns an invalid delegate ID of `0` if no match is found. This behavior
+    /// allows for non-reverting behavior but must be accounted for when invoked by higher-order functions
+    function _findDelegateIdMatch(address _delegate) internal view returns (uint256 _delegateId) {
+        uint256 nextDelegateId = getNextDelegateId();
+        // since 0 is an invalid delegate ID, start iterations at 1 and return `_delegateId == 0` if none is found
+        for (uint256 i = 1; i <= nextDelegateId; ++i) {
+            if (_simulateCreate2(bytes32(uint256(i)), __creationCodeHash) == _delegate) {
+                return i;
+            }
+        }
+    }
+
     /// @dev Returns the id of the first delegate ID found to meet the given parameters
     /// To save gas by minimizing costly SLOADs, terminates as soon as a delegate meeting the critera is found
     /// @param _minRequiredVotes The votes needed to make a proposal, dynamic based on Nouns token supply
@@ -474,12 +524,12 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
 
     /// @dev References the Nouns governor contract to determine whether a proposal is in a disqualifying state
     function _isEligibleProposalState(uint256 _latestProposal) internal view returns (bool) {
-        NounsDAOStorageV3.ProposalState delegatesLatestProposalState = nounsGovernor.state(_latestProposal);
+        NounsDAOTypes.ProposalState delegatesLatestProposalState = nounsGovernor.state(_latestProposal);
         if (
-            delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.ObjectionPeriod
-                || delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Active
-                || delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Pending
-                || delegatesLatestProposalState == NounsDAOStorageV3.ProposalState.Updatable
+            delegatesLatestProposalState == NounsDAOTypes.ProposalState.ObjectionPeriod
+                || delegatesLatestProposalState == NounsDAOTypes.ProposalState.Active
+                || delegatesLatestProposalState == NounsDAOTypes.ProposalState.Pending
+                || delegatesLatestProposalState == NounsDAOTypes.ProposalState.Updatable
         ) return false;
 
         return true;

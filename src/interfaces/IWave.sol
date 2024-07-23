@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {NounsDAOV3Proposals} from "nouns-monorepo/governance/NounsDAOV3Proposals.sol";
+import {ProposalTxs} from "src/interfaces/ProposalTxs.sol";
 
 /// @dev Interface for interacting with the Wave protocol core contract
 interface IWave {
@@ -33,7 +33,7 @@ interface IWave {
     }
 
     struct Proposal {
-        NounsDAOV3Proposals.ProposalTxs ideaTxs;
+        ProposalTxs ideaTxs;
         string description;
     }
 
@@ -48,6 +48,9 @@ interface IWave {
     error DelegateSaturated(uint256 delegateId);
     error InvalidDelegateId(uint256 delegateId);
     error InvalidDelegateAddress(address delegate);
+    error NotUpdatable(uint256 proposalId);
+    error InvalidUpdateMessage();
+    error NotCreator(address caller);
     error InvalidSignature();
     error OnlyDelegatecallContext();
     error Create2Failure();
@@ -55,6 +58,8 @@ interface IWave {
     event DelegateCreated(address delegate, uint256 id);
     event DelegationRegistered(Delegation optimisticDelegation);
     event DelegationDeleted(Delegation disqualifiedDelegation);
+    event ProposedIdeaUpdated(uint256 ideaId);
+    event ProposedIdeaCanceled(uint256 ideaId);
 
     /*
       IWave
@@ -76,6 +81,25 @@ interface IWave {
         external
         payable
         returns (Delegation[] memory delegations, uint256[] memory nounsProposalIds);
+
+    /// @dev To support the granularity of the NounsDAOProposals contract's functions, this function uses a switch
+    /// case to either 1. update only the proposal's `ProposalTxs` struct, 2. only the `description` string,
+    /// or 3. both the transactions and description string simultaneously. To update only the proposal transactions,
+    /// provide an empty `description` string. To update only the description, provide empty `ProposalTxs` arrays
+    /// An empty string value for `updateMessage` is disallowed- all updates should be documented onchain.
+    /// @notice Checks ensuring the specified proposal is in an updatable state is handled by the Nouns governor
+    function updatePushedProposal(
+        address proposerDelegate,
+        uint256 ideaId,
+        uint256 nounsProposalId,
+        Proposal calldata updatedProposal,
+        string calldata updateMessage
+    ) external;
+
+    /// @dev Cancels an existing proposal which was pushed to the Nouns contracts after winning a Wave.
+    /// @dev May only be called by the original creator of the `ideaId`
+    /// @notice Checks ensuring the specified proposal is in a cancellable state is handled by the Nouns governor
+    function cancelPushedProposal(address proposerDelegate, uint256 ideaId, uint256 nounsProposalId) external;
 
     /// @dev Simultaneously creates a delegate if it doesn't yet exist and grants voting power to the delegate
     /// in a single function call. This is the most convenient option for standard wallets using EOA private keys

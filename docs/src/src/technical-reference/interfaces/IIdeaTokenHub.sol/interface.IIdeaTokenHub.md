@@ -48,7 +48,7 @@ The Ether amount paid to create the idea will be reflected in the creator's ERC1
 
 
 ```solidity
-function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description)
+function createIdea(NounsDAOProposals.ProposalTxs calldata ideaTxs, string calldata description)
     external
     payable
     returns (uint96 newIdeaId);
@@ -337,7 +337,7 @@ struct IdeaInfo {
     uint216 totalFunding;
     uint32 blockCreated;
     bool isProposed;
-    NounsDAOV3Proposals.ProposalTxs proposalTxs;
+    NounsDAOProposals.ProposalTxs proposalTxs;
 }
 ```
 

@@ -25,7 +25,7 @@ IWave private __waveCore;
 ### \_\_nounsGovernor
 
 ```solidity
-INounsDAOLogicV3 private __nounsGovernor;
+INounsDAOLogicV4 private __nounsGovernor;
 ```
 
 ### minSponsorshipAmount
@@ -110,7 +110,7 @@ The Ether amount paid to create the idea will be reflected in the creator's ERC1
 _Creates a new ERC1155 token referred to by its token ID, ie its `ideaId` identifier_
 
 ```solidity
-function createIdea(NounsDAOV3Proposals.ProposalTxs calldata ideaTxs, string calldata description)
+function createIdea(NounsDAOProposals.ProposalTxs calldata ideaTxs, string calldata description)
     public
     payable
     returns (uint96 newIdeaId);
@@ -296,7 +296,7 @@ function getNextIdeaId() public view returns (uint256);
 ### \_validateIdeaCreation
 
 ```solidity
-function _validateIdeaCreation(NounsDAOV3Proposals.ProposalTxs calldata _ideaTxs, string calldata _description)
+function _validateIdeaCreation(NounsDAOProposals.ProposalTxs calldata _ideaTxs, string calldata _description)
     internal;
 ```
 
