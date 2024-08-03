@@ -125,13 +125,11 @@ contract Deploy is Script {
 
         require(address(polymathTextRegular).code.length > 0);
         require(address(renderer).code.length > 0);
-        require(address(polymathTextRegular).code.length > 0);
         require(address(ideaTokenHub).code.length > 0);
         require(address(waveCore).code.length > 0);
         require(address(nounsTokenHarness).code.length > 0);
         console2.logAddress(address(polymathTextRegular));
         console2.logAddress(address(renderer));
-        console2.logAddress(address(polymathTextRegular));
         console2.logAddress(address(ideaTokenHub));
         console2.logAddress(address(waveCore));
         console2.logAddress(address(nounsTokenHarness));

@@ -27,9 +27,11 @@ import {Font} from "test/svg/HotChainSVG.t.sol";
 */
 
 contract Deploy is Script {
+
     address nounsGovernorProxy = 0x6f3E6272A167e8AcCb32072d08E0957F9c79223d;
     address nounsToken = 0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03;
 
+    address safe = 0x8c3aB329f3e5b43ee37ff3973b090F6A4a5Edf6c; // owner
     uint256 minSponsorshipAmount = 0.000777 ether;
     uint256 waveLength = 50400; // 60hr updatablePeriod + 12hr votingDelay + 96hr votingPeriod
     string polyText;
@@ -59,13 +61,10 @@ contract Deploy is Script {
         polymathTextRegular = IPolymathTextRegular(address(new PolymathTextRegular(polyText)));
 
         renderer = new Renderer(polymathTextRegular, address(nounsDescriptor), address(nounsRenderer));
-        require(address(polymathTextRegular).code.length > 0);
-        require(address(renderer).code.length > 0);
+
         // deploy Wave contract implementations
         ideaTokenHubImpl = new IdeaTokenHub();
         waveCoreImpl = new Wave();
-
-        // use create2crunch to identify suitable salt for gas-efficient proxy addresses with leading zero bytes
 
         // deploy proxies pointed at impls
         ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy{salt: ideaTokenHubSalt}(address(ideaTokenHubImpl), "")));
@@ -80,13 +79,17 @@ contract Deploy is Script {
         );
         waveCore = Wave(address(new ERC1967Proxy{salt: waveCoreSalt}(address(waveCoreImpl), initData)));
 
+        ideaTokenHub.transferOwnership(safe);
+        waveCore.transferOwnership(safe);
+        vm.stopBroadcast();
+
+        require(address(polymathTextRegular).code.length > 0);
+        require(address(renderer).code.length > 0);
         require(address(ideaTokenHub).code.length > 0);
         require(address(waveCore).code.length > 0);
         console2.logAddress(address(polymathTextRegular));
         console2.logAddress(address(renderer));
         console2.logAddress(address(ideaTokenHub));
         console2.logAddress(address(waveCore));
-
-        vm.stopBroadcast();
     }
 }
