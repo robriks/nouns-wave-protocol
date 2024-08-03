@@ -44,8 +44,8 @@ contract Deploy is Script {
     NounsDescriptorV2 nounsDescriptor = NounsDescriptorV2(0x6229c811D04501523C6058bfAAc29c91bb586268);
     SVGRenderer nounsRenderer = SVGRenderer(0x81d94554A4b072BFcd850205f0c79e97c92aab56);
 
-    bytes32 waveCoreSalt = vm.envBytes32("WAVE_CORE_SALT");
-    bytes32 ideaTokenHubSalt = vm.envBytes32("IDEATOKENHUB_SALT");
+    bytes32 waveCoreSalt = keccak256(bytes("WAVE"));
+    bytes32 ideaTokenHubSalt = keccak256(bytes("IDEATOKENHUB"));
     Wave waveCore;
     IdeaTokenHub ideaTokenHub;
 
@@ -75,12 +75,11 @@ contract Deploy is Script {
             address(nounsToken),
             minSponsorshipAmount,
             waveLength,
-            address(renderer)
+            address(renderer),
+            safe
         );
         waveCore = Wave(address(new ERC1967Proxy{salt: waveCoreSalt}(address(waveCoreImpl), initData)));
 
-        ideaTokenHub.transferOwnership(safe);
-        waveCore.transferOwnership(safe);
         vm.stopBroadcast();
 
         require(address(polymathTextRegular).code.length > 0);

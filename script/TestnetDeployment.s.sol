@@ -47,6 +47,7 @@ import {Font} from "test/svg/HotChainSVG.t.sol";
 contract Deploy is Script {
     // for dev control over onchain workings
     address nounsSafeMinterVetoerDescriptorAdmin = 0x5d5d4d04B70BFe49ad7Aac8C4454536070dAf180;
+    address safe = 0x5d5d4d04B70BFe49ad7Aac8C4454536070dAf180; // not a safe (testnet)
     address frog = 0x65A3870F48B5237f27f674Ec42eA1E017E111D63;
     address vanity = 0xFFFFfFfFA2eC6F66a22017a0Deb0191e5F8cBc35;
     uint256 minSponsorshipAmount = 1 wei; // TESTNET ONLY
@@ -119,7 +120,8 @@ contract Deploy is Script {
             address(nounsTokenHarness),
             minSponsorshipAmount,
             waveLength,
-            address(renderer)
+            address(renderer),
+            safe
         );
         waveCore = WaveHarness(address(new ERC1967Proxy(address(waveCoreImpl), initData)));
 

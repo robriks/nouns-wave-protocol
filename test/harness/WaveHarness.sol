@@ -22,9 +22,10 @@ contract WaveHarness is Wave {
         address nounsToken_,
         uint256 minSponsorshipAmount_,
         uint256 waveLength_,
-        address renderer_
+        address renderer_,
+        address owner_
     ) public override {
-        super.initialize(ideaTokenHub_, nounsGovernor_, nounsToken_, minSponsorshipAmount_, waveLength_, renderer_);
+        super.initialize(ideaTokenHub_, nounsGovernor_, nounsToken_, minSponsorshipAmount_, waveLength_, renderer_, owner_);
         self = address(this);
         creationCodeHash = keccak256(abi.encodePacked(type(Delegate).creationCode, bytes32(uint256(uint160(self)))));
     }

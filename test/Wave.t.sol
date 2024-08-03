@@ -1479,9 +1479,8 @@ contract WaveTest is NounsEnvSetup, TestUtils {
     }
 
     function test_findDelegateId(uint8 numDelegations, uint8 fuzzedMinRequiredVotes) public {
-        vm.assume(numDelegations > 1); // at least one supplementary and one full
-        vm.assume(fuzzedMinRequiredVotes >= 2); // current minimum is 2
-        vm.assume(uint256(numDelegations) + uint256(fuzzedMinRequiredVotes) < 200); // constrain to prevent running out of gas during mints
+        numDelegations = uint8(bound(numDelegations, 1, 100)); // at least one supplementary, prevent out of gas errors
+        fuzzedMinRequiredVotes = uint8(bound(fuzzedMinRequiredVotes, 2, 80)); // covers now + ~300 years
 
         // scope test to find delegate only
         bool isSupplementary;
