@@ -26,6 +26,10 @@ import {Font} from "test/svg/HotChainSVG.t.sol";
 `forge verify-contract <waveCore> --watch src/Wave.sol:Wave`
 */
 
+// create2crunch outputs:
+// 0x00000000000000000000000000000000000000003d1ee0b1bdc9bf3a9adfff25 => 0x000000000088b111eA8679dD42f7D55512fD6bE8 => 65536
+// 0x0000000000000000000000000000000000000000117c2f437759773b67bd7424 => 0x00000000008DDB753b2dfD31e7127f4094CE5630 => 65536
+
 contract Deploy is Script {
 
     address nounsGovernorProxy = 0x6f3E6272A167e8AcCb32072d08E0957F9c79223d;
@@ -36,18 +40,28 @@ contract Deploy is Script {
     uint256 waveLength = 50400; // 60hr updatablePeriod + 12hr votingDelay + 96hr votingPeriod
     string polyText;
 
-    Wave waveCoreImpl;
-    IdeaTokenHub ideaTokenHubImpl;
-    IPolymathTextRegular polymathTextRegular;
-    Renderer renderer;
+    IdeaTokenHub ideaTokenHubImpl; // 0x07D6a889B13fC5784e0a73335c36fd3e5db5a5bb
+    Wave waveCoreImpl; // 0x62174fc3684ce4dff3d75d2465e3b8ddb44534c2
+    IPolymathTextRegular polymathTextRegular; // 0xf3A20995C9dD0F2d8e0DDAa738320F2C8871BD2b
+    Renderer renderer; // 0x65DBB4C59d4D5d279beec6dfdb169D986c55962C
 
     NounsDescriptorV2 nounsDescriptor = NounsDescriptorV2(0x6229c811D04501523C6058bfAAc29c91bb586268);
     SVGRenderer nounsRenderer = SVGRenderer(0x81d94554A4b072BFcd850205f0c79e97c92aab56);
 
-    bytes32 waveCoreSalt = keccak256(bytes("WAVE"));
-    bytes32 ideaTokenHubSalt = keccak256(bytes("IDEATOKENHUB"));
-    Wave waveCore;
+    // uses arachnid deterministic deployment factory
+    bytes32 ideaTokenHubImplSalt = keccak256(bytes("IDEATOKENHUB"));
+    bytes32 waveCoreImplSalt = keccak256(bytes("WAVE"));
+    bytes32 polymathSalt = keccak256(bytes("POLYMATH"));
+    bytes32 rendererSalt = keccak256(bytes("RENDERER"));
+
+    // uses create2crunch deterministic deployment factory
+    address create2Factory = 0x0000000000FFe8B47B3e2130213B802212439497;
+    bytes32 ideaTokenHubSalt = bytes32(uint256(0x3d1ee0b1bdc9bf3a9adfff25));
+    bytes32 waveCoreSalt = bytes32(uint256(0x117c2f437759773b67bd7424));
+    address ideaTokenHubExpected = 0x000000000088b111eA8679dD42f7D55512fD6bE8;
+    address waveCoreExpected = 0x00000000008DDB753b2dfD31e7127f4094CE5630;
     IdeaTokenHub ideaTokenHub;
+    Wave waveCore;
 
     function run() external {
         vm.startBroadcast();
@@ -58,16 +72,25 @@ contract Deploy is Script {
         string memory fontJson = vm.readFile(fontPath);
         Font memory polyFont = abi.decode(vm.parseJson(fontJson), (Font));
         polyText = polyFont.data;
-        polymathTextRegular = IPolymathTextRegular(address(new PolymathTextRegular(polyText)));
+        polymathTextRegular = IPolymathTextRegular(address(new PolymathTextRegular{salt: polymathSalt}(polyText)));
 
-        renderer = new Renderer(polymathTextRegular, address(nounsDescriptor), address(nounsRenderer));
+        renderer = new Renderer{salt: rendererSalt}(polymathTextRegular, address(nounsDescriptor), address(nounsRenderer));
 
         // deploy Wave contract implementations
-        ideaTokenHubImpl = new IdeaTokenHub();
-        waveCoreImpl = new Wave();
+        ideaTokenHubImpl = new IdeaTokenHub{salt: ideaTokenHubImplSalt}();
+        waveCoreImpl = new Wave{salt: waveCoreImplSalt}();
 
-        // deploy proxies pointed at impls
-        ideaTokenHub = IdeaTokenHub(address(new ERC1967Proxy{salt: ideaTokenHubSalt}(address(ideaTokenHubImpl), "")));
+        // deploy hub proxy using create2crunch
+        bytes memory proxyCreationCode = type(ERC1967Proxy).creationCode;
+        bytes memory hubConstructorParams = abi.encode(address(ideaTokenHubImpl), '');
+        bytes memory ideaTokenHubCreationCode = abi.encodePacked(proxyCreationCode, hubConstructorParams);
+        bytes memory hubCreationCall = abi.encodeWithSignature("safeCreate2(bytes32,bytes)", ideaTokenHubSalt, ideaTokenHubCreationCode);
+        (bool r, bytes memory ret) = create2Factory.call(hubCreationCall);
+        require(r);
+        address ideaTokenHubActual = abi.decode(ret, (address));
+        ideaTokenHub = IdeaTokenHub(ideaTokenHubActual);
+
+        // deploy wave proxy using create2crunch
         bytes memory initData = abi.encodeWithSelector(
             IWave.initialize.selector,
             address(ideaTokenHub),
@@ -78,9 +101,20 @@ contract Deploy is Script {
             address(renderer),
             safe
         );
-        waveCore = Wave(address(new ERC1967Proxy{salt: waveCoreSalt}(address(waveCoreImpl), initData)));
+        bytes memory waveConstructorParams = abi.encode(uint256(uint160(address(waveCoreImpl))), initData);
+        bytes memory waveCreationCode = abi.encodePacked(proxyCreationCode, waveConstructorParams);
+        bytes32 waveHash = keccak256(waveCreationCode);
+        bytes memory waveCreationCall = abi.encodeWithSignature("safeCreate2(bytes32,bytes)", waveCoreSalt, waveCreationCode);
+        (bool rw, bytes memory retw) = create2Factory.call(waveCreationCall);
+        require(rw);
+        address waveCoreActual = abi.decode(retw, (address)); 
+        waveCore = Wave(waveCoreActual);
 
         vm.stopBroadcast();
+
+        // asserts
+        assert(ideaTokenHubActual == ideaTokenHubExpected);
+        assert(waveCoreActual == waveCoreExpected);
 
         require(address(polymathTextRegular).code.length > 0);
         require(address(renderer).code.length > 0);
