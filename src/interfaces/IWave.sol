@@ -71,7 +71,8 @@ interface IWave {
         address nounsToken_,
         uint256 minSponsorshipAmount_,
         uint256 waveLength_,
-        address renderer
+        address renderer_,
+        address owner_
     ) external;
 
     /// @dev Pushes the winning proposal onto the `nounsGovernor` to be voted on in the Nouns governance ecosystem

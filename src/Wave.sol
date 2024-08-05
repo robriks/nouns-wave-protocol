@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ECDSA} from "nouns-monorepo/external/openzeppelin/ECDSA.sol";
 import {INounsDAOLogicV4} from "src/interfaces/INounsDAOLogicV4.sol";
@@ -19,7 +19,7 @@ import {Delegate} from "./Delegate.sol";
 /// via a permissionless ERC115 mint managed by the Wave IdeaHub contract.
 /// @notice Since Nouns voting power delegation is all-or-nothing on an address basis, Nounders can only delegate
 /// (and earn yield) on Nouns token balances up to the proposal threshold per wallet address.
-contract Wave is Ownable, UUPSUpgradeable, IWave {
+contract Wave is OwnableUpgradeable, UUPSUpgradeable, IWave {
     /*
       Constants
     */
@@ -56,12 +56,13 @@ contract Wave is Ownable, UUPSUpgradeable, IWave {
         address nounsToken_,
         uint256 minSponsorshipAmount_,
         uint256 waveLength_,
-        address renderer_
+        address renderer_,
+        address owner_
     ) public virtual initializer {
-        _transferOwnership(msg.sender);
+        _transferOwnership(owner_);
 
         ideaTokenHub = IIdeaTokenHub(ideaTokenHub_);
-        ideaTokenHub.initialize(msg.sender, nounsGovernor_, minSponsorshipAmount_, waveLength_, renderer_, "");
+        ideaTokenHub.initialize(owner_, nounsGovernor_, minSponsorshipAmount_, waveLength_, renderer_, "");
         nounsGovernor = INounsDAOLogicV4(nounsGovernor_);
         nounsToken = IERC721Checkpointable(nounsToken_);
         __creationCodeHash =
