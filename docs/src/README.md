@@ -46,17 +46,15 @@ $ forge test
 
 ## Live Deployments
 
-Wave protocol is currently deployed in Beta on Base Sepolia testnet for backend & frontend development and finalized Ethereum mainnet deployments are coming soon.
+Wave protocol is currently live and deployed on Ethereum mainnet at the following contract addresses:
 
-| Name            | Contract Details | Contract Address                           |
-| --------------- | ---------------- | ------------------------------------------ |
-| IdeaTokenHub    | Harness, Proxy   | 0xAFFED3815a60aACeACDA3aE53425f053eD6Efc4d |
-| Wave            | Harness, Proxy   | 0x443f1F80fBB72Fa40cA70A93a0139852b0563961 |
-| WaveRenderer    | Singleton        | 0xDAFF26c0C67B5a62077342D8487876Ed75Ad7f4A |
-| FontRegistry    | Singleton        | 0x765EeF8b5dD7af8FC7Aa03C76aFFd23AbcE7a3Bb |
-| PolymathFont    | Singleton        | 0xe2e6e42bf7Be8332c21652e05D385dAEDE4e9456 |
-| NounsToken      | Harness          | 0xE8b46D16107e1d562B62B5aA8d4bF9A60e6c51b4 |
-| NounsDescriptor | Singleton        | 0x6cd473673A73150C8ff9Edc160262EBac3C882c0 |
-| NounsRenderer   | Singleton        | 0x09A80D276a4dBb6a400aF1c8663ed0cC2073cFE7 |
+| Name          | Contract Details | Contract Address                           |
+| ------------- | ---------------- | ------------------------------------------ |
+| IdeaTokenHub  | Proxy            | 0x000000000088b111eA8679dD42f7D55512fD6bE8 |
+| Wave          | Proxy            | 0x00000000008DDB753b2dfD31e7127f4094CE5630 |
+| WaveRenderer  | Singleton        | 0x65DBB4C59d4D5d279beec6dfdb169D986c55962C |
+| PolymathFont  | Singleton        | 0xf3A20995C9dD0F2d8e0DDAa738320F2C8871BD2b |
+| NounsToken    | Dependency       | 0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03 |
+| NounsGovernor | Dependency       | 0x6f3E6272A167e8AcCb32072d08E0957F9c79223d |
 
-Note that the above testnet contracts deployed to Base Sepolia network are harnesses to expose convenience functions that would normally otherwise be protected to expedite development.
+Testnet deployments can be found in previous release tags (<= v1)

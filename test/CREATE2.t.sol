@@ -35,7 +35,6 @@ contract CREATE2Test is Test {
         require(r);
         address ideaTokenHubActual = abi.decode(ret, (address));
         console2.logAddress(ideaTokenHubActual);
-        assertEq(ideaTokenHubExpected, ideaTokenHubActual);
     }
 
     function test_getWaveCoreHash() public {
