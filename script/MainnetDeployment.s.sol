@@ -103,7 +103,6 @@ contract Deploy is Script {
         );
         bytes memory waveConstructorParams = abi.encode(uint256(uint160(address(waveCoreImpl))), initData);
         bytes memory waveCreationCode = abi.encodePacked(proxyCreationCode, waveConstructorParams);
-        bytes32 waveHash = keccak256(waveCreationCode);
         bytes memory waveCreationCall = abi.encodeWithSignature("safeCreate2(bytes32,bytes)", waveCoreSalt, waveCreationCode);
         (bool rw, bytes memory retw) = create2Factory.call(waveCreationCall);
         require(rw);
@@ -115,6 +114,8 @@ contract Deploy is Script {
         // asserts
         assert(ideaTokenHubActual == ideaTokenHubExpected);
         assert(waveCoreActual == waveCoreExpected);
+        assert(ideaTokenHub.owner() == safe);
+        assert(waveCore.owner() == safe);
 
         require(address(polymathTextRegular).code.length > 0);
         require(address(renderer).code.length > 0);
