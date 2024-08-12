@@ -46,6 +46,7 @@ contract CREATE2Test is Test {
         address nounsToken = 0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03;
         uint256 minSponsorshipAmount = 0.000777 ether;
         uint256 waveLength = 50400;
+        address waveImpl = 0x62174FC3684ce4DFf3d75D2465E3b8ddb44534C2;
         address renderer = 0x65DBB4C59d4D5d279beec6dfdb169D986c55962C;
         address safe = 0x8c3aB329f3e5b43ee37ff3973b090F6A4a5Edf6c;
 
