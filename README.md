@@ -1,8 +1,10 @@
-<div align="center" style="font-size: 2em;">
+<div align="center" style="font-size: 2.5em;">
 
 # ![](https://raw.githubusercontent.com/robriks/robriks/main/assets/wave.svg) Wave Protocol
 
 </div>
+
+##### This repository comprises Wave Protocol smart contracts- the Wave Protocol app frontend monorepo [can be found here](https://github.com/mcgingras/wave-monorepo)
 
 Wave Protocol is an onchain crowdfunding system built upon the Nouns Governance ecosystem to permissionlessly and meritocratically democratize access to Nouns contributions in the form of proposals.
 
@@ -29,6 +31,7 @@ Economic incentives for each type of protocol participant (Nounders, Idea Creato
 ## Table of Contents
 
 - [ Wave Protocol](#-wave-protocol)
+
   - [Table of Contents](#table-of-contents)
   - [Protocol Overview](#protocol-overview)
   - [Security Considerations](#security-considerations)
